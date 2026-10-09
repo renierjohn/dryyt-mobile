@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt — Architecture, Workflows, Tables</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec; --warn: #9a5b13; --warn-soft: #f6ecdf;
+    --https: #2f5f9e; --https-soft: #e4ecf7;
+    --wss: #7a3f98; --wss-soft: #f0e6f5;
+    --rpc: #2f6f62; --rpc-soft: #e3efec;
+    --push: #a3461f; --push-soft: #f8e7df;
+    --r2: #8a6a12; --r2-soft: #f5eed8;
+    --alarm: #5c5c58; --alarm-soft: #ecebe7;
+    --w: #a3461f; --w-soft: #f8e7df; --r: #2f5f9e; --r-soft: #e4ecf7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b; --warn: #e2a65c; --warn-soft: #2f2619;
+      --https: #8db4ea; --https-soft: #1c2738;
+      --wss: #c9a0e0; --wss-soft: #2a2032;
+      --rpc: #7cc4b3; --rpc-soft: #1f2f2b;
+      --push: #eb9a76; --push-soft: #33231b;
+      --r2: #dcc06a; --r2-soft: #2d2816;
+      --alarm: #b8b6b0; --alarm-soft: #2a2a28;
+      --w: #eb9a76; --w-soft: #33231b; --r: #8db4ea; --r-soft: #1c2738;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto 0 260px; padding: 48px 32px 96px; }
+  h2, h3 { scroll-margin-top: 16px; }
+  .toc { position: fixed; top: 0; left: 0; bottom: 0; width: 260px; overflow-y: auto; padding: 32px 16px 32px 20px; border-right: 1px solid var(--line); background: var(--bg); font-size: 13.5px; }
+  .toc .title { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
+  .toc .hint { color: var(--muted); font-size: 12px; margin: 0 0 18px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; }
+  .toc ol ol { margin: 2px 0 6px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+  .toc a { display: block; padding: 4px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; line-height: 1.35; }
+  .toc ol ol a { padding: 2px 8px; font-size: 12.5px; }
+  .toc a:hover { color: var(--fg); background: var(--code); }
+  .toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  @media (max-width: 960px) {
+    .toc { position: static; width: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 20px 24px; }
+    .toc ol ol { display: none; }
+    main { margin: 0 auto; padding: 32px 20px 80px; }
+  }
+  header p { color: var(--muted); margin: 4px 0 0; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 56px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 32px 0 6px; }
+  p.lead { color: var(--muted); margin: 0 0 16px; }
+  code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 8px 0 0; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; background: var(--bg); }
+  tr:last-child td { border-bottom: 0; }
+  td.n { color: var(--muted); font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  tr.branch td { background: var(--bg); }
+  tr.branch td.n { color: var(--warn); }
+  .note { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 4px; margin: 16px 0; }
+  .warn { background: var(--warn-soft); border-left-color: var(--warn); }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; font-size: 13px; }
+  .flow span { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-family: ui-monospace, Menlo, monospace; }
+  .flow i { color: var(--muted); font-style: normal; }
+
+  /* protocol + table chips */
+  .p { display: inline-block; font: 600 11px/1.6 ui-monospace, Menlo, monospace; padding: 0 7px; border-radius: 4px; white-space: nowrap; }
+  .p.https { color: var(--https); background: var(--https-soft); }
+  .p.wss { color: var(--wss); background: var(--wss-soft); }
+  .p.rpc { color: var(--rpc); background: var(--rpc-soft); }
+  .p.push { color: var(--push); background: var(--push-soft); }
+  .p.r2 { color: var(--r2); background: var(--r2-soft); }
+  .p.alarm { color: var(--alarm); background: var(--alarm-soft); }
+  .t { display: inline-block; font: 12px/1.6 ui-monospace, Menlo, monospace; padding: 0 6px; border-radius: 4px; margin: 1px 2px 1px 0; white-space: nowrap; }
+  .t.w { color: var(--w); background: var(--w-soft); }
+  .t.r { color: var(--r); background: var(--r-soft); }
+  .t b { font-weight: 700; margin-right: 3px; }
+  .stack > * { display: block; margin-bottom: 3px; }
+  .stack > *:last-child { margin-bottom: 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 12px 0; font-size: 13px; color: var(--muted); }
+
+  /* diagrams */
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  svg { display: block; max-width: 100%; height: auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  svg .box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  svg .box.app { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .box.do { fill: var(--wss-soft); stroke: var(--wss); }
+  svg .box.db { fill: var(--w-soft); stroke: var(--w); }
+  svg .box.ext { fill: var(--alarm-soft); stroke: var(--alarm); stroke-dasharray: 4 3; }
+  svg .label { fill: var(--fg); font-size: 14px; font-weight: 600; }
+  svg .sub { fill: var(--muted); font-size: 11.5px; }
+  svg .edge { fill: none; stroke-width: 1.8; }
+  svg .edge.https { stroke: var(--https); }
+  svg .edge.wss { stroke: var(--wss); }
+  svg .edge.rpc { stroke: var(--rpc); }
+  svg .edge.push { stroke: var(--push); stroke-dasharray: 5 4; }
+  svg .edge.r2 { stroke: var(--r2); }
+  svg .edge.d1 { stroke: var(--w); }
+  svg .elabel { font: 600 11px ui-monospace, Menlo, monospace; }
+  svg .elabel.https { fill: var(--https); } svg .elabel.wss { fill: var(--wss); } svg .elabel.rpc { fill: var(--rpc); }
+  svg .elabel.push { fill: var(--push); } svg .elabel.r2 { fill: var(--r2); } svg .elabel.d1 { fill: var(--w); }
+  svg .state { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  svg .state.ok { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .state.bad { fill: var(--alarm-soft); stroke: var(--alarm); }
+  svg .stext { fill: var(--fg); font: 600 12px ui-monospace, Menlo, monospace; }
+  svg .arrow { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+  svg .alabel { fill: var(--muted); font-size: 10.5px; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<aside class="toc" aria-label="Table of contents">
+  <p class="title">Dryyt architecture</p>
+  <p class="hint">Contents</p>
+  <ol>
+    <li><a href="#overview">System overview</a></li>
+    <li><a href="#dropoff">Drop off workflow</a></li>
+    <li><a href="#pickup">Pickup workflow</a></li>
+    <li><a href="#other">Auth &amp; account</a></li>
+    <li><a href="#matrix">Route → table matrix</a></li>
+    <li><a href="#tables">Tables</a>
+      <ol>
+        <li><a href="#tables-core">Core</a></li>
+        <li><a href="#tables-pickup">Pickup</a></li>
+        <li><a href="#tables-dropoff">Drop off</a></li>
+        <li><a href="#tables-system">System</a></li>
+      </ol>
+    </li>
+    <li><a href="#ws">WebSocket events</a>
+      <ol>
+        <li><a href="#ws-dispatch">Dispatch DO</a></li>
+        <li><a href="#ws-trip">Trip DO</a></li>
+      </ol>
+    </li>
+    <li><a href="#poll">Polling</a></li>
+    <li><a href="#denorm">shop_lat / shop_lng</a></li>
+    <li><a href="#scenarios">Drop off scenarios</a>
+      <ol>
+        <li><a href="#sc-distance">Distance priority</a></li>
+        <li><a href="#sc-multi">Multiple drivers available</a></li>
+        <li><a href="#sc-timeout">Timeouts</a></li>
+        <li><a href="#sc-customer-cancel">Customer cancel</a></li>
+        <li><a href="#sc-driver-cancel">Driver cancel</a></li>
+        <li><a href="#sc-reject">Customer rejects driver</a></li>
+        <li><a href="#sc-edge">Edge cases &amp; races</a></li>
+      </ol>
+    </li>
+  </ol>
+</aside>
+<main>
+<header>
+  <h1>Dryyt — Architecture, Workflows, Tables</h1>
+  <p>Cloudflare Worker (<code>worker/</code>, Hono) + D1 + Durable Objects + R2, Expo app (<code>src/</code>). Money is integer centavos (<code>5000</code> = ₱50.00).</p>
+</header>
+
+<!-- ================================================================ -->
+<h2 id="overview">System overview</h2>
+<p class="lead">Every protocol in the system and where it goes.</p>
+
+<figure>
+<svg viewBox="0 0 1100 470" role="img" aria-label="System overview diagram">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+  </defs>
+
+  <!-- App -->
+  <rect class="box app" x="20" y="150" width="200" height="150" rx="10"/>
+  <text class="label" x="120" y="185" text-anchor="middle">Expo app</text>
+  <text class="sub" x="120" y="208" text-anchor="middle">customer · driver · owner</text>
+  <text class="sub" x="120" y="228" text-anchor="middle">React Query (polling)</text>
+  <text class="sub" x="120" y="246" text-anchor="middle">useSocket (WebSocket)</text>
+  <text class="sub" x="120" y="264" text-anchor="middle">expo-notifications</text>
+
+  <!-- Worker -->
+  <rect class="box" x="420" y="150" width="220" height="150" rx="10"/>
+  <text class="label" x="530" y="185" text-anchor="middle">Worker (Hono)</text>
+  <text class="sub" x="530" y="208" text-anchor="middle">/auth /stores /orders /jobs</text>
+  <text class="sub" x="530" y="226" text-anchor="middle">/dropoffs /drivers /owner</text>
+  <text class="sub" x="530" y="244" text-anchor="middle">/history /ws /me</text>
+  <text class="sub" x="530" y="268" text-anchor="middle">JWT auth · role guards</text>
+
+  <!-- DOs -->
+  <rect class="box do" x="420" y="360" width="220" height="90" rx="10"/>
+  <text class="label" x="530" y="390" text-anchor="middle">Durable Objects</text>
+  <text class="sub" x="530" y="412" text-anchor="middle">Dispatch (1 per group_id)</text>
+  <text class="sub" x="530" y="430" text-anchor="middle">Trip (1 per room_id) · alarms</text>
+
+  <!-- D1 -->
+  <rect class="box db" x="840" y="150" width="230" height="150" rx="10"/>
+  <text class="label" x="955" y="185" text-anchor="middle">D1 (SQLite)</text>
+  <text class="sub" x="955" y="208" text-anchor="middle">users · stores · drivers</text>
+  <text class="sub" x="955" y="226" text-anchor="middle">orders · order_items · menu_items</text>
+  <text class="sub" x="955" y="244" text-anchor="middle">transactions · owner_transactions</text>
+  <text class="sub" x="955" y="262" text-anchor="middle">payouts · rates · driver_blocks</text>
+  <text class="sub" x="955" y="280" text-anchor="middle">ws_tickets · driver_data</text>
+
+  <!-- R2 -->
+  <rect class="box db" x="840" y="20" width="230" height="70" rx="10"/>
+  <text class="label" x="955" y="50" text-anchor="middle">R2 dryyt-proofs</text>
+  <text class="sub" x="955" y="70" text-anchor="middle">proof/&lt;id&gt;/… · driver/&lt;user&gt;/…</text>
+
+  <!-- External -->
+  <rect class="box ext" x="420" y="20" width="220" height="70" rx="10"/>
+  <text class="label" x="530" y="50" text-anchor="middle">OSRM → OpenRouteService</text>
+  <text class="sub" x="530" y="70" text-anchor="middle">road distance, 5 s each, else estimate</text>
+
+  <rect class="box ext" x="20" y="20" width="200" height="70" rx="10"/>
+  <text class="label" x="120" y="50" text-anchor="middle">Expo Push service</text>
+  <text class="sub" x="120" y="70" text-anchor="middle">→ device notification</text>
+
+  <rect class="box ext" x="840" y="360" width="230" height="90" rx="10"/>
+  <text class="label" x="955" y="392" text-anchor="middle">OSM tiles + OSRM</text>
+  <text class="sub" x="955" y="414" text-anchor="middle">map tiles &amp; route line,</text>
+  <text class="sub" x="955" y="432" text-anchor="middle">fetched by the app directly</text>
+
+  <!-- edges -->
+  <path class="edge https" d="M220 200 L420 200" marker-end="url(#ah)"/>
+  <text class="elabel https" x="320" y="192" text-anchor="middle">HTTPS REST + JWT</text>
+
+  <path class="edge wss" d="M200 300 C 200 400, 300 405, 420 405" marker-end="url(#ah)" marker-start="url(#ah)"/>
+  <text class="elabel wss" x="290" y="425" text-anchor="middle">WSS (ticket)</text>
+  <text class="sub" x="290" y="441" text-anchor="middle">/ws/dispatch · /ws/trip/:room</text>
+
+  <path class="edge rpc" d="M530 300 L530 360" marker-end="url(#ah)"/>
+  <text class="elabel rpc" x="540" y="335">RPC</text>
+  <text class="sub" x="572" y="335">newRequest · notify · start…</text>
+
+  <path class="edge d1" d="M640 225 L840 225" marker-end="url(#ah)"/>
+  <text class="elabel d1" x="740" y="217" text-anchor="middle">SQL (binding DB)</text>
+
+  <path class="edge d1" d="M640 405 C 760 405, 760 290, 840 285" marker-end="url(#ah)"/>
+  <text class="elabel d1" x="700" y="440" text-anchor="middle">SQL from DOs</text>
+
+  <path class="edge r2" d="M640 165 C 740 165, 760 60, 840 58" marker-end="url(#ah)"/>
+  <text class="elabel r2" x="770" y="140" text-anchor="middle">R2 put/get/head</text>
+
+  <path class="edge https" d="M530 150 L530 90" marker-end="url(#ah)"/>
+  <text class="elabel https" x="540" y="125">HTTPS</text>
+
+  <path class="edge push" d="M420 170 C 330 170, 300 60, 220 58" marker-end="url(#ah)"/>
+  <text class="elabel push" x="320" y="105" text-anchor="middle">HTTPS push</text>
+  <path class="edge push" d="M120 90 L120 150" marker-end="url(#ah)"/>
+  <text class="elabel push" x="130" y="125">APNs/FCM</text>
+
+  <path class="edge https" d="M220 280 C 500 330, 700 470, 840 410" marker-end="url(#ah)" style="stroke-dasharray:2 4"/>
+</svg>
+<figcaption>Solid = request path. Dashed = push or app-direct fetch. DOs talk to D1 for accept/timeout/release writes; live driver locations stay in DO memory/storage.</figcaption>
+</figure>
+
+<div class="legend">
+  <span><span class="p https">HTTPS</span> REST call (JWT bearer)</span>
+  <span><span class="p wss">WSS</span> WebSocket message</span>
+  <span><span class="p rpc">RPC</span> Worker calls a Durable Object method (in-Cloudflare, not over the internet)</span>
+  <span><span class="p alarm">ALARM</span> DO timer</span>
+  <span><span class="p push">PUSH</span> phone notification: Worker → Expo Push → APNs/FCM; reaches the app even when closed</span>
+  <span><span class="p r2">R2</span> object storage</span>
+  <span><span class="t w"><b>W</b>table</span> write</span>
+  <span><span class="t r"><b>R</b>table</span> read</span>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="dropoff">Workflow: Laundry Drop off <span class="p rpc">real-time</span></h2>
+<p class="lead">Customer → driver collects laundry → laundry shop. Table <code>transactions</code>. Routes in <code>worker/src/routes/dropoffs.ts</code>, <code>owner.ts</code>, <code>ws.ts</code>; DOs in <code>worker/src/do/</code>.</p>
+
+<figure>
+<svg viewBox="0 0 1100 250" role="img" aria-label="Drop off status state machine">
+  <defs>
+    <marker id="sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+  </defs>
+  <g>
+    <rect class="state" x="10" y="30" width="110" height="36" rx="18"/><text class="stext" x="65" y="53" text-anchor="middle">searching</text>
+    <rect class="state" x="160" y="30" width="140" height="36" rx="18"/><text class="stext" x="230" y="53" text-anchor="middle">driver_accepted</text>
+    <rect class="state" x="340" y="30" width="140" height="36" rx="18"/><text class="stext" x="410" y="53" text-anchor="middle">en_route_pickup</text>
+    <rect class="state" x="520" y="30" width="130" height="36" rx="18"/><text class="stext" x="585" y="53" text-anchor="middle">en_route_shop</text>
+    <rect class="state" x="690" y="30" width="115" height="36" rx="18"/><text class="stext" x="747" y="53" text-anchor="middle">dropped_off</text>
+    <rect class="state" x="845" y="30" width="140" height="36" rx="18"/><text class="stext" x="915" y="53" text-anchor="middle">owner_confirmed</text>
+    <rect class="state ok" x="860" y="150" width="110" height="36" rx="18"/><text class="stext" x="915" y="173" text-anchor="middle">completed</text>
+    <rect class="state" x="660" y="150" width="140" height="36" rx="18"/><text class="stext" x="730" y="173" text-anchor="middle">payment_pending</text>
+    <rect class="state bad" x="10" y="190" width="100" height="36" rx="18"/><text class="stext" x="60" y="213" text-anchor="middle">expired</text>
+    <rect class="state bad" x="300" y="190" width="110" height="36" rx="18"/><text class="stext" x="355" y="213" text-anchor="middle">cancelled</text>
+  </g>
+  <path class="arrow" d="M120 42 L160 42" marker-end="url(#sa)"/>
+  <text class="alabel" x="140" y="22" text-anchor="middle">WSS accept</text>
+  <path class="arrow" d="M300 42 L340 42" marker-end="url(#sa)"/>
+  <text class="alabel" x="320" y="22" text-anchor="middle">confirm</text>
+  <path class="arrow" d="M480 42 L520 42" marker-end="url(#sa)"/>
+  <text class="alabel" x="500" y="22" text-anchor="middle">picked-up</text>
+  <path class="arrow" d="M650 42 L690 42" marker-end="url(#sa)"/>
+  <text class="alabel" x="670" y="22" text-anchor="middle">drop</text>
+  <path class="arrow" d="M805 42 L845 42" marker-end="url(#sa)"/>
+  <text class="alabel" x="825" y="22" text-anchor="middle">confirm</text>
+  <path class="arrow" d="M915 66 L915 150" marker-end="url(#sa)"/>
+  <text class="alabel" x="922" y="112">paid</text>
+  <path class="arrow" d="M880 66 C 860 110, 780 120, 750 150" marker-end="url(#sa)"/>
+  <text class="alabel" x="770" y="122" text-anchor="end">unpaid (owner)</text>
+  <path class="arrow" d="M800 172 L860 172" marker-end="url(#sa)" marker-start="url(#sa)"/>
+  <text class="alabel" x="830" y="200" text-anchor="middle">paid / unpaid</text>
+  <path class="arrow" d="M200 66 C 180 110, 90 110, 70 66" marker-end="url(#sa)"/>
+  <text class="alabel" x="135" y="118" text-anchor="middle">reject / 60 s timeout</text>
+  <path class="arrow" d="M50 66 L55 190" marker-end="url(#sa)"/>
+  <text class="alabel" x="62" y="150">3 min</text>
+  <path class="arrow" d="M90 66 C 150 170, 250 210, 300 208" marker-end="url(#sa)"/>
+  <path class="arrow" d="M250 66 L340 190" marker-end="url(#sa)"/>
+  <path class="arrow" d="M410 66 L370 190" marker-end="url(#sa)"/>
+  <path class="arrow" d="M570 66 C 540 150, 470 205, 410 208" marker-end="url(#sa)"/>
+  <text class="alabel" x="445" y="150">customer cancel / driver-cancel</text>
+</svg>
+<figcaption><code>transactions.status</code>. Grey = terminal failure, green = done.</figcaption>
+</figure>
+
+<table>
+  <tr><th>#</th><th>Actor</th><th>Step</th><th>Protocol · route</th><th>Tables / storage</th><th>Status after</th></tr>
+
+  <tr><td class="n">1</td><td>Customer</td><td>Pick a laundry shop</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /stores?type=laundry</code></span></td>
+    <td><span class="t r"><b>R</b>stores</span></td><td>—</td></tr>
+
+  <tr><td class="n">2</td><td>Customer</td><td>Set pin, request a driver. Worker gets road km (OSRM, else OpenRouteService, else straight line × 1.3 — booking never fails on routing), prices it from <code>rates</code>, hands the request to Dispatch, pushes idle drivers.</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>POST /dropoffs</code></span>
+      <span><span class="p https">HTTPS</span> OSRM <code>/route</code> → ORS <code>/v2/directions</code></span>
+      <span><span class="p rpc">RPC</span> <code>Dispatch.newRequest</code></span>
+      <span><span class="p push">PUSH</span> online, not-busy drivers without a socket (channel <code>new-dropoff</code>, Dryyt chime)</span></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>rates</span><span class="t r"><b>R</b>driver_blocks</span><span class="t w"><b>W</b>transactions</span><span class="t r"><b>R</b>drivers</span><span class="t r"><b>R</b>users.push_token</span></td>
+    <td><code>searching</code></td></tr>
+
+  <tr><td class="n">3</td><td>Customer</td><td>Open the dispatch socket, see nearby drivers</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span>
+      <span><span class="p wss">WSS</span> <code>GET /ws/dispatch?ticket=</code></span>
+      <span><span class="p wss">WSS</span> ← <code>drivers</code></span></td>
+    <td><span class="t w"><b>W</b>ws_tickets</span> (insert, then consumed)</td><td>—</td></tr>
+
+  <tr><td class="n">4</td><td>Driver</td><td>Go online, open dispatch socket, stream location</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>POST /drivers/me/online</code></span>
+      <span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span>
+      <span><span class="p wss">WSS</span> <code>/ws/dispatch</code> → <code>loc</code></span>
+      <span><span class="p wss">WSS</span> ← <code>requests</code></span></td>
+    <td><span class="t w"><b>W</b>drivers.online</span><span class="t w"><b>W</b>ws_tickets</span><span class="t w"><b>W</b>drivers.lat/lng</span> (on disconnect only; live loc in DO memory)</td><td>—</td></tr>
+
+  <tr><td class="n">5</td><td>Driver</td><td>Accept a request. Dispatch DO writes D1 atomically; other drivers get <code>taken</code>, customer gets <code>driver_accepted</code>. Driver sees a 60 s countdown while waiting for the customer.</td>
+    <td class="stack"><span><span class="p wss">WSS</span> → <code>accept</code></span><span><span class="p wss">WSS</span> ← <code>accepted</code> / <code>taken</code> / <code>driver_accepted</code></span></td>
+    <td><span class="t w"><b>W</b>drivers.busy=1</span><span class="t w"><b>W</b>transactions.driver_id</span></td>
+    <td><code>driver_accepted</code></td></tr>
+
+  <tr class="branch"><td class="n">5a</td><td>Dispatch DO</td><td>No accept in 3 min</td>
+    <td><span class="p alarm">ALARM</span> → <span class="p wss">WSS</span> <code>expired</code></td>
+    <td><span class="t w"><b>W</b>transactions</span></td><td><code>expired</code></td></tr>
+  <tr class="branch"><td class="n">5b</td><td>Dispatch DO</td><td>Customer didn't confirm in 60 s → release driver, search again</td>
+    <td><span class="p alarm">ALARM</span> → <span class="p wss">WSS</span> <code>released</code>, <code>searching</code></td>
+    <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions.driver_id=NULL</span></td><td><code>searching</code></td></tr>
+  <tr class="branch"><td class="n">5c</td><td>Customer</td><td>Reject the driver. That driver can't take this customer's drop offs for 5 min.</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/reject-driver</code></span><span><span class="p rpc">RPC</span> <code>Dispatch.reject</code> (cooldown + requeue)</span></td>
+    <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions</span><span class="t r"><b>R</b>driver_blocks</span></td><td><code>searching</code></td></tr>
+
+  <tr><td class="n">6</td><td>Customer</td><td>Check the driver (face, license photo, plate, Verified badge), then confirm. Request leaves Dispatch; Trip room starts (2 min no-location alarm). Map fits driver, customer and shop.</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>GET /dropoffs/:id/driver-photo/face|id</code> → <span class="p r2">R2</span> get</span>
+      <span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/confirm-driver</code></span>
+      <span><span class="p rpc">RPC</span> <code>Dispatch.removeRequest</code>, <code>Trip.start</code></span></td>
+    <td><span class="t r"><b>R</b>driver_data</span><span class="t w"><b>W</b>transactions</span></td><td><code>en_route_pickup</code></td></tr>
+
+  <tr><td class="n">7</td><td>Both</td><td>Join the trip room. Driver streams location (≤ 1 per 2 s); customer heartbeats every 10 s.</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span>
+      <span><span class="p wss">WSS</span> <code>/ws/trip/:room</code></span>
+      <span><span class="p wss">WSS</span> driver → <code>loc</code> → customer</span>
+      <span><span class="p wss">WSS</span> <code>ping</code>/<code>pong</code>, <code>customer {online}</code></span></td>
+    <td><span class="t w"><b>W</b>ws_tickets</span> · location in Trip DO storage (not D1)</td><td>—</td></tr>
+  <tr class="branch"><td class="n">7a</td><td>Trip DO</td><td>No driver location for 2 min</td>
+    <td><span class="p alarm">ALARM</span> → <span class="p wss">WSS</span> <code>stale</code></td><td>—</td><td>—</td></tr>
+
+  <tr><td class="n">8</td><td>Driver</td><td>Collected laundry from customer</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/picked-up</code></span><span><span class="p rpc">RPC</span> <code>Trip.notify</code> → <span class="p wss">WSS</span> <code>status</code></span></td>
+    <td><span class="t w"><b>W</b>transactions</span></td><td><code>en_route_shop</code></td></tr>
+
+  <tr><td class="n">9</td><td>Driver</td><td>Photo at the shop (JPEG/PNG ≤ 5 MB)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/proof-upload</code></span><span><span class="p r2">R2</span> <code>put proof/:id/…</code></span></td>
+    <td><span class="t r"><b>R</b>transactions</span></td><td>—</td></tr>
+
+  <tr><td class="n">10</td><td>Driver</td><td>Drop: weight, laundry fee, notes, photo key. Driver freed; trip stops tracking; owner pushed (30 min reminder alarm).</td>
+    <td class="stack">
+      <span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/drop</code></span>
+      <span><span class="p r2">R2</span> <code>head</code> photo</span>
+      <span><span class="p rpc">RPC</span> <code>Trip.notify</code>, <code>Trip.finish</code></span>
+      <span><span class="p push">PUSH</span> owner "New drop off"</span></td>
+    <td><span class="t w"><b>W</b>owner_transactions</span><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions.laundry_fee</span></td>
+    <td><code>dropped_off</code></td></tr>
+  <tr class="branch"><td class="n">10a</td><td>Trip DO</td><td>Owner hasn't confirmed in 30 min</td>
+    <td><span class="p alarm">ALARM</span> → <span class="p push">PUSH</span> owner</td>
+    <td><span class="t r"><b>R</b>owner_transactions</span><span class="t r"><b>R</b>stores</span></td><td>—</td></tr>
+
+  <tr><td class="n">11</td><td>Owner</td><td>See incoming drop offs, view photo</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /owner/transactions</code> (poll 5 s)</span><span><span class="p https">HTTPS</span> <code>GET /dropoffs/:id/proof</code> → <span class="p r2">R2</span> get</span></td>
+    <td><span class="t r"><b>R</b>transactions</span><span class="t r"><b>R</b>owner_transactions</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
+
+  <tr><td class="n">12</td><td>Owner</td><td>Confirm receipt. Creates driver + developer payouts, adds the delivery fee to the driver's earnings; customer pushed.</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /owner/transactions/:id/confirm</code></span><span><span class="p push">PUSH</span> customer "Laundry received"</span></td>
+    <td><span class="t w"><b>W</b>owner_transactions.status=ok</span><span class="t w"><b>W</b>payouts ×2</span><span class="t w"><b>W</b>driver_data.earnings</span><span class="t w"><b>W</b>transactions</span></td>
+    <td><code>owner_confirmed</code></td></tr>
+
+  <tr><td class="n">13</td><td>Customer / Owner</td><td>Payment collected (<code>paid:true</code>), or owner marks unpaid (<code>paid:false</code>)</td>
+    <td><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/payment</code></td>
+    <td><span class="t w"><b>W</b>transactions</span></td><td><code>completed</code> / <code>payment_pending</code></td></tr>
+
+  <tr><td class="n">14</td><td>Owner</td><td>Pay out driver / developer</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /owner/payouts</code></span><span><span class="p https">HTTPS</span> <code>POST /owner/payouts/:id/paid</code></span></td>
+    <td><span class="t w"><b>W</b>payouts.status=paid</span></td><td>—</td></tr>
+
+  <tr class="branch"><td class="n">C1</td><td>Customer</td><td>Cancel (from <code>searching</code>, <code>driver_accepted</code>, <code>en_route_pickup</code>)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/cancel</code></span><span><span class="p rpc">RPC</span> <code>Dispatch.removeRequest</code>, <code>Trip.notify</code>, <code>Trip.stop</code></span></td>
+    <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions</span></td><td><code>cancelled</code></td></tr>
+  <tr class="branch"><td class="n">C2</td><td>Driver</td><td>Cancel while en route — only when the customer is offline</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /dropoffs/:id/driver-cancel</code></span><span><span class="p rpc">RPC</span> <code>Trip.customerOnline</code>, <code>notify</code>, <code>stop</code></span><span><span class="p push">PUSH</span> customer</span></td>
+    <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions</span></td><td><code>cancelled</code></td></tr>
+  <tr class="branch"><td class="n">B</td><td>Owner</td><td>Block / unblock a driver for their shops</td>
+    <td><span class="p https">HTTPS</span> <code>POST /owner/blocks</code></td>
+    <td><span class="t r"><b>R</b>users</span><span class="t w"><b>W</b>driver_blocks</span></td><td>—</td></tr>
+</table>
+
+<div class="note">Throughout, screens also poll <code>GET /dropoffs/:id</code> (customer, owner) and <code>GET /drivers/me</code> (driver: <code>online</code>, <code>busy</code>, current <code>job</code>) — 5 s, or 30 s while a socket is live. The driver's online switch is also saved on the phone (secure store, per user) so it shows instantly on start; <code>/drivers/me</code> overrides it. On the customer screen any socket message other than <code>drivers</code>/<code>loc</code>/<code>stale</code> triggers an immediate refetch.</div>
+
+<div class="note"><span class="p push">PUSH</span> in the app (<code>usePushNotifications(role)</code>, mounted by the customer, driver and owner tab layouts): registers the token (needs a dev/release build with <code>google-services.json</code> and the FCM V1 key in EAS; not Expo Go), shows pushes while the app is open too, refreshes the affected queries on arrival (<code>['dropoff', id]</code>; driver <code>['driver']</code>; owner <code>['owner']</code>; never <code>/history</code>), and on tap opens driver → Available tab, customer → <code>/customer/dropoff/[id]</code>, owner → <code>/owner/dropoff/[id]</code>. Every push carries <code>{ transaction_id }</code>. "New drop off nearby" uses Android channel <code>new-dropoff</code> and sound <code>dryyt.wav</code> (bundled via <code>app.json</code> <code>expo-notifications.sounds</code>), so it plays the Dryyt chime even with the app closed; every other push uses channel <code>default</code> and the system sound (<code>PUSH_STYLES</code> in <code>worker/src/lib/push.ts</code>). Notification icon: <code>assets/images/notification-icon.png</code>, tinted <code>#208AEF</code>. Drivers on a live dispatch socket get no "new drop off" push, so push and socket never double up.</div>
+
+<!-- ================================================================ -->
+<h2 id="pickup">Workflow: Pickup <span class="p https">polling only</span> <span class="p alarm">switched off</span></h2>
+<div class="note warn"><b>Switched off</b> while Drop off ships first. Worker: <code>PICKUP_ENABLED</code> = <code>"false"</code> in <code>wrangler.jsonc</code> → every <code>/orders</code> and <code>/jobs</code> route returns 403 "Pickup is not available yet", and <code>/history</code> lists drop offs only. App: <code>PICKUP_ENABLED = false</code> in <code>src/constants/features.ts</code> → Pickup card hidden, Pickup screens behind <code>Stack.Protected</code>, <code>useOrder</code> / <code>useAvailableJobs</code> / <code>useActiveJob</code> never fetch, driver tabs show drop offs only. Turn both on together. The tests run with Pickup on (<code>vitest.shared.ts</code>), plus <code>pickup-off.test.ts</code> for the switch.</div>
+<p class="lead">Store → customer (food/beverages or laundry). Flat fee <code>DELIVERY_FEE</code>, text addresses, job board. Table <code>orders</code>. Routes in <code>orders.ts</code>, <code>jobs.ts</code>.</p>
+
+<figure>
+<svg viewBox="0 0 900 120" role="img" aria-label="Pickup status state machine">
+  <defs>
+    <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
+  </defs>
+  <rect class="state" x="20" y="30" width="110" height="36" rx="18"/><text class="stext" x="75" y="53" text-anchor="middle">pending</text>
+  <rect class="state" x="230" y="30" width="110" height="36" rx="18"/><text class="stext" x="285" y="53" text-anchor="middle">accepted</text>
+  <rect class="state" x="440" y="30" width="110" height="36" rx="18"/><text class="stext" x="495" y="53" text-anchor="middle">picked_up</text>
+  <rect class="state ok" x="650" y="30" width="110" height="36" rx="18"/><text class="stext" x="705" y="53" text-anchor="middle">delivered</text>
+  <rect class="state bad" x="20" y="80" width="110" height="32" rx="16"/><text class="stext" x="75" y="101" text-anchor="middle">cancelled</text>
+  <path class="arrow" d="M130 42 L230 42" marker-end="url(#pa)"/><text class="alabel" x="180" y="24" text-anchor="middle">accept</text>
+  <path class="arrow" d="M230 56 L130 56" marker-end="url(#pa)"/><text class="alabel" x="180" y="74" text-anchor="middle">release</text>
+  <path class="arrow" d="M340 48 L440 48" marker-end="url(#pa)"/><text class="alabel" x="390" y="30" text-anchor="middle">status</text>
+  <path class="arrow" d="M550 48 L650 48" marker-end="url(#pa)"/><text class="alabel" x="600" y="30" text-anchor="middle">status</text>
+  <path class="arrow" d="M140 70 L140 90 L130 90" marker-end="url(#pa)"/><text class="alabel" x="148" y="100">cancel</text>
+</svg>
+<figcaption><code>orders.status</code>. <code>orders.type</code> is always <code>pickup</code> (v1 drop off removed in migration 0004).</figcaption>
+</figure>
+
+<table>
+  <tr><th>#</th><th>Actor</th><th>Step</th><th>Protocol · route</th><th>Tables</th><th>Status after</th></tr>
+  <tr><td class="n">1</td><td>Customer</td><td>Browse stores and menu</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /stores?type=</code></span><span><span class="p https">HTTPS</span> <code>GET /stores/:id</code></span></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>menu_items</span></td><td>—</td></tr>
+  <tr><td class="n">2</td><td>Customer</td><td>Place order (items priced server-side; laundry has none)</td>
+    <td><span class="p https">HTTPS</span> <code>POST /orders</code></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>menu_items</span><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>order_items</span></td><td><code>pending</code></td></tr>
+  <tr><td class="n">3</td><td>Driver</td><td>See the job board (customer phone hidden)</td>
+    <td><span class="p https">HTTPS</span> <code>GET /jobs/available</code> (poll 5 s)</td>
+    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
+  <tr><td class="n">4</td><td>Driver</td><td>Accept (one active job across Pickup + Drop off)</td>
+    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/accept</code></td>
+    <td><span class="t w"><b>W</b>drivers.busy=1</span><span class="t w"><b>W</b>orders.driver_id</span></td><td><code>accepted</code></td></tr>
+  <tr><td class="n">5</td><td>Driver</td><td>Track own job</td>
+    <td><span class="p https">HTTPS</span> <code>GET /jobs/active</code> (poll 5 s)</td>
+    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
+  <tr><td class="n">6</td><td>Driver</td><td>Picked up at store → delivered to customer</td>
+    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/status</code></td>
+    <td><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>drivers.busy=0</span> (on delivered)</td><td><code>picked_up</code> → <code>delivered</code></td></tr>
+  <tr><td class="n">7</td><td>Customer</td><td>Track order</td>
+    <td><span class="p https">HTTPS</span> <code>GET /orders/:id</code> (poll 5 s)</td>
+    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span></td><td>—</td></tr>
+  <tr class="branch"><td class="n">R</td><td>Driver</td><td>Release an accepted job back to the board</td>
+    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/release</code></td>
+    <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>orders</span></td><td><code>pending</code></td></tr>
+  <tr class="branch"><td class="n">C</td><td>Customer</td><td>Cancel while still pending</td>
+    <td><span class="p https">HTTPS</span> <code>POST /orders/:id/cancel</code></td>
+    <td><span class="t w"><b>W</b>orders</span></td><td><code>cancelled</code></td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="other">Auth &amp; account</h2>
+<table>
+  <tr><th>Step</th><th>Protocol · route</th><th>Tables</th></tr>
+  <tr><td>Register (drivers also get a <code>drivers</code> row)</td><td><span class="p https">HTTPS</span> <code>POST /auth/register</code></td><td><span class="t w"><b>W</b>users</span><span class="t w"><b>W</b>drivers</span></td></tr>
+  <tr><td>Login → JWT</td><td><span class="p https">HTTPS</span> <code>POST /auth/login</code></td><td><span class="t r"><b>R</b>users</span></td></tr>
+  <tr><td>Current user</td><td><span class="p https">HTTPS</span> <code>GET /me</code></td><td><span class="t r"><b>R</b>users</span></td></tr>
+  <tr><td>Save Expo push token (on every tab-layout mount). One phone = one token: it's removed from any other account in the same batch. Logged as <code>[push-token] received</code> / <code>rejected</code> / <code>saved {updated, takenFromOthers}</code>.</td><td><span class="p https">HTTPS</span> <code>POST /me/push-token</code></td><td><span class="t w"><b>W</b>users.push_token</span></td></tr>
+  <tr><td>Push registration failed on the phone: the app reports the step (<code>channel</code> | <code>permission</code> | <code>projectId</code> | <code>getExpoPushTokenAsync</code> | <code>save</code>) and error, once per distinct failure; logged only, as <code>[push-token] failed</code>. Registration retries on every return to the foreground until it succeeds (prompting for permission only the first time).</td><td><span class="p https">HTTPS</span> <code>POST /me/push-token/error</code></td><td>—</td></tr>
+  <tr><td>Sign out: stop this account's pushes on this phone (fire-and-forget, sign out works offline). Logged as <code>[push-token] cleared</code>.</td><td><span class="p https">HTTPS</span> <code>DELETE /me/push-token</code></td><td><span class="t w"><b>W</b>users.push_token=NULL</span></td></tr>
+  <tr><td>History (orders + drop offs, paged; drivers also get <code>earnings</code> on page 1). No polling: on focus / pull, ≥ 60 s apart.</td><td><span class="p https">HTTPS</span> <code>GET /history</code></td><td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>transactions</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span><span class="t r"><b>R</b>driver_data</span></td></tr>
+  <tr><td>Driver verification: see own photos, plate, badge</td><td class="stack"><span><span class="p https">HTTPS</span> <code>GET /drivers/me/verification</code></span><span><span class="p https">HTTPS</span> <code>GET /drivers/me/verification/photo/face|id</code> → <span class="p r2">R2</span> get</span></td><td><span class="t r"><b>R</b>driver_data</span></td></tr>
+  <tr><td>Driver verification: upload face / license photo, save license plate. 409 once verified (locked).</td><td class="stack"><span><span class="p https">HTTPS</span> <code>POST /drivers/me/verification/photo/face|id</code> → <span class="p r2">R2</span> put <code>driver/&lt;user&gt;/…</code></span><span><span class="p https">HTTPS</span> <code>POST /drivers/me/verification</code> <code>{notes}</code></span></td><td><span class="t w"><b>W</b>driver_data</span></td></tr>
+  <tr><td>Mark a driver verified / unverified (developer only, no API route)</td><td><code>yarn driver:verify &lt;id|email&gt; [--off] [--remote]</code></td><td><span class="t w"><b>W</b>driver_data.status</span></td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="matrix">Route → table matrix</h2>
+<p class="lead">Writes only. <span class="t w"><b>W</b></span> = INSERT/UPDATE/DELETE.</p>
+<table>
+  <tr><th>Route / source</th><th>users</th><th>drivers</th><th>orders</th><th>order_items</th><th>transactions</th><th>owner_tx</th><th>payouts</th><th>driver_blocks</th><th>ws_tickets</th><th>driver_data</th><th>R2</th></tr>
+  <tr><td><code>POST /auth/register</code></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST|DELETE /me/push-token</code></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /orders</code></td><td></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /orders/:id/cancel</code></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /jobs/:id/accept|release|status</code></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /drivers/me/online</code></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /dropoffs</code></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /dropoffs/:id/cancel|driver-cancel|reject-driver</code></td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /dropoffs/:id/confirm-driver|picked-up|payment</code></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /dropoffs/:id/proof-upload</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>put</td></tr>
+  <tr><td><code>POST /dropoffs/:id/drop</code></td><td></td><td>W</td><td></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td>head</td></tr>
+  <tr><td><code>POST /owner/transactions/:id/confirm</code></td><td></td><td></td><td></td><td></td><td>W</td><td>W</td><td>W</td><td></td><td></td><td>W</td><td></td></tr>
+  <tr><td><code>POST /owner/payouts/:id/paid</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /drivers/me/verification</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td></tr>
+  <tr><td><code>POST /drivers/me/verification/photo/:kind</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td>put</td></tr>
+  <tr><td><code>yarn driver:verify</code> (script)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td></tr>
+  <tr><td><code>POST /owner/blocks</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /ws/ticket</code> · <code>GET /ws/*</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td></tr>
+  <tr><td>Dispatch DO: WSS <code>accept</code></td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td>Dispatch DO: alarm (expire / release)</td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td>Dispatch DO: driver disconnect</td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+<p class="lead" style="margin-top:8px">Read-only: <code>stores</code>, <code>menu_items</code>, <code>rates</code> (edited by admin via SQL).</p>
+
+<!-- ================================================================ -->
+<h2 id="tables">Tables</h2>
+
+<h3 id="tables-core">Core</h3>
+<table>
+  <tr><th>Table</th><th>Purpose</th></tr>
+  <tr><td><code>users</code></td><td>All accounts. <code>role</code> ∈ customer | driver | owner. <code>push_token</code> = Expo push token of the phone the user last signed in on; never shared between accounts, cleared on sign out.</td></tr>
+  <tr><td><code>stores</code></td><td>Shops (<code>type</code> food | laundry). <code>owner_id</code> → owner user, <code>lat/lng</code> for routing, <code>group_id</code> → pricing in <code>rates</code>.</td></tr>
+  <tr><td><code>menu_items</code></td><td>Items/prices per store (Pickup).</td></tr>
+  <tr><td><code>drivers</code></td><td>Live driver state, 1:1 with driver user: <code>online</code>, <code>busy</code>, last <code>lat/lng</code>, <code>group_id</code>.</td></tr>
+  <tr><td><code>driver_data</code></td><td>Driver profile, 1:1 with a driver user (triggers reject non-drivers): <code>photo_face</code>, <code>photo_id</code> (R2 keys), <code>notes</code> (license plate), <code>status</code> 0|1 (1 = verified, set by developer script only; locks photos and plate), <code>earnings</code> (centavos, += <code>delivery_fee</code> on owner confirm). Migrations 0006, 0007.</td></tr>
+</table>
+
+<h3 id="tables-pickup">Pickup</h3>
+<table>
+  <tr><th>Table</th><th>Purpose</th></tr>
+  <tr><td><code>orders</code></td><td>Pickup order with flat fee: <code>items_total</code>, <code>delivery_fee</code>. Unique index: one active job per driver.</td></tr>
+  <tr><td><code>order_items</code></td><td>Line items, <code>name</code>/<code>price</code> snapshotted at order time.</td></tr>
+</table>
+
+<h3 id="tables-dropoff">Drop off</h3>
+<table>
+  <tr><th>Table</th><th>Purpose</th></tr>
+  <tr><td><code>rates</code></td><td>Pricing per <code>group_id</code>: <code>base_fee</code>, <code>rate_per_km</code>, <code>commission_pct</code>.</td></tr>
+  <tr><td><code>transactions</code></td><td>A drop-off job. <code>room_id</code> = Trip room. Customer + shop coords, <code>road_km</code>. Fees: <code>delivery_fee</code> (driver), <code>service_fee</code> (developer), <code>total_delivery_fee</code> (customer sees only this), <code>laundry_fee</code>. Unique indexes: one active job per driver and per customer.</td></tr>
+  <tr><td><code>owner_transactions</code></td><td>Owner intake: <code>weight_kg</code>, <code>laundry_fee</code>, <code>notes</code>, <code>proof_photo_key</code> (R2). Status pending | ok.</td></tr>
+  <tr><td><code>payouts</code></td><td>Owed by the store after confirm: one <code>driver</code> + one <code>developer</code> row. Status pending | paid.</td></tr>
+  <tr><td><code>driver_blocks</code></td><td>Drivers a store blocked; dispatch skips them.</td></tr>
+  <tr><td><code>ws_tickets</code></td><td>Single-use, 60 s WebSocket auth tokens (user, role, room).</td></tr>
+</table>
+
+<h3 id="tables-system">System</h3>
+<table>
+  <tr><th>Table</th><th>Purpose</th></tr>
+  <tr><td><code>d1_migrations</code></td><td>Applied migrations (<code>0001</code>–<code>0007</code>).</td></tr>
+  <tr><td><code>sqlite_sequence</code></td><td>SQLite autoincrement counters.</td></tr>
+  <tr><td><code>_cf_METADATA</code></td><td>Miniflare/D1 internal.</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="ws">WebSocket events</h2>
+<p class="lead">Ticket via <code>POST /ws/ticket</code>, then <code>/ws/dispatch</code> or <code>/ws/trip/:room</code>. Reconnect backoff 1 → 2 → 5 → 10 s. The dispatch socket closes while the app is in the background (so Dispatch pushes the driver instead) and reopens immediately on return; trip sockets stay open. Drivers resend their latest location on every (re)connect, so requests / the customer's map don't wait for the next GPS fix.</p>
+
+<h3 id="ws-dispatch">Dispatch DO</h3>
+<table>
+  <tr><th>Event</th><th>When</th></tr>
+  <tr><td>driver → <code>loc</code></td><td>Reply <code>requests</code>; nearby customers get refreshed <code>drivers</code>.</td></tr>
+  <tr><td>driver → <code>accept</code></td><td>Driver gets <code>accepted</code>, others <code>taken</code>, customer <code>driver_accepted</code>.</td></tr>
+  <tr><td>→ customer <code>drivers</code></td><td>On connect; nearby driver moves or disconnects.</td></tr>
+  <tr><td><code>searching</code> / <code>released</code></td><td>Reject (driver then gets <code>taken</code> on that customer for 5 min), or 60 s confirm timeout.</td></tr>
+  <tr><td><code>expired</code></td><td>Alarm: no accept within 3 min.</td></tr>
+  <tr><td><code>cancelled</code></td><td>Customer cancels during dispatch.</td></tr>
+</table>
+
+<h3 id="ws-trip">Trip DO</h3>
+<table>
+  <tr><th>Event</th><th>When</th></tr>
+  <tr><td>driver → <code>loc</code></td><td>≤ 1 per 2 s; forwarded to customer.</td></tr>
+  <tr><td>→ customer <code>loc</code> on connect</td><td>Last known location.</td></tr>
+  <tr><td><code>ping</code>/<code>pong</code></td><td>Every 10 s; runtime auto-response, DO stays asleep.</td></tr>
+  <tr><td>→ driver <code>customer {online}</code></td><td>Customer joins, or 5 min after they were last connected / heartbeated (a dropped connection keeps counting as online meanwhile).</td></tr>
+  <tr><td>→ customer <code>stale</code></td><td>Alarm: no location 2 min.</td></tr>
+  <tr><td><code>status</code></td><td>After commit: <code>en_route_shop</code>, <code>dropped_off</code>, <code>cancelled</code>.</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="poll">Polling</h2>
+<p class="lead">React Query <code>refetchInterval</code>; only while the screen is focused and the app is foregrounded. <code>useHistory</code> is the exception: it doesn't poll.</p>
+<table>
+  <tr><th>Hook</th><th>Endpoint</th><th>Interval</th><th>Screens</th></tr>
+  <tr><td><code>useDropoff</code></td><td><code>/dropoffs/:id</code></td><td>30 s live / 5 s</td><td>Customer drop off; owner drop off (5 s)</td></tr>
+  <tr><td><code>useDriverMe</code></td><td><code>/drivers/me</code></td><td>30 s on trip / 5 s</td><td>Driver home, active</td></tr>
+  <tr><td><code>useActiveJob</code></td><td><code>/jobs/active</code></td><td>5 s, off during trip</td><td>Driver</td></tr>
+  <tr><td><code>useAvailableJobs</code></td><td><code>/jobs/available</code></td><td>5 s</td><td>Driver home</td></tr>
+  <tr><td><code>useOrder</code></td><td><code>/orders/:id</code></td><td>5 s</td><td>Customer order</td></tr>
+  <tr><td><code>useHistory</code></td><td><code>/history</code></td><td>No polling. On focus / pull-to-refresh, at most once per 60 s (<code>HISTORY_MIN_GAP_MS</code>); dev builds show a countdown. Mutations only mark it stale.</td><td>Customer orders, driver history (+ earnings)</td></tr>
+  <tr><td><code>useDriverVerification</code></td><td><code>/drivers/me/verification</code></td><td>On mount only</td><td>Profile (driver)</td></tr>
+  <tr><td><code>useOwnerDropoffs</code></td><td><code>/owner/transactions</code></td><td>5 s</td><td>Owner home</td></tr>
+  <tr><td><code>usePayouts</code></td><td><code>/owner/payouts</code></td><td>5 s</td><td>Owner payouts</td></tr>
+</table>
+<div class="note warn">Pickup and all owner screens are polling-only. Best socket candidate: owner drop offs. Hot-path indexes (migration 0005): <code>transactions(driver_id, status)</code>, <code>orders(driver_id, status)</code>, <code>stores(owner_id)</code>, <code>transactions(store_id, status, updated_at)</code>, <code>payouts(payer_store_id, status, id)</code>.</div>
+
+<!-- ================================================================ -->
+<h2 id="denorm"><code>shop_lat</code> / <code>shop_lng</code> on transactions</h2>
+<table>
+  <tr><th>Option</th><th>D1 rows read</th><th>Notes</th></tr>
+  <tr><td>Read from <code>transactions</code></td><td>1 per transaction</td><td>Cheapest. Snapshot matches the charged <code>road_km</code> / fee.</td></tr>
+  <tr><td>JOIN <code>stores</code></td><td>+1 per transaction</td><td>Doubles rows in lists; a moved pin would mismatch historical fees.</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2 id="scenarios">Drop off scenarios</h2>
+<p class="lead">What happens in each branch of the Drop off flow. Constants live in <code>worker/src/lib/dropoff-config.ts</code> and <code>worker/src/lib/geo.ts</code>.</p>
+
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Used for</th></tr>
+  <tr><td><code>SEARCH_TIMEOUT_MS</code></td><td>3 min</td><td>No driver accepts → <code>expired</code></td></tr>
+  <tr><td><code>CONFIRM_TIMEOUT_MS</code></td><td>60 s</td><td>Customer doesn't confirm the accepted driver → driver released. The app's <code>CONFIRM_SECONDS</code> countdown must match.</td></tr>
+  <tr><td><code>REJECT_COOLDOWN_MS</code></td><td>5 min</td><td>Driver the customer turned down can't take that customer's drop offs</td></tr>
+  <tr><td><code>ROUTING_TIMEOUT_MS</code> / <code>ROAD_FACTOR</code></td><td>5 s / 1.3</td><td>Per routing service (<code>lib/routing.ts</code>); straight-line multiplier for the last-resort estimate</td></tr>
+  <tr><td><code>NO_LOCATION_WARN_MS</code></td><td>2 min</td><td>No driver location on a trip → <code>stale</code> warning</td></tr>
+  <tr><td><code>OWNER_REMINDER_MS</code></td><td>30 min</td><td>Owner hasn't confirmed a drop → push reminder</td></tr>
+  <tr><td><code>CUSTOMER_OFFLINE_MS</code></td><td>5 min</td><td>Customer not connected or heartbeating for this long → offline. Runs from the last sighting (<code>customerSeenAt</code> in Trip storage), so a closed socket gets the same grace to reconnect.</td></tr>
+  <tr><td><code>DRIVER_STALE_MS</code></td><td>30 s</td><td>Driver with no fresh location is hidden from matching</td></tr>
+  <tr><td><code>NEAR_KM</code> / <code>MAX_KM</code></td><td>10 km / 20 km</td><td>Green / amber distance band; hard matching radius</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-distance">Distance priority</h3>
+<p class="lead">There is <b>no automatic assignment</b>. Distance decides <i>who sees the request</i> and <i>in what order</i>; the first eligible driver to tap Accept wins.</p>
+
+<figure>
+<svg viewBox="0 0 1000 300" role="img" aria-label="Distance bands around the customer">
+  <circle cx="300" cy="150" r="130" fill="var(--alarm-soft)" stroke="var(--alarm)" stroke-dasharray="5 4"/>
+  <circle cx="300" cy="150" r="65" fill="var(--accent-soft)" stroke="var(--accent)"/>
+  <circle cx="300" cy="150" r="7" fill="var(--fg)"/>
+  <text class="sub" x="300" y="172" text-anchor="middle">customer pin</text>
+  <text class="elabel rpc" x="300" y="100" text-anchor="middle">≤ 10 km green</text>
+  <text class="elabel" x="300" y="38" text-anchor="middle" style="fill:var(--warn)">10–20 km amber</text>
+  <circle cx="340" cy="140" r="9" fill="var(--accent)"/><text class="sub" x="354" y="136">A 4 km</text>
+  <circle cx="250" cy="120" r="9" fill="var(--accent)"/><text class="sub" x="190" y="116">B 7 km</text>
+  <circle cx="390" cy="230" r="9" fill="var(--warn)"/><text class="sub" x="404" y="234">C 15 km</text>
+  <circle cx="470" cy="275" r="9" fill="none" stroke="var(--muted)" stroke-width="2"/><text class="sub" x="484" y="279">D 24 km — not matched</text>
+
+  <text class="label" x="600" y="60">Driver A's request list</text>
+  <text class="sub" x="600" y="84">sorted by distance_km ascending (nearest job first)</text>
+  <text class="label" x="600" y="130">Customer's map</text>
+  <text class="sub" x="600" y="154">A, B green · C amber · D hidden</text>
+  <text class="label" x="600" y="200">Who can accept</text>
+  <text class="sub" x="600" y="224">A, B, C — whoever taps first. Nearer drivers</text>
+  <text class="sub" x="600" y="242">see it higher in their list, so they tend to win.</text>
+</svg>
+<figcaption>Distances are straight-line (haversine) from the driver's last location to the customer's pin.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Rule</th><th>Where</th><th>Detail</th></tr>
+  <tr><td>Candidate search</td><td><code>Dispatch.nearbyDrivers</code></td><td>Geohash precision-5 cells (~5 km), 11×11 cells around the customer, then exact haversine ≤ 20 km. Result sorted nearest first.</td></tr>
+  <tr><td>Eligibility</td><td><code>nearbyDrivers</code>, <code>driversFor</code>, <code>requestsFor</code></td><td>Socket connected to Dispatch, location &lt; 30 s old, not holding another request, not in the shop's <code>driver_blocks</code>, not in a reject cooldown for this customer (<code>Dispatch.excluded</code>). Online toggle + not <code>busy</code> is enforced when connecting / accepting.</td></tr>
+  <tr><td>Driver's list order</td><td><code>requestsFor</code></td><td>All searching requests within 20 km, sorted by <code>distance_km</code> ascending, each tagged green/amber.</td></tr>
+  <tr><td>Customer's view</td><td><code>driversFor</code></td><td>Positions + colour only (no names) for eligible drivers within 20 km.</td></tr>
+  <tr><td>Accept guard</td><td><code>Dispatch.accept</code></td><td>Rejected as <code>taken</code> if the driver is &gt; 20 km away, blocked or cooling down, or the request isn't searching; error if the driver has no location yet.</td></tr>
+  <tr><td>App closed</td><td><code>pushIdleDrivers</code></td><td>Online, not-busy drivers with a push token and no socket get a push if their last D1 location is ≤ 20 km away, or unknown.</td></tr>
+  <tr><td>Fee</td><td><code>computeFees</code></td><td>Uses <b>road</b> km customer → shop (OSRM → OpenRouteService → straight line × 1.3), not the driver's distance. Every driver sees the same fee for a request.</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-multi">Multiple drivers available</h3>
+<p class="lead">Several drivers see the same request. D1 decides the race with guarded <code>UPDATE … WHERE status = 'searching'</code>.</p>
+
+<figure>
+<svg viewBox="0 0 1000 400" role="img" aria-label="Two drivers race to accept">
+  <defs><marker id="sq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>
+  <g class="sub" text-anchor="middle">
+    <text class="label" x="100" y="24" text-anchor="middle">Driver A</text>
+    <text class="label" x="320" y="24" text-anchor="middle">Driver B</text>
+    <text class="label" x="560" y="24" text-anchor="middle">Dispatch DO</text>
+    <text class="label" x="760" y="24" text-anchor="middle">D1</text>
+    <text class="label" x="920" y="24" text-anchor="middle">Customer</text>
+  </g>
+  <g stroke="var(--line)" stroke-width="1.5">
+    <line x1="100" y1="34" x2="100" y2="390"/><line x1="320" y1="34" x2="320" y2="390"/>
+    <line x1="560" y1="34" x2="560" y2="390"/><line x1="760" y1="34" x2="760" y2="390"/><line x1="920" y1="34" x2="920" y2="390"/>
+  </g>
+  <path class="edge wss" d="M560 60 L100 60" marker-end="url(#sq)"/><path class="edge wss" d="M560 60 L320 60" marker-end="url(#sq)"/>
+  <text class="elabel wss" x="440" y="54" text-anchor="middle">requests [#42]</text>
+  <path class="edge wss" d="M100 95 L560 95" marker-end="url(#sq)"/><text class="elabel wss" x="200" y="89">accept #42</text>
+  <path class="edge wss" d="M320 115 L560 115" marker-end="url(#sq)"/><text class="elabel wss" x="420" y="109">accept #42</text>
+  <path class="edge d1" d="M560 145 L760 145" marker-end="url(#sq)"/><text class="elabel d1" x="660" y="139" text-anchor="middle">A: busy=1, status→driver_accepted</text>
+  <path class="edge d1" d="M760 165 L560 165" marker-end="url(#sq)"/><text class="elabel d1" x="660" y="181" text-anchor="middle">1 row changed ✓</text>
+  <path class="edge d1" d="M560 205 L760 205" marker-end="url(#sq)"/><text class="elabel d1" x="660" y="199" text-anchor="middle">B: busy=1, status→driver_accepted</text>
+  <path class="edge d1" d="M760 225 L560 225" marker-end="url(#sq)"/><text class="elabel d1" x="660" y="241" text-anchor="middle">0 rows (not searching) → B busy=0</text>
+  <path class="edge wss" d="M560 270 L100 270" marker-end="url(#sq)"/><text class="elabel wss" x="200" y="264">accepted</text>
+  <path class="edge wss" d="M560 290 L320 290" marker-end="url(#sq)"/><text class="elabel wss" x="420" y="284">taken</text>
+  <path class="edge wss" d="M560 320 L920 320" marker-end="url(#sq)"/><text class="elabel wss" x="740" y="314" text-anchor="middle">driver_accepted {name, phone, fee}</text>
+  <text class="sub" x="560" y="360" text-anchor="middle">Other nearby drivers also get "taken"; lists refresh without #42.</text>
+  <text class="sub" x="560" y="378" text-anchor="middle">A is now hidden from all other customers (holding a request).</text>
+</svg>
+<figcaption>Same outcome whatever order the messages interleave in: exactly one <code>UPDATE</code> matches <code>status = 'searching'</code>.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Situation</th><th>Result</th></tr>
+  <tr><td>Two drivers tap Accept together</td><td>First guarded <code>UPDATE</code> wins → <code>accepted</code>. Loser's <code>busy</code> is reset → <code>taken</code> ("Another driver took that one.").</td></tr>
+  <tr><td>Driver already on a job tries to accept</td><td><code>UPDATE drivers SET busy=1 WHERE busy=0</code> changes 0 rows → error "Finish your active job first". One job per driver across Pickup and Drop off.</td></tr>
+  <tr><td>Many requests near one driver</td><td>Driver sees all of them, nearest first; can only hold one.</td></tr>
+  <tr><td>Customer's choice</td><td>The customer doesn't pick a driver; they confirm or reject the one who accepted.</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-timeout">Timeouts</h3>
+<table>
+  <tr><th>Timeout</th><th>Trigger</th><th>Who acts</th><th>DB</th><th>Customer sees</th><th>Driver sees</th></tr>
+  <tr><td>Search · 3 min</td><td><code>searching</code> and no accept</td><td><span class="p alarm">ALARM</span> Dispatch</td><td><span class="t w"><b>W</b>transactions → expired</span></td><td><span class="p wss">WSS</span> <code>expired</code> · "Search again" button creates a new drop off</td><td>Request disappears from list</td></tr>
+  <tr><td>Confirm · 60 s</td><td><code>driver_accepted</code>, customer doesn't confirm/reject</td><td><span class="p alarm">ALARM</span> Dispatch</td><td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions → searching, driver_id NULL</span></td><td><code>searching</code> again, fresh 3 min</td><td><code>released</code>, back to the request list</td></tr>
+  <tr><td>No location · 2 min</td><td><code>en_route_*</code>, no driver <code>loc</code></td><td><span class="p alarm">ALARM</span> Trip</td><td>—</td><td><code>stale</code> warning (clears on next <code>loc</code>); may cancel while <code>en_route_pickup</code></td><td>—</td></tr>
+  <tr><td>Customer offline · 5 min</td><td>No connection or heartbeat on the trip socket</td><td><span class="p alarm">ALARM</span> Trip (presence check every 10 s)</td><td>—</td><td>Dead socket closed after 5 min; reconnecting within 5 min never shows them offline</td><td><code>customer {online:false}</code> → Cancel button enabled</td></tr>
+  <tr><td>Owner · 30 min</td><td><code>dropped_off</code>, owner hasn't confirmed</td><td><span class="p alarm">ALARM</span> Trip</td><td><span class="t r"><b>R</b>owner_transactions</span></td><td>—</td><td>— (owner gets <span class="p push">PUSH</span>, once)</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-customer-cancel">Customer cancel</h3>
+<p class="lead"><code>POST /dropoffs/:id/cancel</code>. Allowed from <code>searching</code>, <code>driver_accepted</code>, <code>en_route_pickup</code>. One batch frees the driver and cancels, guarded by the same status list.</p>
+<table>
+  <tr><th>Cancelled while</th><th>Driver involved?</th><th>Side effects</th><th>DB</th></tr>
+  <tr><td><code>searching</code></td><td>No</td><td><span class="p rpc">RPC</span> <code>Dispatch.removeRequest</code> → request leaves every nearby driver's list</td><td><span class="t w"><b>W</b>transactions → cancelled</span></td></tr>
+  <tr><td><code>driver_accepted</code></td><td>Accepted, not confirmed</td><td><code>removeRequest</code> → driver gets <span class="p wss">WSS</span> <code>cancelled</code> ("The customer cancelled.")</td><td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions</span></td></tr>
+  <tr><td><code>en_route_pickup</code></td><td>On the way to customer</td><td><span class="p rpc">RPC</span> <code>Trip.notify(status: cancelled)</code>, <code>Trip.stop</code> (alarms cleared)</td><td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions</span></td></tr>
+  <tr class="branch"><td><code>en_route_shop</code> or later</td><td>Has the laundry</td><td>Refused: 409 "Cannot cancel a drop off that is en route shop"</td><td>—</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-driver-cancel">Driver cancel</h3>
+<p class="lead"><code>POST /dropoffs/:id/driver-cancel</code>. Only while <code>en_route_pickup</code> or <code>en_route_shop</code>, and <b>only when the customer is offline</b> (not seen on the trip socket for 5 min). An online customer must cancel themselves.</p>
+<table>
+  <tr><th>Situation</th><th>Result</th></tr>
+  <tr><td>Customer online</td><td>Button disabled in the app; API returns 409 "The customer is online; ask them to cancel" (<span class="p rpc">RPC</span> <code>Trip.customerOnline</code>).</td></tr>
+  <tr><td>Customer offline</td><td>Batch: <span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions → cancelled</span>; <code>Trip.notify</code> + <code>stop</code>; customer gets <span class="p push">PUSH</span> "Drop off cancelled".</td></tr>
+  <tr><td>Before confirm (<code>driver_accepted</code>)</td><td>No driver-cancel route; the driver waits — the 60 s confirm timeout releases them.</td></tr>
+  <tr><td>Driver socket drops</td><td>Not a cancel. Trip continues; customer sees <code>stale</code> after 2 min without location.</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-reject">Customer rejects driver</h3>
+<p class="lead"><code>POST /dropoffs/:id/reject-driver</code> from <code>driver_accepted</code>.</p>
+<table>
+  <tr><th>Step</th><th>Detail</th></tr>
+  <tr><td>DB</td><td>Batch: <span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions → searching, driver_id NULL</span></td></tr>
+  <tr><td>Dispatch</td><td><span class="p rpc">RPC</span> <code>reject</code>: records a 5 min cooldown for (customer, driver) in DO storage, then <code>requeue</code>: fresh 3 min search, block list re-read from <span class="t r"><b>R</b>driver_blocks</span></td></tr>
+  <tr><td>Rejected driver</td><td><span class="p wss">WSS</span> <code>released</code> ("The customer chose another driver."). For 5 min they don't see any of this customer's drop offs (including "Search again"), can't accept them, get no push for them, and don't appear on that customer's map. Expired cooldowns are pruned on save.</td></tr>
+  <tr><td>60 s confirm timeout</td><td>Not a rejection: no cooldown.</td></tr>
+  <tr><td>Customer</td><td><span class="p wss">WSS</span> <code>searching</code>, nearby drivers map refreshes.</td></tr>
+</table>
+
+<!-- ---------------------------------------------------------------- -->
+<h3 id="sc-edge">Edge cases &amp; races</h3>
+<table>
+  <tr><th>Case</th><th>Handling</th></tr>
+  <tr><td>Customer cancels while a driver's accept is in flight</td><td>Both are guarded on status. If cancel lands first, accept's <code>UPDATE</code> matches 0 rows → <code>taken</code>. If accept lands first, the cancel batch frees that driver and they get <code>cancelled</code>.</td></tr>
+  <tr><td>Accept lands in D1 but the DO restarts before saving</td><td>On the next alarm, Dispatch re-reads D1, rebuilds the hold and still runs the 60 s confirm timeout.</td></tr>
+  <tr><td>Search expires at the same moment as an accept</td><td>Expire is <code>UPDATE … WHERE status='searching'</code>; whichever lands first wins, the other sees 0 rows and re-reads D1.</td></tr>
+  <tr><td>Customer already has an active drop off</td><td>Unique index <code>transactions_one_active_per_customer</code> rejects a second one.</td></tr>
+  <tr><td>Shop blocks a driver mid-search</td><td>The block list is captured at create / requeue, so it applies from the next requeue or request.</td></tr>
+  <tr><td>Driver app closed or in the background when a request appears</td><td><span class="p push">PUSH</span> "New drop off nearby" with the Dryyt chime (backgrounding closes the dispatch socket, so the driver counts as idle). Tapping it opens the Available tab, which reconnects to Dispatch; they accept from the list. Requeues (reject, confirm timeout) don't push again.</td></tr>
+  <tr><td>Routing slow or down at create</td><td>OSRM (5 s) → OpenRouteService (5 s, needs <code>ORS_API_KEY</code>) → straight line × 1.3. Each fallback logs a warning; the drop off always books. The transaction doesn't record which source priced it.</td></tr>
+  <tr><td>Two accounts signed in on one phone (one after the other)</td><td>The newer sign-in takes the token (<code>POST /me/push-token</code> clears it from the other account), and sign out clears it, so one user's pushes never ring for another.</td></tr>
+  <tr><td>Phone can't get a push token</td><td>App reports <code>[push-token] failed {step, error}</code> to the worker log and retries on every return to the foreground. <code>getExpoPushTokenAsync</code> + <code>SERVICE_NOT_AVAILABLE</code> = Google Play services can't reach FCM (network blocking ports 5228–5230, outdated/restricted Play services, wrong clock, or no Play services); not an app bug.</td></tr>
+  <tr><td>Driver verified while a photo upload is in flight</td><td>Guarded <code>UPDATE … WHERE status = 0</code> matches 0 rows → new R2 object deleted, 409.</td></tr>
+</table>
+
+<footer>Generated 2026-10-14 from the local codebase. Local file only.</footer>
+</main>
+<script>
+  // Highlight the section currently in view.
+  const links = new Map([...document.querySelectorAll('.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const heads = [...document.querySelectorAll('h2[id], h3[id]')];
+  const update = () => {
+    let current = heads[0];
+    for (const h of heads) if (h.getBoundingClientRect().top <= 80) current = h;
+    links.forEach((a) => a.classList.remove('active'));
+    links.get(current.id)?.classList.add('active');
+  };
+  addEventListener('scroll', update, { passive: true });
+  update();
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+// Mirrors worker/src/types.ts
+export type Role = 'customer' | 'driver' | 'owner';
+export type StoreType = 'food' | 'laundry';
+export type OrderType = 'pickup';
+export type OrderStatus = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
+
+export type User = { id: number; email: string; name: string; phone: string; role: Role };
+export type Store = { id: number; name: string; type: StoreType; address: string; lat: number | null; lng: number | null };
+export type MenuItem = {
+  id: number;
+  name: string;
+  /** Centavos, before `discount_percent`. */
+  price: number;
+  image_url: string | null;
+  discount_percent: number;
+  category: string;
+  best_seller: boolean;
+};
+export type StoreWithMenu = Store & { menu: MenuItem[] };
+export type OrderItem = { id: number; name: string; price: number; qty: number };
+
+export type Order = {
+  id: number;
+  type: OrderType;
+  customer_id: number;
+  driver_id: number | null;
+  store_id: number;
+  status: OrderStatus;
+  customer_address: string;
+  notes: string;
+  items_total: number;
+  delivery_fee: number;
+  created_at: string;
+  updated_at: string;
+  store_name: string;
+  store_address: string;
+  store_type: StoreType;
+  customer_name: string;
+  customer_phone: string | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+};
+export type OrderDetail = Order & { items: OrderItem[] };
+
+export type LatLng = { lat: number; lng: number };
+
+export type DropoffStatus =
+  | 'searching'
+  | 'driver_accepted'
+  | 'en_route_pickup'
+  | 'en_route_shop'
+  | 'dropped_off'
+  | 'owner_confirmed'
+  | 'completed'
+  | 'payment_pending'
+  | 'cancelled'
+  | 'expired';
+
+/** Mirrors worker viewFor(): delivery_fee/service_fee only for drivers and owners; room_id not for owners. */
+export type Dropoff = {
+  id: number;
+  room_id?: string;
+  customer_id: number;
+  driver_id: number | null;
+  store_id: number;
+  status: DropoffStatus;
+  customer_lat: number;
+  customer_lng: number;
+  customer_address: string;
+  shop_lat: number;
+  shop_lng: number;
+  road_km: number;
+  delivery_fee?: number;
+  service_fee?: number;
+  total_delivery_fee: number;
+  laundry_fee: number | null;
+  created_at: string;
+  updated_at: string;
+  store_name: string;
+  store_address: string;
+  customer_name: string;
+  customer_phone: string;
+  driver_name: string | null;
+  driver_phone: string | null;
+  /** The assigned driver's verification: photos (fetch via /dropoffs/:id/driver-photo/face|id), license plate, badge. */
+  driver_has_face: boolean;
+  driver_has_id: boolean;
+  driver_notes: string;
+  driver_verified: boolean;
+  weight_kg: number | null;
+  drop_notes: string | null;
+  owner_status: 'pending' | 'ok' | null;
+  has_proof: boolean;
+};
+
+export type DistanceColour = 'green' | 'amber';
+
+export type DispatchRequest = {
+  transaction_id: number;
+  store_name: string;
+  address: string;
+  customer_name: string;
+  customer_phone: string;
+  lat: number;
+  lng: number;
+  shop_lat: number;
+  shop_lng: number;
+  distance_km: number;
+  colour: DistanceColour;
+  delivery_fee: number;
+  total_delivery_fee: number;
+};
+
+export type NearbyDriver = { lat: number; lng: number; colour: DistanceColour };
+
+export type DriverMe = { driver: { online: boolean; busy: boolean }; job: Dropoff | null };
+
+/** `verified` is set by a developer only. */
+export type DriverVerification = {
+  has_face: boolean;
+  has_id: boolean;
+  /** How the face photo was taken; 'skipped' waits for a closer manual review. null: no face photo, or an older one. */
+  face_check: 'passed' | 'skipped' | null;
+  notes: string;
+  verified: boolean;
+};
+
+export type Payout = {
+  id: number;
+  transaction_id: number;
+  payee_type: 'driver' | 'developer';
+  payee_id: number | null;
+  payee_name: string | null;
+  store_name: string | null;
+  amount: number;
+  status: 'pending' | 'paid';
+  paid_at: string | null;
+  created_at: string;
+};

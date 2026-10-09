@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Dryyt",
+    "slug": "dryyt-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "dryytmobile",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.dryyt.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.dryyt.mobile",
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Dryyt uses your location to find nearby drivers and show trips on the map."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Dryyt uses the camera for proof-of-delivery photos and your driver face photo."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#208AEF",
+          "sounds": ["./assets/audio/dryyt.wav"]
+        }
+      ],
+      "expo-audio",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "88caef7f-3229-4b8f-9167-847f3125203a"
+      }
+    }
+  }
+}

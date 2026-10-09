@@ -1,0 +1,36 @@
+{
+  "name": "dryyt-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "DELIVERY_FEE": "5000",
+    // Pickup (/orders, /jobs, orders in /history) is off while Drop off ships first. "true" turns it back on.
+    "PICKUP_ENABLED": "false",
+    "OSRM_URL": "https://router.project-osrm.org",
+    // Identifies the app (not the user) to the routing server; public OSRM drops requests without one.
+    "OSRM_USER_AGENT": "dryyt-worker/1.0 (+https://dryyt.com)",
+    // Fallback when OSRM fails; needs the ORS_API_KEY secret (.dev.vars locally, `wrangler secret put` deployed).
+    "ORS_URL": "https://api.openrouteservice.org"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "DISPATCH", "class_name": "Dispatch" },
+      { "name": "TRIP", "class_name": "Trip" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Dispatch"] },
+    { "tag": "v2", "new_sqlite_classes": ["Trip"] }
+  ],
+  "r2_buckets": [{ "binding": "PROOFS", "bucket_name": "dryyt-proofs" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dryyt",
+      // Local dev/tests accept any id. Before deploying, run `wrangler d1 create dryyt` and paste the real id.
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+
+import { requireAuth, requireRole } from '../lib/auth';
+import { fail, parseBody, parseId } from '../lib/http';
+import { getOrder, hidePhone, listOrders } from '../lib/orders';
+import type { AppEnv, OrderStatus } from '../types';
+
+const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = { accepted: 'picked_up', picked_up: 'delivered' };
+
+const statusSchema = z.object({ status: z.enum(['picked_up', 'delivered']) });
+
+const jobs = new Hono<AppEnv>();
+jobs.use('*', requireAuth, requireRole('driver'));
+
+jobs.get('/available', async (c) => {
+  const pending = await listOrders(c.env.DB, "o.status = 'pending' ORDER BY o.id");
+  return c.json({ jobs: pending.map(hidePhone) });
+});
+
+jobs.get('/active', async (c) => {
+  const row = await c.env.DB.prepare("SELECT id FROM orders WHERE driver_id = ? AND status IN ('accepted', 'picked_up')")
+    .bind(c.get('user').id)
+    .first<{ id: number }>();
+  return c.json({ job: row ? await getOrder(c.env.DB, row.id) : null });
+});
+
+jobs.get('/history', async (c) => {
+  const history = await listOrders(c.env.DB, "o.driver_id = ? AND o.status = 'delivered' ORDER BY o.updated_at DESC, o.id DESC", c.get('user').id);
+  return c.json({ jobs: history });
+});
+
+jobs.post('/:id/accept', async (c) => {
+  const id = parseId(c);
+  const db = c.env.DB;
+  const driverId = c.get('user').id;
+  const busy = await db.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ? AND busy = 0').bind(driverId).run();
+  if (busy.meta.changes === 0) fail(409, 'Finish your active job first');
+  const free = () => db.prepare('UPDATE drivers SET busy = 0 WHERE user_id = ?').bind(driverId).run();
+
+  let changes: number;
+  try {
+    const { meta } = await db
+      .prepare("UPDATE orders SET driver_id = ?, status = 'accepted', updated_at = datetime('now') WHERE id = ? AND status = 'pending'")
+      .bind(driverId, id)
+      .run();
+    changes = meta.changes;
+  } catch (err) {
+    await free();
+    // orders_one_active_job unique index
+    if (String(err).includes('UNIQUE')) fail(409, 'Finish your active job first');
+    throw err;
+  }
+
+  if (changes === 0) {
+    await free();
+    const exists = await db.prepare('SELECT id FROM orders WHERE id = ?').bind(id).first();
+    if (!exists) fail(404, 'Job not found');
+    fail(409, 'Job is no longer available');
+  }
+
+  return c.json({ job: await getOrder(db, id) });
+});
+
+jobs.post('/:id/release', async (c) => {
+  const id = parseId(c);
+  const db = c.env.DB;
+
+  const order = await db.prepare('SELECT driver_id FROM orders WHERE id = ?').bind(id).first<{ driver_id: number | null }>();
+  if (!order) fail(404, 'Job not found');
+  if (order.driver_id !== c.get('user').id) fail(403, 'This is not your job');
+
+  // One batch: the driver is freed only if the release itself lands.
+  const [, released] = await db.batch([
+    db.prepare("UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM orders WHERE id = ? AND status = 'accepted')").bind(id),
+    db.prepare("UPDATE orders SET driver_id = NULL, status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'accepted'").bind(id),
+  ]);
+  if (released.meta.changes === 0) fail(409, 'Only jobs not yet picked up can be released');
+
+  return c.json({ job: await getOrder(db, id) });
+});
+
+jobs.post('/:id/status', async (c) => {
+  const id = parseId(c);
+  const { status } = await parseBody(c, statusSchema);
+  const db = c.env.DB;
+
+  const order = await db.prepare('SELECT driver_id, status FROM orders WHERE id = ?').bind(id).first<{ driver_id: number | null; status: OrderStatus }>();
+  if (!order) fail(404, 'Job not found');
+  if (order.driver_id !== c.get('user').id) fail(403, 'This is not your job');
+  if (NEXT_STATUS[order.status] !== status) fail(409, `Cannot change status from ${order.status} to ${status}`);
+
+  const move = db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ? AND status = ?").bind(status, id, order.status);
+  // Delivered frees the driver in the same batch, guarded by the old state so it lands only with the status change.
+  const results =
+    status === 'delivered'
+      ? await db.batch([
+          db.prepare('UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM orders WHERE id = ? AND status = ?)').bind(id, order.status),
+          move,
+        ])
+      : [await move.run()];
+  if (results[results.length - 1].meta.changes === 0) fail(409, 'Job changed, refresh and try again');
+
+  return c.json({ job: await getOrder(db, id) });
+});
+
+export default jobs;

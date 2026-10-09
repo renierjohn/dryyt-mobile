@@ -1,0 +1,35 @@
+{
+  "name": "dryyt-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --ip 0.0.0.0 --port 9999",
+    "deploy": "wrangler deploy",
+    "test": "vitest run && vitest run -c vitest.v2.config.ts",
+    "test:v2": "vitest run -c vitest.v2.config.ts",
+    "typecheck": "tsc --noEmit",
+    "stores": "node scripts/list-stores.js",
+    "users": "node scripts/list-users.js",
+    "shop:set": "node scripts/set-shop.js",
+    "user:set": "node scripts/set-user.js",
+    "driver:verify": "node scripts/verify-driver.js",
+    "mock:customer": "node scripts/mock-customer.js",
+    "mock:driver": "node scripts/mock-driver.js",
+    "mock:standby": "node scripts/mock-driver-standby.js",
+    "mock:owner": "node scripts/mock-owner.js",
+    "mock:push": "node scripts/mock-push.js",
+    "db:migrate:local": "wrangler d1 migrations apply dryyt --local",
+    "db:migrate:remote": "wrangler d1 migrations apply dryyt --remote"
+  },
+  "dependencies": {
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
+    "@cloudflare/workers-types": "^5.20261009.1",
+    "typescript": "^7.0.2",
+    "vitest": "~3.2.0",
+    "wrangler": "^4.149.0"
+  }
+}

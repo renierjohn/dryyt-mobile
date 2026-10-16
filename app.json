@@ -8,7 +8,6 @@
     "scheme": "dryytmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.dryyt.mobile"
     },
     "android": {
@@ -27,6 +26,12 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+       [
+        "./withCustomGradle.js",
+        {
+          "version": "9.3.1"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

@@ -3,17 +3,22 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { AppLogo } from '@/components/app-logo';
+import { BottomBar } from '@/components/bottom-bar';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
   children: ReactNode;
-  /** Use `[]` on screens that show a navigation header. */
+  /** Use `[]` on screens that show a navigation header or a `header` band. */
   edges?: Edge[];
   onRefresh?: () => Promise<unknown>;
+  /** Replaces the default logo header. */
+  header?: ReactNode;
+  /** Sticky actions pinned below the scroll area. */
+  footer?: ReactNode;
 };
 
-export function Screen({ children, edges = ['top'], onRefresh }: Props) {
+export function Screen({ children, edges = ['top'], onRefresh, header, footer }: Props) {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -26,17 +31,19 @@ export function Screen({ children, edges = ['top'], onRefresh }: Props) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={edges}>
       {/* Pinned above the scroll area so it stays put while content scrolls. */}
-      {edges.includes('top') && (
-        <View style={styles.header}>
-          <AppLogo />
-        </View>
-      )}
+      {header ??
+        (edges.includes('top') && (
+          <View style={styles.header}>
+            <AppLogo />
+          </View>
+        ))}
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}>
         {children}
       </ScrollView>
+      {footer && <BottomBar>{footer}</BottomBar>}
     </SafeAreaView>
   );
 }

@@ -92,8 +92,21 @@ export default function DropoffDetail() {
     }
   })();
 
+  const error = action.error ?? again.error;
+
   return (
-    <Screen edges={[]} onRefresh={dropoff.refetch} footer={footer}>
+    <Screen
+      edges={[]}
+      onRefresh={dropoff.refetch}
+      footer={
+        footer && (
+          <>
+            {/* Beside the buttons that cause it, so a failed tap is never off-screen. */}
+            <ErrorText error={error} />
+            {footer}
+          </>
+        )
+      }>
       <ThemedText type="subtitle">{DROPOFF_STATUS_LABEL[d.status]}</ThemedText>
 
       {d.status === 'searching' && (
@@ -150,7 +163,7 @@ export default function DropoffDetail() {
       )}
 
       {AT_SHOP.includes(d.status) && <DropoffSummary dropoff={d} />}
-      <ErrorText error={action.error ?? again.error} />
+      {!footer && <ErrorText error={error} />}
     </Screen>
   );
 }

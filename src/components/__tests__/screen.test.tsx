@@ -28,3 +28,12 @@ it('replaces the logo with a custom header and renders a footer', async () => {
   expect(screen.getByText('band')).toBeTruthy();
   expect(screen.getByText('pay')).toBeTruthy();
 });
+
+it('keeps footer screens above the keyboard', async () => {
+  await render(
+    <Screen edges={[]} footer={<Text>pay</Text>}>
+      <Text>body</Text>
+    </Screen>,
+  );
+  expect(screen.getByTestId('keyboard-avoider')).toBeTruthy();
+});

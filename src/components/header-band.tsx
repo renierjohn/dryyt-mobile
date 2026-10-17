@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { setStatusBarStyle } from 'expo-status-bar';
+import { useCallback, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +13,13 @@ import { useTheme } from '@/hooks/use-theme';
 export function HeaderBand({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  // Dark status bar icons vanish on the blue band; tab screens stay mounted, so switch back when this one loses focus.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('light');
+      return () => setStatusBarStyle('auto');
+    }, []),
+  );
   return (
     <View style={[styles.band, { backgroundColor: theme.primary, paddingTop: insets.top + Spacing.three }]}>
       {/* White ring so the blue logo stands out on the blue band. */}

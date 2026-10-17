@@ -21,7 +21,7 @@ async function pickupOrder() {
 describe('drivers', () => {
   it('toggles online and reports no job', async () => {
     const driver = await registerUser('driver');
-    expect((await api('/drivers/me', { token: driver.token })).body).toEqual({ driver: { online: false, busy: false }, job: null });
+    expect((await api('/drivers/me', { token: driver.token })).body).toEqual({ driver: { online: false, busy: false, pickup_online: false, pickup_job_id: null }, job: null });
     expect((await api('/drivers/me/online', { token: driver.token, body: { online: true } })).body).toEqual({ online: true });
     expect((await api('/drivers/me', { token: driver.token })).body.driver.online).toBe(true);
   });

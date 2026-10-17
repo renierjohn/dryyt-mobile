@@ -10,7 +10,8 @@ const open: WebSocket[] = [];
 /** Ticket + upgrade, then a queue of parsed messages. `next(t)` waits for the first queued message of that type. */
 export async function openSocket(token: string, room: string) {
   const { body } = await api('/ws/ticket', { token, body: { room } });
-  const path = room === 'dispatch' ? '/ws/dispatch' : `/ws/trip/${room}`;
+  const path =
+    room === 'dispatch' ? '/ws/dispatch' : room === 'pickups' ? '/ws/pickups' : room.startsWith('order-') ? `/ws/order/${room.slice(6)}` : `/ws/trip/${room}`;
   const res = await SELF.fetch(`https://api.test${path}?ticket=${body.ticket}`, { headers: { Upgrade: 'websocket' } });
   const ws = res.webSocket;
   if (!ws) throw new Error(`upgrade failed: ${res.status} ${await res.text()}`);

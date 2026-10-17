@@ -139,12 +139,13 @@ export const useHistory = () => {
   return { ...history, refresh, nextAt: lastAt + HISTORY_MIN_GAP_MS };
 };
 
-export const useOrder = (id: number) => {
+/** `isLive()`: the order's socket is pushing changes (from Place order to delivery), so polling is only a slow fallback. */
+export const useOrder = (id: number, isLive?: () => boolean) => {
   const poll = usePoll();
   return useQuery({
     queryKey: ['order', id],
     queryFn: () => api<{ order: OrderDetail }>(`/orders/${id}`).then((r) => r.order),
-    refetchInterval: poll,
+    refetchInterval: () => poll && (isLive?.() ? LIVE_POLL_MS : poll),
     enabled: PICKUP_ENABLED,
   });
 };
@@ -171,23 +172,30 @@ export function useCancelOrder(id: number) {
   });
 }
 
-export const useAvailableJobs = () => {
+/**
+ * Pickup jobs, only while the driver is online for pickup. The 'pickups' socket pushes the list (setQueryData);
+ * `isLive()`: it's connected, so polling is only a slow fallback.
+ */
+export const useAvailableJobs = (online: boolean, isLive?: () => boolean) => {
   const poll = usePoll();
   return useQuery({
     queryKey: ['jobs', 'available'],
     queryFn: () => api<{ jobs: Order[] }>('/jobs/available').then((r) => r.jobs),
-    refetchInterval: poll,
-    enabled: PICKUP_ENABLED,
+    refetchInterval: () => poll && (isLive?.() ? LIVE_POLL_MS : poll),
+    enabled: PICKUP_ENABLED && online,
   });
 };
 
-/** `paused`: the driver is on a drop off, so no pickup job can appear; skip polling. */
-export const useActiveJob = (paused = false) => {
+/**
+ * `paused`: the driver is on a drop off, so no pickup job can appear; skip polling.
+ * `isLive()`: the order's socket is pushing changes, so polling is only a slow fallback.
+ */
+export const useActiveJob = (paused = false, isLive?: () => boolean) => {
   const poll = usePoll();
   return useQuery({
     queryKey: ['jobs', 'active'],
     queryFn: () => api<{ job: OrderDetail | null }>('/jobs/active').then((r) => r.job),
-    refetchInterval: paused ? false : poll,
+    refetchInterval: () => (paused ? false : poll && (isLive?.() ? LIVE_POLL_MS : poll)),
     enabled: PICKUP_ENABLED,
   });
 };
@@ -197,7 +205,12 @@ export function useAcceptJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<{ job: OrderDetail }>(`/jobs/${id}/accept`, { method: 'POST' }).then((r) => r.job),
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['jobs'] }), qc.invalidateQueries({ queryKey: ['history'] })]),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['jobs'] }),
+        qc.invalidateQueries({ queryKey: ['history'] }),
+        qc.invalidateQueries({ queryKey: ['driver'] }),
+      ]),
   });
 }
 
@@ -206,7 +219,12 @@ export function useAdvanceJob() {
   return useMutation({
     mutationFn: ({ id, status }: { id: number; status: 'picked_up' | 'delivered' }) =>
       api<{ job: OrderDetail }>(`/jobs/${id}/status`, { body: { status } }).then((r) => r.job),
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['jobs'] }), qc.invalidateQueries({ queryKey: ['history'] })]),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['jobs'] }),
+        qc.invalidateQueries({ queryKey: ['history'] }),
+        qc.invalidateQueries({ queryKey: ['driver'] }),
+      ]),
   });
 }
 
@@ -214,7 +232,12 @@ export function useReleaseJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<{ job: OrderDetail }>(`/jobs/${id}/release`, { method: 'POST' }).then((r) => r.job),
-    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['jobs'] }), qc.invalidateQueries({ queryKey: ['history'] })]),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['jobs'] }),
+        qc.invalidateQueries({ queryKey: ['history'] }),
+        qc.invalidateQueries({ queryKey: ['driver'] }),
+      ]),
   });
 }
 
@@ -314,6 +337,15 @@ export function useSetOnline() {
       qc.setQueryData(['savedOnline', userId], online);
       await saveOnline(userId, online).catch(() => {});
     },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['driver'] }),
+  });
+}
+
+/** "Online for Pickup": joins the live pickup job board. */
+export function useSetPickupOnline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (online: boolean) => api<{ online: boolean }>('/drivers/me/pickup-online', { body: { online } }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['driver'] }),
   });
 }

@@ -38,14 +38,22 @@ drivers.use('*', requireAuth, requireRole('driver'));
 drivers.get('/me', async (c) => {
   const user = c.get('user');
   const db = c.env.DB;
-  const state = await db.prepare('SELECT online, busy FROM drivers WHERE user_id = ?').bind(user.id).first<{ online: number; busy: number }>();
+  const state = await db
+    .prepare('SELECT online, busy, pickup_online FROM drivers WHERE user_id = ?')
+    .bind(user.id)
+    .first<{ online: number; busy: number; pickup_online: number }>();
   const [job] = await listDropoffs(
     db,
     "t.driver_id = ? AND t.status IN ('driver_accepted', 'en_route_pickup', 'en_route_shop', 'dropped_off') ORDER BY t.status = 'dropped_off', t.id DESC LIMIT 1",
     user.id,
   );
+  // The pickup order they're on (accepted or picked up), so the Available screen needn't poll /jobs/active.
+  const pickup = await db
+    .prepare("SELECT id FROM orders WHERE driver_id = ? AND status IN ('accepted', 'picked_up')")
+    .bind(user.id)
+    .first<{ id: number }>();
   return c.json({
-    driver: { online: state?.online === 1, busy: state?.busy === 1 },
+    driver: { online: state?.online === 1, busy: state?.busy === 1, pickup_online: state?.pickup_online === 1, pickup_job_id: pickup?.id ?? null },
     job: job ? viewFor(job, user) : null,
   });
 });
@@ -53,6 +61,15 @@ drivers.get('/me', async (c) => {
 drivers.post('/me/online', async (c) => {
   const { online } = await parseBody(c, onlineSchema);
   await c.env.DB.prepare("UPDATE drivers SET online = ?, updated_at = datetime('now') WHERE user_id = ?")
+    .bind(online ? 1 : 0, c.get('user').id)
+    .run();
+  return c.json({ online });
+});
+
+/** "Online for Pickup": only these drivers get the live pickup job board. */
+drivers.post('/me/pickup-online', async (c) => {
+  const { online } = await parseBody(c, onlineSchema);
+  await c.env.DB.prepare("UPDATE drivers SET pickup_online = ?, updated_at = datetime('now') WHERE user_id = ?")
     .bind(online ? 1 : 0, c.get('user').id)
     .run();
   return c.json({ online });

@@ -5,7 +5,8 @@ import { requireAuth, requireRole } from '../lib/auth';
 import { computeFees, discountedPrice, type Rate } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
-import { readPhoto } from '../lib/photos';
+import { photoResponse, readPhoto } from '../lib/photos';
+import { pickupChanged } from '../lib/pickup-live';
 import { pushToUsers } from '../lib/push';
 import { roadDistanceKm } from '../lib/routing';
 import type { AppEnv, LatLng, StoreType } from '../types';
@@ -116,10 +117,25 @@ orders.post('/', requireRole('customer'), async (c) => {
   const [created] = await db.batch([
     db
       .prepare(
-        `INSERT INTO orders (type, customer_id, store_id, status, customer_address, notes, items_total, delivery_fee, service_fee, payment_ref, payment_photo_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO orders (type, customer_id, store_id, status, customer_address, customer_lat, customer_lng, notes, items_total, delivery_fee,
+           service_fee, payment_ref, payment_photo_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(input.type, customerId, store.id, status, address, input.notes, itemsTotal, fees.delivery_fee, fees.service_fee, input.payment_ref, input.payment_photo_key ?? null),
+      .bind(
+        input.type,
+        customerId,
+        store.id,
+        status,
+        address,
+        at?.lat ?? null,
+        at?.lng ?? null,
+        input.notes,
+        itemsTotal,
+        fees.delivery_fee,
+        fees.service_fee,
+        input.payment_ref,
+        input.payment_photo_key ?? null,
+      ),
     ...lines.map((l) =>
       db
         .prepare(
@@ -130,6 +146,8 @@ orders.post('/', requireRole('customer'), async (c) => {
   ]);
 
   const id = created.meta.last_row_id;
+  // Laundry pickups go straight to drivers.
+  if (status === 'pending') pickupChanged(c, id, { room: false });
   if (status === 'awaiting_payment' && store.owner_id !== null) {
     c.executionCtx.waitUntil(pushToUsers(db, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }));
   }
@@ -148,6 +166,7 @@ orders.post('/:id/place', requireRole('customer'), async (c) => {
     .bind(id)
     .run();
   if (meta.changes === 0) fail(409, 'The store has not confirmed your payment yet');
+  pickupChanged(c, id, { room: false });
   return c.json({ order: await getOrder(db, id) });
 });
 
@@ -167,6 +186,21 @@ orders.get('/:id', async (c) => {
   return c.json({ order: user.role === 'driver' && order.driver_id !== user.id ? hidePhone(order) : order });
 });
 
+/** The customer sees the driver's face and license while the driver is on the way with their order. */
+orders.get('/:id/driver-photo/:kind', requireRole('customer'), async (c) => {
+  const id = parseId(c);
+  const kind = c.req.param('kind');
+  if (kind !== 'face' && kind !== 'id') fail(404, 'Not found');
+  const row = await c.env.DB.prepare(
+    `SELECT o.customer_id, o.status, dd.photo_face, dd.photo_id FROM orders o LEFT JOIN driver_data dd ON dd.user_id = o.driver_id WHERE o.id = ?`,
+  )
+    .bind(id)
+    .first<{ customer_id: number; status: string; photo_face: string | null; photo_id: string | null }>();
+  if (!row || row.customer_id !== c.get('user').id) fail(404, 'Order not found');
+  if (row.status !== 'accepted' && row.status !== 'picked_up') fail(404, 'No photo');
+  return photoResponse(c.env.PROOFS, kind === 'face' ? row.photo_face : row.photo_id);
+});
+
 orders.post('/:id/cancel', requireRole('customer'), async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
@@ -182,6 +216,7 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
     .bind(id)
     .run();
   if (meta.changes === 0) fail(409, 'Order can no longer be cancelled');
+  pickupChanged(c, id);
 
   return c.json({ order: await getOrder(db, id) });
 });

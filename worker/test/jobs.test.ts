@@ -1,3 +1,4 @@
+import { env, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { api, placeOrder as postOrder, registerUser } from './helpers';
@@ -102,6 +103,39 @@ describe('jobs', () => {
     expect((await advance(id, driver, 'picked_up')).body.job.status).toBe('picked_up');
     expect((await advance(id, driver, 'delivered')).body.job.status).toBe('delivered');
     expect((await advance(id, driver, 'delivered')).status).toBe(409);
+  });
+
+  it("shows the customer the driver's face, license, plate and badge while the driver has the order", async () => {
+    const id = await placeOrder();
+    const verified = await registerUser('driver');
+    await env.PROOFS.put('drivers/face.jpg', new Uint8Array([0xff, 0xd8, 0xff]));
+    await env.DB.prepare(
+      "INSERT INTO driver_data (user_id, photo_face, photo_id, notes, status) VALUES (?, 'drivers/face.jpg', NULL, 'ABC 1234', 1) ON CONFLICT (user_id) DO UPDATE SET photo_face = excluded.photo_face, notes = excluded.notes, status = 1",
+    )
+      .bind(verified.user.id)
+      .run();
+    // Read each body: an unread R2 stream breaks the test runner's isolated storage.
+    const photo = async (token: string) => {
+      const res = await SELF.fetch(`https://api.test/orders/${id}/driver-photo/face`, { headers: { authorization: `Bearer ${token}` } });
+      await res.arrayBuffer();
+      return res;
+    };
+
+    expect((await photo(customer)).status).toBe(404);
+    await accept(id, verified.token);
+    expect((await api(`/orders/${id}`, { token: customer })).body.order).toMatchObject({
+      driver_has_face: true,
+      driver_has_id: false,
+      driver_notes: 'ABC 1234',
+      driver_verified: true,
+    });
+    expect((await photo(customer)).status).toBe(200);
+    const stranger = (await registerUser('customer')).token;
+    expect((await photo(stranger)).status).toBe(404);
+
+    await advance(id, verified.token, 'picked_up');
+    await advance(id, verified.token, 'delivered');
+    expect((await photo(customer)).status).toBe(404);
   });
 
   it('tracks the active job and history', async () => {

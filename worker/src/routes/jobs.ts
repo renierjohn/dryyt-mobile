@@ -4,11 +4,13 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../lib/auth';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
+import { pickupChanged } from '../lib/pickup-live';
 import type { AppEnv, OrderStatus } from '../types';
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = { accepted: 'picked_up', picked_up: 'delivered' };
 
 const statusSchema = z.object({ status: z.enum(['picked_up', 'delivered']) });
+
 
 const jobs = new Hono<AppEnv>();
 jobs.use('*', requireAuth, requireRole('driver'));
@@ -59,6 +61,7 @@ jobs.post('/:id/accept', async (c) => {
     fail(409, 'Job is no longer available');
   }
 
+  pickupChanged(c, id);
   return c.json({ job: await getOrder(db, id) });
 });
 
@@ -77,6 +80,7 @@ jobs.post('/:id/release', async (c) => {
   ]);
   if (released.meta.changes === 0) fail(409, 'Only jobs not yet picked up can be released');
 
+  pickupChanged(c, id);
   return c.json({ job: await getOrder(db, id) });
 });
 
@@ -109,6 +113,7 @@ jobs.post('/:id/status', async (c) => {
       : [await move.run()];
   if (results[results.length - 1].meta.changes === 0) fail(409, 'Job changed, refresh and try again');
 
+  pickupChanged(c, id, { board: false });
   return c.json({ job: await getOrder(db, id) });
 });
 

@@ -28,7 +28,7 @@ describe('owner', () => {
     const { owner, id } = await withOwner();
     const res = await api('/owner/transactions?status=pending', { token: owner.token });
     expect(res.body.dropoffs).toEqual([
-      expect.objectContaining({ id, status: 'dropped_off', delivery_fee: 7200, service_fee: 720, laundry_fee: 25000, weight_kg: 6.5 }),
+      expect.objectContaining({ id, status: 'dropped_off', delivery_fee: 7200, service_fee: 800, laundry_fee: 25000, weight_kg: 6.5 }),
     ]);
     expect(res.body.dropoffs[0]).not.toHaveProperty('room_id');
   });
@@ -41,7 +41,7 @@ describe('owner', () => {
 
     const { body } = await api('/owner/payouts', { token: owner.token });
     expect(body.payouts.filter((p: { transaction_id: number }) => p.transaction_id === id)).toEqual([
-      expect.objectContaining({ payee_type: 'developer', payee_id: null, amount: 720, status: 'pending' }),
+      expect.objectContaining({ payee_type: 'developer', payee_id: null, amount: 800, status: 'pending' }),
       expect.objectContaining({ payee_type: 'driver', payee_id: driver.user.id, amount: 7200, status: 'pending' }),
     ]);
   });

@@ -11,13 +11,13 @@ describe('drop offs', () => {
     const res = await createDropoff(customer.token, { store_id: storeId });
 
     expect(res.status).toBe(201);
-    expect(res.body.dropoff).toMatchObject({ status: 'searching', road_km: 3.2, total_delivery_fee: 7920, has_proof: false });
+    expect(res.body.dropoff).toMatchObject({ status: 'searching', road_km: 3.2, total_delivery_fee: 8000, has_proof: false });
     expect(res.body.dropoff).not.toHaveProperty('delivery_fee');
     expect(res.body.dropoff).not.toHaveProperty('service_fee');
     expect(res.body.dropoff).not.toHaveProperty('proof_photo_key');
 
     const row = await env.DB.prepare('SELECT delivery_fee, service_fee FROM transactions WHERE id = ?').bind(res.body.dropoff.id).first();
-    expect(row).toEqual({ delivery_fee: 7200, service_fee: 720 });
+    expect(row).toEqual({ delivery_fee: 7200, service_fee: 800 });
   });
 
   it('saves the pinned coordinates as the address when none is given', async () => {

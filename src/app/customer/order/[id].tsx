@@ -1,11 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
+import { DriverDetails } from '@/components/driver-details';
 import { OrderSummary } from '@/components/order-summary';
+import { OrderTripMap } from '@/components/order-trip-map';
 import { Screen } from '@/components/screen';
 import { StatusBadge, type Tone } from '@/components/status-badge';
 import { StatusTimeline } from '@/components/status-timeline';
@@ -13,11 +17,25 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCancelOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
+import { useSocket } from '@/hooks/use-socket';
 import { STATUS_LABEL } from '@/lib/format';
+import type { LatLng } from '@/lib/types';
 
 export default function OrderScreen() {
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const order = useOrder(id);
+  const qc = useQueryClient();
+  const live = useRef(false);
+  const order = useOrder(id, () => live.current);
+  const [driverAt, setDriverAt] = useState<LatLng | null>(null);
+  // Live from Place order until delivered (or cancelled): the worker pushes each change and the driver's location.
+  const status = order.data?.status;
+  const { connected } = useSocket(status === 'pending' || status === 'accepted' || status === 'picked_up' ? `order-${id}` : null, (msg) => {
+    if (msg.t === 'order') qc.setQueryData(['order', id], msg.order);
+    else if (msg.t === 'loc') setDriverAt({ lat: msg.lat, lng: msg.lng });
+  });
+  useEffect(() => {
+    live.current = connected;
+  });
   const cancel = useCancelOrder(id);
   const place = usePlaceOrder();
   const cart = useCart();
@@ -50,10 +68,17 @@ export default function OrderScreen() {
         </View>
         <StatusTimeline status={o.status} paid={o.store_type === 'food'} />
       </Card>
+      {/* The driver has the order: follow them to you, live over the order's socket. */}
+      {o.status === 'picked_up' && <OrderTripMap order={o} driverAt={driverAt} />}
       <Card>
         <OrderSummary order={o} />
       </Card>
-      {o.driver_name && (
+      {/* While the driver is coming: who to expect (face, license, plate, badge). */}
+      {(o.status === 'accepted' || o.status === 'picked_up') && o.driver_name ? (
+        <Card>
+          <DriverDetails driver={o} photoPath={`/orders/${o.id}/driver-photo`} />
+        </Card>
+      ) : o.driver_name ? (
         <Card>
           <View style={styles.statusRow}>
             <Avatar name={o.driver_name} />
@@ -65,7 +90,7 @@ export default function OrderScreen() {
             </View>
           </View>
         </Card>
-      )}
+      ) : null}
       <ErrorText error={cancel.error ?? place.error} />
       {(o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
         <Button

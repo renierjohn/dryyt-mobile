@@ -3,7 +3,11 @@ import type { DropoffStatus, Order, OrderStatus } from './types';
 export const peso = (centavos: number) => `₱${(centavos / 100).toFixed(2)}`;
 
 /** A menu price (centavos) after its percent discount; matches the worker's checkout math. */
-export const discountedPrice = (item: { price: number; discount_percent: number }) => Math.round((item.price * (100 - item.discount_percent)) / 100);
+/** Every computed amount is rounded up to a whole peso (centavos always 00); same as the worker's roundUpToPeso. */
+export const roundUpToPeso = (centavos: number) => Math.ceil(Math.round(centavos) / 100) * 100;
+
+/** Mirrors the worker: the price after its percent discount, rounded up to a whole peso. */
+export const discountedPrice = (item: { price: number; discount_percent: number }) => roundUpToPeso((item.price * (100 - item.discount_percent)) / 100);
 
 /** D1's `datetime('now')` text ("2026-10-13 05:45:53", UTC) in epoch ms; NaN when unparseable. */
 export const d1Time = (d1Utc: string) => new Date(`${d1Utc.replace(' ', 'T')}Z`).getTime();

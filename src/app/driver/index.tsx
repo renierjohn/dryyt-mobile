@@ -1,4 +1,6 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Switch, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -10,25 +12,39 @@ import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { PICKUP_ENABLED } from '@/constants/features';
 import { Spacing } from '@/constants/theme';
-import { useAcceptJob, useActiveJob, useAvailableJobs, useDriverMe, useSavedOnline, useSetOnline } from '@/hooks/queries';
+import { useAcceptJob, useAvailableJobs, useDriverMe, useSavedOnline, useSetOnline, useSetPickupOnline } from '@/hooks/queries';
 import { useNewJobSound } from '@/hooks/use-new-job-sound';
+import { useSocket } from '@/hooks/use-socket';
+import type { Order } from '@/lib/types';
 
 export default function AvailableJobs() {
-  const jobs = useAvailableJobs();
-  useNewJobSound((jobs.data ?? []).map((j) => `order-${j.id}`));
-  const active = useActiveJob();
-  const accept = useAcceptJob();
+  const qc = useQueryClient();
   const me = useDriverMe();
+  const setPickupOnline = useSetPickupOnline();
+  // The requested value while saving.
+  const pickupOnline = PICKUP_ENABLED && (setPickupOnline.isPending ? setPickupOnline.variables : (me.data?.driver.pickup_online ?? false));
+  const live = useRef(false);
+  const jobs = useAvailableJobs(pickupOnline, () => live.current);
+  // Online for pickup: the job board pushes every change instead of polling.
+  const { connected } = useSocket(pickupOnline && me.data?.driver.pickup_online ? 'pickups' : null, (msg) => {
+    if (msg.t === 'jobs') qc.setQueryData<Order[]>(['jobs', 'available'], msg.jobs);
+  });
+  useEffect(() => {
+    live.current = connected;
+  });
+  useNewJobSound(pickupOnline ? (jobs.data ?? []).map((j) => `order-${j.id}`) : []);
+  const accept = useAcceptJob();
   const setOnline = useSetOnline();
   const saved = useSavedOnline();
   // Server value once it answers, the phone's saved copy before that; the requested value while saving.
   const online = setOnline.isPending ? setOnline.variables : (me.data?.driver.online ?? saved.data ?? false);
   const job = me.data?.job ?? null;
   const onDropoff = job !== null && job.status !== 'dropped_off';
-  const busy = Boolean(active.data) || onDropoff;
+  const onPickup = (me.data?.driver.pickup_job_id ?? null) !== null;
+  const busy = onPickup || onDropoff;
 
   return (
-    <Screen onRefresh={PICKUP_ENABLED ? jobs.refetch : me.refetch}>
+    <Screen onRefresh={() => Promise.all([me.refetch(), pickupOnline && jobs.refetch()])}>
       <ThemedText type="subtitle">Available jobs</ThemedText>
       <Card>
         <View style={styles.row}>
@@ -39,7 +55,7 @@ export default function AvailableJobs() {
           Keep Dryyt open while online so customers can see you.
         </ThemedText>
       </Card>
-      {online && !active.data && (!job || job.status === 'driver_accepted' || job.status === 'dropped_off') && (
+      {online && !onPickup && (!job || job.status === 'driver_accepted' || job.status === 'dropped_off') && (
         <DropoffRequests acceptedAt={job?.status === 'driver_accepted' ? job.updated_at : null} />
       )}
       {job && job.status !== 'driver_accepted' && job.status !== 'dropped_off' && (
@@ -47,14 +63,26 @@ export default function AvailableJobs() {
       )}
       {PICKUP_ENABLED && (
         <>
-          <ThemedText type="smallBold">Pickup jobs</ThemedText>
-          {busy && <ThemedText themeColor="textSecondary">Finish your active job before accepting another.</ThemedText>}
-          {jobs.isPending && <ActivityIndicator />}
-          <ErrorText error={jobs.error ?? accept.error} />
-          {jobs.data?.length === 0 && (
-            <ThemedText themeColor="textSecondary">No jobs right now. This list refreshes automatically.</ThemedText>
+          <Card>
+            <View style={styles.row}>
+              <ThemedText type="smallBold">Online for Pickup</ThemedText>
+              <Switch value={pickupOnline} disabled={setPickupOnline.isPending} onValueChange={(v) => setPickupOnline.mutate(v)} />
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              New pickup jobs appear here as soon as customers place them.
+            </ThemedText>
+          </Card>
+          <ErrorText error={setPickupOnline.error ?? accept.error} />
+          {pickupOnline && (
+            <>
+              <ThemedText type="smallBold">Pickup jobs</ThemedText>
+              {busy && <ThemedText themeColor="textSecondary">Finish your active job before accepting another.</ThemedText>}
+              {jobs.isPending && <ActivityIndicator />}
+              <ErrorText error={jobs.error} />
+              {jobs.data?.length === 0 && <ThemedText themeColor="textSecondary">No Active Orders</ThemedText>}
+            </>
           )}
-          {jobs.data?.map((job) => (
+          {pickupOnline && jobs.data?.map((job) => (
             <Card key={job.id}>
               <OrderSummary order={job} showFees />
               <Button

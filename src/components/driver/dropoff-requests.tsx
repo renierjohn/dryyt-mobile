@@ -92,7 +92,7 @@ export function DropoffRequests({ acceptedAt }: { acceptedAt: string | null }) {
       <ThemedText type="smallBold">Drop offs near you</ThemedText>
       {!connected && <ThemedText themeColor="textSecondary">Connecting…</ThemedText>}
       {notice && <ThemedText themeColor="textSecondary">{notice}</ThemedText>}
-      {connected && items.length === 0 && <ThemedText themeColor="textSecondary">No drop offs within 20 km right now.</ThemedText>}
+      {connected && items.length === 0 && <ThemedText themeColor="textSecondary">No Active Drop Offs</ThemedText>}
       {items.map((r) => (
         <Card key={r.transaction_id}>
           <ThemedText type="smallBold" style={{ color: r.colour === 'green' ? PinColor.near : PinColor.far }}>

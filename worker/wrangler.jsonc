@@ -16,12 +16,15 @@
   "durable_objects": {
     "bindings": [
       { "name": "DISPATCH", "class_name": "Dispatch" },
-      { "name": "TRIP", "class_name": "Trip" }
+      { "name": "TRIP", "class_name": "Trip" },
+      { "name": "PICKUPS", "class_name": "PickupBoard" },
+      { "name": "ORDER_ROOM", "class_name": "OrderRoom" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["Dispatch"] },
-    { "tag": "v2", "new_sqlite_classes": ["Trip"] }
+    { "tag": "v2", "new_sqlite_classes": ["Trip"] },
+    { "tag": "v3", "new_sqlite_classes": ["PickupBoard", "OrderRoom"] }
   ],
   "r2_buckets": [{ "binding": "PROOFS", "bucket_name": "dryyt-proofs" }],
   "d1_databases": [

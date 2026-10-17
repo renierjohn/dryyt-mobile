@@ -126,3 +126,4 @@ app.onError((err, c) => {
 export default app;
 export { Dispatch } from './do/dispatch';
 export { Trip } from './do/trip';
+export { OrderRoom, PickupBoard } from './do/pickups';

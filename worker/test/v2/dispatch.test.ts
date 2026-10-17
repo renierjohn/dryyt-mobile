@@ -46,7 +46,7 @@ describe('dispatch', () => {
         transaction_id: id,
         colour: 'green',
         delivery_fee: 7200,
-        total_delivery_fee: 7920,
+        total_delivery_fee: 8000,
         customer_name: customer.user.name.split(' ')[0],
         customer_phone: `${customer.user.phone.slice(0, 4)}•••${customer.user.phone.slice(-4)}`,
       }),
@@ -87,7 +87,7 @@ describe('dispatch', () => {
     expect(results).toEqual(['accepted', 'taken']);
 
     const msg = await customerSock.next('driver_accepted');
-    expect(msg).toMatchObject({ transaction_id: id, total_delivery_fee: 7920, driver: { name: expect.any(String), phone: expect.any(String) } });
+    expect(msg).toMatchObject({ transaction_id: id, total_delivery_fee: 8000, driver: { name: expect.any(String), phone: expect.any(String) } });
     expect((await status(id)).status).toBe('driver_accepted');
     const { results: busy } = await env.DB.prepare('SELECT busy FROM drivers WHERE user_id IN (?, ?) ORDER BY busy').bind(a.driver.user.id, b.driver.user.id).all();
     expect(busy.map((r) => r.busy)).toEqual([0, 1]);

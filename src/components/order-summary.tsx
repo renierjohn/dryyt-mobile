@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { DishPhoto } from '@/components/dish-photo';
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -25,12 +26,19 @@ export function OrderSummary({ order, showFees = false }: { order: Order | Order
         </ThemedText>
       </View>
       <ThemedText type="small">{STATUS_LABEL[order.status]}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        From: {from}
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        To: {to}
-      </ThemedText>
+      {/* Where the driver collects: the store's address. */}
+      <View style={styles.item}>
+        <Icon name={{ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' }} size={16} color={theme.textSecondary} />
+        <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
+          {from}
+        </ThemedText>
+      </View>
+      {/* A pinned spot's address is just coordinates ("Pinned location 14.56000, 121.03000"): the map shows it instead. */}
+      {!to.startsWith('Pinned location') && (
+        <ThemedText type="small" themeColor="textSecondary">
+          To: {to}
+        </ThemedText>
+      )}
       {'items' in order &&
         order.items.map((item) => (
           <View key={item.id} style={styles.item}>
@@ -68,7 +76,7 @@ export function OrderSummary({ order, showFees = false }: { order: Order | Order
       )}
       <View style={styles.item}>
         <ThemedText type="smallBold" style={styles.grow}>
-          Total (cash)
+          Total Amount
         </ThemedText>
         <ThemedText type="smallBold">{peso(order.items_total + order.delivery_fee)}</ThemedText>
       </View>

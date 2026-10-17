@@ -63,11 +63,20 @@ describe('POST /orders', () => {
     const pinned = { ...foodOrder, customer_address: undefined, notes: undefined, lat: 14.56, lng: 121.03 };
 
     const quote = await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
-    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, delivery_fee: 7920 } } });
+    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, delivery_fee: 8000 } } });
 
     const res = await placeOrder({ token: customer, body: pinned });
     expect(res.status).toBe(201);
-    expect(res.body.order).toMatchObject({ delivery_fee: 7920, service_fee: 720, customer_address: 'Pinned location 14.56000, 121.03000', notes: '' });
+    expect(res.body.order).toMatchObject({
+      delivery_fee: 8000,
+      service_fee: 800,
+      customer_address: 'Pinned location 14.56000, 121.03000',
+      customer_lat: 14.56,
+      customer_lng: 121.03,
+      store_lat: 14.5547,
+      store_lng: 121.0244,
+      notes: '',
+    });
   });
 
   it("can't quote a store without a map location", async () => {

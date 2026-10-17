@@ -1,4 +1,4 @@
-import { dateTime, localDay, orderTitle, peso, route } from '../format';
+import { dateTime, discountedPrice, localDay, orderTitle, peso, roundUpToPeso, route } from '../format';
 import type { Order } from '../types';
 
 const order = (overrides: Partial<Order>) =>
@@ -50,5 +50,14 @@ describe('localDay', () => {
     expect(localDay('2026-10-13 05:45:53')).toBe(new Date('2026-10-13T05:45:53Z').toDateString());
     expect(localDay('2026-10-13 05:45:53')).not.toBe(localDay('2026-10-14 05:45:53'));
     expect(localDay('garbage')).toBe('garbage');
+  });
+});
+
+describe('discountedPrice', () => {
+  it('rounds up to a whole peso, like the worker', () => {
+    // ₱125.00 less 15% = ₱106.25 → ₱107.00.
+    expect(discountedPrice({ price: 12500, discount_percent: 15 })).toBe(10700);
+    expect(discountedPrice({ price: 12000, discount_percent: 20 })).toBe(9600);
+    expect(roundUpToPeso(3200.0000000000005)).toBe(3200);
   });
 });

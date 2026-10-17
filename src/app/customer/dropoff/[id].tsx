@@ -136,7 +136,7 @@ export default function DropoffDetail() {
         <>
           <Card>
             <ThemedText type="smallBold">{d.driver_name} accepted your drop off</ThemedText>
-            <DriverDetails dropoff={d} />
+            <DriverDetails driver={d} photoPath={`/dropoffs/${d.id}/driver-photo`} />
           </Card>
           <FeeRow fee={d.total_delivery_fee} />
         </>

@@ -1,4 +1,5 @@
 import type { Dispatch } from './do/dispatch';
+import type { OrderRoom, PickupBoard } from './do/pickups';
 import type { Trip } from './do/trip';
 
 export type Role = 'customer' | 'driver' | 'owner';
@@ -6,7 +7,7 @@ export type StoreType = 'food' | 'laundry';
 export type OrderType = 'pickup';
 export type OrderStatus = 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
-export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PROOFS: R2Bucket };
+export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PICKUPS: DurableObjectNamespace<PickupBoard>; ORDER_ROOM: DurableObjectNamespace<OrderRoom>; PROOFS: R2Bucket };
 export type AuthUser = { id: number; role: Role };
 export type AppEnv = { Bindings: Bindings; Variables: { user: AuthUser } };
 
@@ -74,6 +75,14 @@ export type OrderRow = {
   updated_at: string;
   payment_ref: string;
   payment_photo_key: string | null;
+  /** Map pins: the customer's pinned spot (null for typed addresses), the store's, and the driver's latest fix while picked up. */
+  customer_lat: number | null;
+  customer_lng: number | null;
+  store_lat: number | null;
+  store_lng: number | null;
+  driver_lat: number | null;
+  driver_lng: number | null;
+  driver_loc_at: string | null;
   store_name: string;
   store_address: string;
   store_type: StoreType;
@@ -81,5 +90,10 @@ export type OrderRow = {
   customer_phone: string | null;
   driver_name: string | null;
   driver_phone: string | null;
+  driver_has_face: boolean;
+  driver_has_id: boolean;
+  /** The driver's license plate. */
+  driver_notes: string;
+  driver_verified: boolean;
 };
 export type OrderDetail = OrderRow & { items: OrderItem[] };

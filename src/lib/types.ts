@@ -54,6 +54,14 @@ export type Order = {
   /** Proof of an upfront (food) payment: a reference number and/or a photo (see /owner/orders/:id/payment-photo). */
   payment_ref: string;
   payment_photo_key: string | null;
+  /** Map pins: the customer's pinned spot (null for typed addresses), the store's, and the driver's latest fix while picked up. */
+  customer_lat: number | null;
+  customer_lng: number | null;
+  store_lat: number | null;
+  store_lng: number | null;
+  driver_lat: number | null;
+  driver_lng: number | null;
+  driver_loc_at: string | null;
   store_name: string;
   store_address: string;
   store_type: StoreType;
@@ -61,6 +69,12 @@ export type Order = {
   customer_phone: string | null;
   driver_name: string | null;
   driver_phone: string | null;
+  /** The assigned driver's verification (face/license photos via /orders/:id/driver-photo/face|id). */
+  driver_has_face: boolean;
+  driver_has_id: boolean;
+  /** The driver's license plate. */
+  driver_notes: string;
+  driver_verified: boolean;
 };
 export type OrderDetail = Order & { items: OrderItem[] };
 
@@ -135,7 +149,8 @@ export type DispatchRequest = {
 
 export type NearbyDriver = { lat: number; lng: number; colour: DistanceColour };
 
-export type DriverMe = { driver: { online: boolean; busy: boolean }; job: Dropoff | null };
+/** `online`: for drop offs; `pickup_online`: for pickup jobs; `pickup_job_id`: the pickup order they're on, if any. */
+export type DriverMe = { driver: { online: boolean; busy: boolean; pickup_online: boolean; pickup_job_id: number | null }; job: Dropoff | null };
 
 /** `verified` is set by a developer only. */
 export type DriverVerification = {

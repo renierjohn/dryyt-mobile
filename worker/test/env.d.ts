@@ -10,6 +10,8 @@ declare module 'cloudflare:test' {
     ORS_API_KEY?: string;
     DISPATCH: DurableObjectNamespace<import('../src/do/dispatch').Dispatch>;
     TRIP: DurableObjectNamespace<import('../src/do/trip').Trip>;
+    PICKUPS: DurableObjectNamespace<import('../src/do/pickups').PickupBoard>;
+    ORDER_ROOM: DurableObjectNamespace<import('../src/do/pickups').OrderRoom>;
     PROOFS: R2Bucket;
     TEST_MIGRATIONS: D1Migration[];
   }

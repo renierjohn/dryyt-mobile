@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeFees } from '../../src/lib/fees';
+import { computeFees, discountedPrice, roundUpToPeso } from '../../src/lib/fees';
 import { distanceColour, geohash, haversineKm, nearbyCells } from '../../src/lib/geo';
 
 describe('geo', () => {
@@ -33,14 +33,30 @@ describe('fees', () => {
   it('adds base fee, distance fee and commission', () => {
     expect(computeFees(3.2, { base_fee: 4000, rate_per_km: 1000, commission_pct: 10 })).toEqual({
       delivery_fee: 7200,
-      service_fee: 720,
-      total_delivery_fee: 7920,
+      service_fee: 800,
+      total_delivery_fee: 8000,
     });
   });
 
-  it('rounds fractional distance and commission', () => {
-    const fees = computeFees(2.345, { base_fee: 4000, rate_per_km: 1000, commission_pct: 12.5 });
-    expect(fees).toEqual({ delivery_fee: 6345, service_fee: 793, total_delivery_fee: 7138 });
-    expect(Number.isInteger(fees.delivery_fee) && Number.isInteger(fees.service_fee)).toBe(true);
+  it('rounds every amount up to a whole peso', () => {
+    // ₱63.45 → ₱64.00; 10% of ₱64.00 = ₱6.40 → ₱7.00.
+    expect(computeFees(2.345, { base_fee: 4000, rate_per_km: 1000, commission_pct: 10 })).toEqual({
+      delivery_fee: 6400,
+      service_fee: 700,
+      total_delivery_fee: 7100,
+    });
+  });
+
+  it("doesn't add a peso for float noise", () => {
+    // 3.3 × 1000 is 3299.9999999999995 in floating point.
+    expect(computeFees(3.3, { base_fee: 0, rate_per_km: 1000, commission_pct: 0 }).delivery_fee).toBe(3300);
+    expect(roundUpToPeso(3200.0000000000005)).toBe(3200);
+    expect(roundUpToPeso(3201)).toBe(3300);
+  });
+
+  it('rounds a discounted menu price up to a whole peso', () => {
+    // ₱125.00 less 15% = ₱106.25 → ₱107.00.
+    expect(discountedPrice(12500, 15)).toBe(10700);
+    expect(discountedPrice(12000, 20)).toBe(9600);
   });
 });

@@ -41,7 +41,7 @@ export function workersConfig({ include, exclude = [], isolatedStorage }: Option
             isolatedStorage,
             wrangler: { configPath: './wrangler.jsonc' },
             miniflare: {
-              // Pickup is off in wrangler.jsonc; the suites still cover it (the off switch has its own test).
+              // Pickup may be off in wrangler.jsonc; the suites still cover it (the off switch has its own test).
               bindings: { TEST_MIGRATIONS: migrations, JWT_SECRET: 'test-secret', ORS_API_KEY: 'test-ors-key', PICKUP_ENABLED: 'true' },
               outboundService,
             },

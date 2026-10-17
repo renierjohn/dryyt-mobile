@@ -51,6 +51,9 @@ export type MenuItem = {
   /** Units delivered; maintained by the worker, never set by owners. */
   popularity: number;
 };
+
+/** A menu item on the customers' popular list, with the store it comes from. */
+export type PopularItem = MenuItem & { store_id: number; store_name: string; store_logo: string | null };
 export type OrderItem = { id: number; name: string; price: number; qty: number };
 
 export type OrderRow = {

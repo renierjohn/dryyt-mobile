@@ -6,7 +6,7 @@
   "vars": {
     "DELIVERY_FEE": "5000",
     // Pickup (/orders, /jobs, orders in /history) is off while Drop off ships first. "true" turns it back on.
-    "PICKUP_ENABLED": "false",
+    "PICKUP_ENABLED": "true",
     "OSRM_URL": "https://router.project-osrm.org",
     // Identifies the app (not the user) to the routing server; public OSRM drops requests without one.
     "OSRM_USER_AGENT": "dryyt-worker/1.0 (+https://dryyt.com)",

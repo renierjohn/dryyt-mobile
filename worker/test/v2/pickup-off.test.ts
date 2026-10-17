@@ -24,6 +24,7 @@ describe('Pickup switched off', () => {
     expect(await offline('/orders', customer.token, { method: 'POST', body: '{}' })).toEqual(off);
     expect(await offline('/orders/1', customer.token)).toEqual(off);
     expect(await offline('/jobs/available', driver.token)).toEqual(off);
+    expect(await offline('/menu/popular', customer.token)).toEqual(off);
     expect(await offline('/jobs/active', driver.token)).toEqual(off);
     expect(await offline('/jobs/1/accept', driver.token, { method: 'POST' })).toEqual(off);
   });

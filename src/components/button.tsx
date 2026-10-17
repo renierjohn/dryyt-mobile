@@ -11,13 +11,13 @@ type Props = {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
   /** Drawn before the title, in the title's colour. */
   icon?: IconName;
-  /** Icon over a small title with tight padding, for narrow slots. */
-  stacked?: boolean;
+  /** Just the icon, for narrow slots; `title` is still read out by screen readers. */
+  iconOnly?: boolean;
   disabled?: boolean;
   loading?: boolean;
 };
 
-export function Button({ title, onPress, variant = 'primary', icon, stacked = false, disabled = false, loading = false }: Props) {
+export function Button({ title, onPress, variant = 'primary', icon, iconOnly = false, disabled = false, loading = false }: Props) {
   const theme = useTheme();
   const look = {
     primary: { background: theme.primary, color: theme.onPrimary, border: theme.primary },
@@ -31,9 +31,10 @@ export function Button({ title, onPress, variant = 'primary', icon, stacked = fa
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
+      accessibilityLabel={title}
       style={({ pressed }) => [
         styles.button,
-        stacked && styles.stackedButton,
+        iconOnly && styles.iconOnly,
         {
           // Primary darkens while pressed; the lighter variants fade instead.
           backgroundColor: pressed && variant === 'primary' ? theme.primaryPressed : look.background,
@@ -44,15 +45,17 @@ export function Button({ title, onPress, variant = 'primary', icon, stacked = fa
       {loading ? (
         <ActivityIndicator color={look.color} />
       ) : (
-        <View testID="button-content" style={stacked ? styles.stackedContent : styles.content}>
+        <View style={styles.content}>
           {icon && (
             <View testID="button-icon">
-              <Icon name={icon} size={18} color={look.color} />
+              <Icon name={icon} size={iconOnly ? 22 : 18} color={look.color} />
             </View>
           )}
-          <ThemedText type="smallBold" style={[{ color: look.color }, stacked && styles.stackedTitle]} numberOfLines={1}>
-            {title}
-          </ThemedText>
+          {!iconOnly && (
+            <ThemedText type="smallBold" style={{ color: look.color }} numberOfLines={1}>
+              {title}
+            </ThemedText>
+          )}
         </View>
       )}
     </Pressable>
@@ -69,7 +72,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  stackedButton: { paddingHorizontal: Spacing.one },
-  stackedContent: { flexDirection: 'column', alignItems: 'center' },
-  stackedTitle: { fontSize: 12, lineHeight: 16 },
+  iconOnly: { paddingHorizontal: Spacing.one },
 });

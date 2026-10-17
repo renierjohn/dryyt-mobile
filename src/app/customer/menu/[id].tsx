@@ -57,9 +57,9 @@ export default function MenuItemScreen() {
         <View style={styles.footer}>
           <View testID="footer-back" style={styles.back}>
             <Button
-              title="Go Back"
+              title="Go back to store"
               variant="secondary"
-              stacked
+              iconOnly
               icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }}
               onPress={() => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } })}
             />

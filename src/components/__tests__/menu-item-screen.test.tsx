@@ -63,14 +63,14 @@ it('puts the store name above the dish name, on one line with Best seller', asyn
 
 it('footer splits 20/80 between Go Back to the store and Add to cart', async () => {
   await renderItem();
-  await fireEvent.press(screen.getByText('Go Back'));
+  expect(screen.queryByText('Go Back')).toBeNull();
+  await fireEvent.press(screen.getByLabelText('Go back to store'));
   expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/customer/new-order', params: { storeId: '2' } });
 
   const flexOf = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style).flex;
   expect(flexOf('footer-back')).toBe(1);
   expect(flexOf('footer-add')).toBe(4);
-  // Too narrow for icon and text side by side.
-  expect(StyleSheet.flatten(within(screen.getByTestId('footer-back')).getByTestId('button-content').props.style).flexDirection).toBe('column');
+  expect(within(screen.getByTestId('footer-back')).getByTestId('button-icon')).toBeTruthy();
   expect(within(screen.getByTestId('footer-add')).getByText('Add to cart · ₱100.00')).toBeTruthy();
 });
 

@@ -31,9 +31,11 @@ it('shows an icon beside the title when given one', async () => {
   expect(screen.getByText('Go Back')).toBeTruthy();
 });
 
-it('stacks icon over a small title with tight padding for narrow slots', async () => {
-  await render(<Button title="Go Back" stacked icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }} onPress={() => {}} />);
-  expect(StyleSheet.flatten(screen.getByTestId('button-content').props.style).flexDirection).toBe('column');
-  expect(StyleSheet.flatten(screen.getByText('Go Back').props.style).fontSize).toBe(12);
+it('can show just the icon, keeping the title for screen readers', async () => {
+  const onPress = jest.fn();
+  await render(<Button title="Go back to store" iconOnly icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }} onPress={onPress} />);
+  expect(screen.queryByText('Go back to store')).toBeNull();
+  expect(screen.getByTestId('button-icon')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Go back to store'));
+  expect(onPress).toHaveBeenCalled();
 });
-

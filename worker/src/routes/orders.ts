@@ -19,7 +19,7 @@ const createSchema = z.object({
   notes: z.string().trim().max(500).default(''),
 });
 
-type Line = { name: string; price: number; qty: number };
+type Line = { menuItemId: number; name: string; price: number; qty: number };
 
 async function priceItems(db: D1Database, storeId: number, items: { menu_item_id: number; qty: number }[]): Promise<Line[]> {
   const ids = [...new Set(items.map((i) => i.menu_item_id))];
@@ -32,7 +32,7 @@ async function priceItems(db: D1Database, storeId: number, items: { menu_item_id
   return items.map((i) => {
     const item = menu.get(i.menu_item_id);
     if (!item) fail(400, `Item ${i.menu_item_id} is not on this store's menu`);
-    return { name: item.name, price: discountedPrice(item.price, item.discount_percent), qty: i.qty };
+    return { menuItemId: item.id, name: item.name, price: discountedPrice(item.price, item.discount_percent), qty: i.qty };
   });
 }
 
@@ -63,8 +63,10 @@ orders.post('/', requireRole('customer'), async (c) => {
       .bind(input.type, customerId, store.id, input.customer_address, input.notes, itemsTotal, Number(c.env.DELIVERY_FEE)),
     ...lines.map((l) =>
       db
-        .prepare('INSERT INTO order_items (order_id, name, price, qty) VALUES ((SELECT MAX(id) FROM orders WHERE customer_id = ?), ?, ?, ?)')
-        .bind(customerId, l.name, l.price, l.qty),
+        .prepare(
+          'INSERT INTO order_items (order_id, menu_item_id, name, price, qty) VALUES ((SELECT MAX(id) FROM orders WHERE customer_id = ?), ?, ?, ?, ?)',
+        )
+        .bind(customerId, l.menuItemId, l.name, l.price, l.qty),
     ),
   ]);
 

@@ -91,11 +91,19 @@ jobs.post('/:id/status', async (c) => {
   if (NEXT_STATUS[order.status] !== status) fail(409, `Cannot change status from ${order.status} to ${status}`);
 
   const move = db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ? AND status = ?").bind(status, id, order.status);
-  // Delivered frees the driver in the same batch, guarded by the old state so it lands only with the status change.
+  // Delivered frees the driver and counts the items in the same batch, each guarded by the old state so they land only
+  // with the status change (a repeated "delivered" changes nothing).
   const results =
     status === 'delivered'
       ? await db.batch([
           db.prepare('UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM orders WHERE id = ? AND status = ?)').bind(id, order.status),
+          db
+            .prepare(
+              `UPDATE store_menu_items
+               SET popularity = popularity + (SELECT SUM(qty) FROM order_items WHERE order_id = ?1 AND menu_item_id = store_menu_items.id)
+               WHERE id IN (SELECT menu_item_id FROM order_items WHERE order_id = ?1) AND (SELECT status FROM orders WHERE id = ?1) = ?2`,
+            )
+            .bind(id, order.status),
           move,
         ])
       : [await move.run()];

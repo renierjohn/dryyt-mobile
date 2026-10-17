@@ -60,4 +60,38 @@ describe('menu popularity', () => {
     const line = await env.DB.prepare('SELECT menu_item_id FROM order_items WHERE order_id = ?').bind(orderId).first<{ menu_item_id: number | null }>();
     expect(line!.menu_item_id).toBeNull();
   });
+
+  async function deliveredOrder(items: { menu_item_id: number; qty: number }[]) {
+    const customer = (await registerUser('customer')).token;
+    const driver = (await registerUser('driver')).token;
+    const id = (await api('/orders', { token: customer, body: { type: 'pickup', store_id: 2, items, customer_address: '1 Customer St, Makati' } })).body.order.id;
+    await api(`/jobs/${id}/accept`, { token: driver, method: 'POST' });
+    await api(`/jobs/${id}/status`, { token: driver, body: { status: 'picked_up' } });
+    return { id, driver, deliver: () => api(`/jobs/${id}/status`, { token: driver, body: { status: 'delivered' } }) };
+  }
+
+  it('links new order lines to their menu item', async () => {
+    const { token } = await registerUser('customer');
+    const id = (await api('/orders', { token, body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 7, qty: 2 }], customer_address: '1 Customer St, Makati' } })).body.order.id;
+    const line = await env.DB.prepare('SELECT menu_item_id FROM order_items WHERE order_id = ?').bind(id).first();
+    expect(line).toEqual({ menu_item_id: 7 });
+  });
+
+  it('adds delivered quantities once', async () => {
+    const order = await deliveredOrder([{ menu_item_id: 5, qty: 2 }, { menu_item_id: 7, qty: 1 }, { menu_item_id: 5, qty: 1 }]);
+    expect(await popularity(5)).toBe(0);
+
+    expect((await order.deliver()).status).toBe(200);
+    expect(await popularity(5)).toBe(3);
+    expect(await popularity(7)).toBe(1);
+
+    expect((await order.deliver()).status).toBe(409);
+    expect(await popularity(5)).toBe(3);
+  });
+
+  it('delivers even if an ordered item was deleted', async () => {
+    const order = await deliveredOrder([{ menu_item_id: 8, qty: 1 }]);
+    await env.DB.prepare('DELETE FROM store_menu_items WHERE id = 8').run();
+    expect((await order.deliver()).status).toBe(200);
+  });
 });

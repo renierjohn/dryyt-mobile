@@ -48,6 +48,8 @@ export type MenuItem = {
   discount_percent: number;
   category: string;
   best_seller: boolean;
+  /** Units delivered; maintained by the worker, never set by owners. */
+  popularity: number;
 };
 export type OrderItem = { id: number; name: string; price: number; qty: number };
 

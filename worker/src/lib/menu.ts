@@ -1,11 +1,11 @@
 import type { MenuItem } from '../types';
 
-const MENU_SELECT = 'SELECT id, name, price, image_url, discount_percent, category, best_seller FROM store_menu_items';
+const MENU_SELECT = 'SELECT id, name, price, image_url, discount_percent, category, best_seller, popularity FROM store_menu_items';
 
-type MenuRow = Omit<MenuItem, 'best_seller'> & { best_seller: number };
+export type MenuRow = Omit<MenuItem, 'best_seller'> & { best_seller: number };
 
-/** D1 returns booleans as 0/1. */
-const toItem = ({ best_seller, ...rest }: MenuRow): MenuItem => ({
+/** D1 returns booleans as 0/1. Extra columns (e.g. the store's, on the popular list) pass through. */
+export const toItem = <T extends MenuRow>({ best_seller, ...rest }: T): Omit<T, 'best_seller'> & { best_seller: boolean } => ({
   ...rest,
   best_seller: best_seller === 1,
 });

@@ -40,6 +40,7 @@ describe('stores', () => {
       discount_percent: 0,
       category: '',
       best_seller: false,
+      popularity: 0,
     });
   });
 

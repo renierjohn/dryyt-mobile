@@ -170,7 +170,7 @@ describe('owner menu', () => {
     });
 
     const menu = (await api(`/stores/${storeId}`, { token })).body.store.menu;
-    expect(menu).toEqual([{ ...item, id: itemId, best_seller: false, image_url: null }]);
+    expect(menu).toEqual([{ ...item, id: itemId, best_seller: false, image_url: null, popularity: 0 }]);
 
     expect(
       (

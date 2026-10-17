@@ -1,7 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { DriverDetails } from '@/components/driver-details';
@@ -10,6 +11,7 @@ import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 import { useCreateDropoff, useDropoff, useDropoffAction } from '@/hooks/queries';
 import { useSocket } from '@/hooks/use-socket';
 import { DROPOFF_STATUS_LABEL, peso } from '@/lib/format';
@@ -54,75 +56,120 @@ export default function DropoffDetail() {
     { key: 'shop', at: { lat: d.shop_lat, lng: d.shop_lng }, title: d.store_name, color: PinColor.shop, icon: 'store' },
   ];
   const run = (a: Parameters<typeof action.mutate>[0]) => action.mutate(a);
+  const footer = (() => {
+    switch (d.status) {
+      case 'searching':
+        return <Button title="Cancel" variant="secondary" loading={action.isPending} onPress={() => run({ action: 'cancel' })} />;
+      case 'driver_accepted':
+        return (
+          <>
+            <Button title="Confirm driver" loading={action.isPending} onPress={() => run({ action: 'confirm-driver' })} />
+            <Button title="Find another driver" variant="secondary" onPress={() => run({ action: 'reject-driver' })} />
+            <Button title="Cancel drop off" variant="outline" onPress={() => run({ action: 'cancel' })} />
+          </>
+        );
+      case 'en_route_pickup':
+        return <Button title="Cancel drop off" variant="danger" loading={action.isPending} onPress={() => run({ action: 'cancel' })} />;
+      case 'owner_confirmed':
+      case 'payment_pending':
+        return <Button title="Done Pay" loading={action.isPending} onPress={() => run({ action: 'payment', body: { paid: true } })} />;
+      case 'expired':
+      case 'cancelled':
+        return (
+          <Button
+            title="Search again"
+            loading={again.isPending}
+            onPress={() =>
+              again.mutate(
+                { store_id: d.store_id, lat: d.customer_lat, lng: d.customer_lng, address: d.customer_address },
+                { onSuccess: (next) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(next.id) } }) },
+              )
+            }
+          />
+        );
+      default:
+        return undefined;
+    }
+  })();
 
   return (
-    <Screen edges={[]} onRefresh={dropoff.refetch}>
+    <Screen edges={[]} onRefresh={dropoff.refetch} footer={footer}>
       <ThemedText type="subtitle">{DROPOFF_STATUS_LABEL[d.status]}</ThemedText>
 
       {d.status === 'searching' && (
         <>
-          <DropoffMap
-            center={customer}
-            pins={[
-              ...pins,
-              ...drivers.map((x, i) => ({ key: `driver-${i}`, at: x, color: x.colour === 'green' ? PinColor.near : PinColor.far, icon: 'motorcycle' as const })),
-            ]}
-          />
+          <View style={styles.mapCard}>
+            <DropoffMap
+              center={customer}
+              pins={[
+                ...pins,
+                ...drivers.map((x, i) => ({ key: `driver-${i}`, at: x, color: x.colour === 'green' ? PinColor.near : PinColor.far, icon: 'motorcycle' as const })),
+              ]}
+            />
+          </View>
           <ThemedText themeColor="textSecondary">
             {drivers.length > 0
               ? `${drivers.length} driver${drivers.length > 1 ? 's' : ''} nearby. Green is within 10 km, amber 10–20 km.`
               : 'Looking for drivers near you…'}
           </ThemedText>
-          <ThemedText>Delivery fee: {peso(d.total_delivery_fee)}</ThemedText>
-          <Button title="Cancel" variant="secondary" loading={action.isPending} onPress={() => run({ action: 'cancel' })} />
+          <FeeRow fee={d.total_delivery_fee} />
         </>
       )}
 
       {d.status === 'driver_accepted' && (
-        <Card>
-          <ThemedText type="smallBold">{d.driver_name} accepted your drop off</ThemedText>
-          <DriverDetails dropoff={d} />
-          <ThemedText>Delivery fee: {peso(d.total_delivery_fee)}</ThemedText>
-          <Button title="Confirm driver" loading={action.isPending} onPress={() => run({ action: 'confirm-driver' })} />
-          <Button title="Find another driver" variant="secondary" onPress={() => run({ action: 'reject-driver' })} />
-          <Button title="Cancel drop off" variant="danger" onPress={() => run({ action: 'cancel' })} />
-        </Card>
+        <>
+          <Card>
+            <ThemedText type="smallBold">{d.driver_name} accepted your drop off</ThemedText>
+            <DriverDetails dropoff={d} />
+          </Card>
+          <FeeRow fee={d.total_delivery_fee} />
+        </>
       )}
 
       {TRACKING.includes(d.status) && (
         <>
-          <DropoffMap
-            center={driverAt ?? customer}
-            pins={[...pins, ...(driverAt ? [{ key: 'driver', at: driverAt, title: d.driver_name ?? 'Driver', color: PinColor.driver, icon: 'motorcycle' as const }] : [])]}
-          />
+          <View style={styles.mapCard}>
+            <DropoffMap
+              center={driverAt ?? customer}
+              pins={[...pins, ...(driverAt ? [{ key: 'driver', at: driverAt, title: d.driver_name ?? 'Driver', color: PinColor.driver, icon: 'motorcycle' as const }] : [])]}
+            />
+          </View>
           {stale && <ThemedText themeColor="textSecondary">The driver&apos;s location hasn&apos;t updated for 2 minutes.</ThemedText>}
-          <ThemedText>
-            {d.driver_name} · {d.driver_phone}
-          </ThemedText>
-          {d.status === 'en_route_pickup' && (
-            <Button title="Cancel drop off" variant="danger" loading={action.isPending} onPress={() => run({ action: 'cancel' })} />
-          )}
+          <Card>
+            <View style={styles.row}>
+              <Avatar name={d.driver_name ?? ''} />
+              <View style={styles.grow}>
+                <ThemedText type="smallBold">{d.driver_name}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {d.driver_phone}
+                </ThemedText>
+              </View>
+            </View>
+          </Card>
         </>
       )}
 
       {AT_SHOP.includes(d.status) && <DropoffSummary dropoff={d} />}
-      {(d.status === 'owner_confirmed' || d.status === 'payment_pending') && (
-        <Button title="Done Pay" loading={action.isPending} onPress={() => run({ action: 'payment', body: { paid: true } })} />
-      )}
-
-      {(d.status === 'expired' || d.status === 'cancelled') && (
-        <Button
-          title="Search again"
-          loading={again.isPending}
-          onPress={() =>
-            again.mutate(
-              { store_id: d.store_id, lat: d.customer_lat, lng: d.customer_lng, address: d.customer_address },
-              { onSuccess: (next) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(next.id) } }) },
-            )
-          }
-        />
-      )}
       <ErrorText error={action.error ?? again.error} />
     </Screen>
   );
 }
+
+function FeeRow({ fee }: { fee: number }) {
+  return (
+    <Card>
+      <View style={styles.row}>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
+          Delivery fee
+        </ThemedText>
+        <ThemedText type="smallBold">{peso(fee)}</ThemedText>
+      </View>
+    </Card>
+  );
+}
+
+const styles = StyleSheet.create({
+  mapCard: { borderRadius: 16, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  grow: { flex: 1 },
+});

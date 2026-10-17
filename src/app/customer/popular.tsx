@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -65,13 +65,15 @@ export default function Popular() {
         )}
         {/* Last results stay, dimmed, while a new search loads. */}
         <View style={[styles.groups, popular.isPlaceholderData && styles.dimmed]}>
-          {groups.map((group) => (
-            <StoreGroup
-              key={group.storeId}
-              group={group}
-              onOpenStore={(storeId) => router.push({ pathname: '/customer/new-order', params: { storeId: String(storeId) } })}
-              onOpenItem={openMenuItem}
-            />
+          {groups.map((group, i) => (
+            <Fragment key={group.storeId}>
+              {i > 0 && <View testID="store-separator" style={[styles.separator, { backgroundColor: theme.border }]} />}
+              <StoreGroup
+                group={group}
+                onOpenStore={(storeId) => router.push({ pathname: '/customer/new-order', params: { storeId: String(storeId) } })}
+                onOpenItem={openMenuItem}
+              />
+            </Fragment>
           ))}
         </View>
       </Screen>
@@ -87,4 +89,5 @@ const styles = StyleSheet.create({
   empty: { gap: Spacing.three },
   groups: { gap: Spacing.four },
   dimmed: { opacity: 0.5 },
+  separator: { height: StyleSheet.hairlineWidth * 2 },
 });

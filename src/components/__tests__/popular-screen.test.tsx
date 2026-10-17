@@ -60,3 +60,9 @@ it('shows an empty state that clears the filters', async () => {
   expect(mockUsePopularMenu).toHaveBeenLastCalledWith({ limit: 50, q: '', category: null });
   expect(screen.getByPlaceholderText('Search dishes').props.value).toBe('');
 });
+
+it('separates store groups with a line, none after the last', async () => {
+  mockUsePopularMenu.mockReturnValue(result([item(6, 2, 'Burger Barn'), item(2, 1, 'Tea Haven'), item(9, 3, 'Silog Express')]));
+  await render(<Popular />);
+  expect(screen.getAllByTestId('store-separator')).toHaveLength(2);
+});

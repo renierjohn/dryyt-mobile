@@ -18,7 +18,7 @@ const order = {
 it('shows each item with its photo, or a placeholder', async () => {
   await render(<OrderSummary order={order} />);
   expect([screen.getByTestId('order-item-photo-1').props.source].flat()).toEqual([{ uri: 'https://img.test/tea.jpg' }]);
-  expect(screen.getByTestId('order-item-photo-placeholder-2')).toBeTruthy();
+  expect(screen.getByTestId('order-item-photo-2-placeholder')).toBeTruthy();
   expect(screen.getByText('2 × Wintermelon Milk Tea')).toBeTruthy();
   expect(screen.getByText('₱240.00')).toBeTruthy();
 });

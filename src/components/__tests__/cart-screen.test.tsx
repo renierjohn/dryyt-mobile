@@ -11,7 +11,7 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
 });
 
-const item = { id: 1, name: 'Milk Tea', price: 10000, image_url: null, discount_percent: 0, category: 'Drinks', best_seller: false, popularity: 0 };
+const item = { id: 1, name: 'Milk Tea', price: 10000, image_url: 'https://img.test/tea.jpg', discount_percent: 0, category: 'Drinks', best_seller: false, popularity: 0 };
 
 function Harness() {
   const cart = useCart();
@@ -30,3 +30,13 @@ it('labels the footer amount as items only, plus delivery fee', async () => {
   );
   expect(screen.getByText('Items ₱200.00 + delivery fee')).toBeTruthy();
 });
+
+it('shows each line with its menu photo', async () => {
+  await render(
+    <CartProvider>
+      <Harness />
+    </CartProvider>,
+  );
+  expect([screen.getByTestId('cart-line-photo-1').props.source].flat()).toEqual([{ uri: 'https://img.test/tea.jpg' }]);
+});
+

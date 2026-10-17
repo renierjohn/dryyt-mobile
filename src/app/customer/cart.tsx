@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DishPhoto } from '@/components/dish-photo';
 import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
 import { Stepper } from '@/components/stepper';
@@ -61,6 +62,7 @@ export default function CartScreen() {
         <ThemedText type="smallBold">{store.name}</ThemedText>
         {cart.lines.map(({ item, qty }) => (
           <View key={item.id} style={styles.row}>
+            <DishPhoto uri={item.image_url} size={48} testID={`cart-line-photo-${item.id}`} />
             <View style={styles.grow}>
               <ThemedText type="small">{item.name}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">

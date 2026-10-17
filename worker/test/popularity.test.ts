@@ -37,4 +37,27 @@ describe('menu popularity', () => {
     expect(await popularity(6)).toBe(3);
     expect(await popularity(5)).toBe(0);
   });
+
+  it('lets an owner delete an item that has order history, unlinking its order lines', async () => {
+    const owner = (await registerUser('owner')).token;
+    const { token } = await registerUser('customer');
+    const storeId = (
+      await api('/owner/stores', { token: owner, body: { name: 'Bites', type: 'food', address: '1 Main St', lat: 14.55, lng: 121.02 } })
+    ).body.store.id;
+    const itemId = (await api(`/owner/stores/${storeId}/menu`, { token: owner, body: { name: 'Fries', price: 5000 } })).body.item.id;
+    const orderId = (
+      await api('/orders', {
+        token,
+        body: { type: 'pickup', store_id: storeId, items: [{ menu_item_id: itemId, qty: 1 }], customer_address: '1 Customer St, Makati' },
+      })
+    ).body.order.id;
+    // Task 2 will write this on insert; link it by hand for now.
+    await env.DB.prepare('UPDATE order_items SET menu_item_id = ? WHERE order_id = ?').bind(itemId, orderId).run();
+
+    const res = await api(`/owner/stores/${storeId}/menu/${itemId}`, { token: owner, method: 'DELETE' });
+
+    expect(res.status).toBe(200);
+    const line = await env.DB.prepare('SELECT menu_item_id FROM order_items WHERE order_id = ?').bind(orderId).first<{ menu_item_id: number | null }>();
+    expect(line!.menu_item_id).toBeNull();
+  });
 });

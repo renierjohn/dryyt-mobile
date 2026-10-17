@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { CartButton } from '@/components/cart-button';
 import { ErrorText } from '@/components/error-text';
+import { MenuItemRow } from '@/components/menu-item-row';
 import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
 import { StatusBadge } from '@/components/status-badge';
@@ -34,6 +35,9 @@ export default function MenuItemScreen() {
   }
 
   const shop = { id: store.data.id, name: store.data.name };
+  const openStore = () => router.push({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
+  // The menu arrives in the owner's sort_order; everything but this dish.
+  const related = store.data.menu.filter((m) => m.id !== item.id);
   const add = () => {
     if (cart.add(item, shop, qty) === 'needs-replace') {
       confirmReplace(cart.store!.name, () => {
@@ -59,7 +63,7 @@ export default function MenuItemScreen() {
       <View style={styles.info}>
         {item.best_seller && <StatusBadge label="Best seller" tone="info" />}
         <ThemedText type="subtitle">{item.name}</ThemedText>
-        <Pressable onPress={() => router.push({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } })}>
+        <Pressable onPress={openStore}>
           <ThemedText type="linkPrimary">{shop.name}</ThemedText>
         </Pressable>
         {item.category ? (
@@ -85,6 +89,12 @@ export default function MenuItemScreen() {
         </ThemedText>
         <StepButton symbol="+" onPress={() => setQty((q) => Math.min(50, q + 1))} />
       </View>
+      <MenuItemRow
+        title={`More from ${shop.name}`}
+        items={related}
+        onOpen={(m) => router.push({ pathname: '/customer/menu/[id]', params: { id: String(m.id), storeId: String(shop.id) } })}
+        onMore={openStore}
+      />
     </Screen>
     <CartButton bottom={84} />
     </View>

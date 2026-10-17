@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Brand, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { STATUS_LABEL } from '@/lib/format';
 import type { OrderStatus } from '@/lib/types';
@@ -13,7 +13,7 @@ export function StatusTimeline({ status }: { status: OrderStatus }) {
 
   if (status === 'cancelled') {
     return (
-      <ThemedText type="smallBold" style={{ color: Brand.danger }}>
+      <ThemedText type="smallBold" style={{ color: theme.danger }}>
         {STATUS_LABEL.cancelled}
       </ThemedText>
     );
@@ -24,7 +24,7 @@ export function StatusTimeline({ status }: { status: OrderStatus }) {
     <View style={styles.list}>
       {STEPS.map((step, i) => (
         <View key={step} style={styles.row}>
-          <View style={[styles.dot, { backgroundColor: i <= current ? Brand.primary : theme.backgroundSelected }]} />
+          <View style={[styles.dot, { backgroundColor: i < current ? theme.success : i === current ? theme.primary : theme.backgroundSelected }]} />
           <ThemedText type={i === current ? 'smallBold' : 'small'} themeColor={i <= current ? 'text' : 'textSecondary'}>
             {STATUS_LABEL[step]}
           </ThemedText>

@@ -1,18 +1,19 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Brand, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type Tone = 'success' | 'warning' | 'danger' | 'muted';
+export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'muted';
 
 /** Status pill coloured by `tone`. */
 export function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
   const theme = useTheme();
   const colors = {
-    success: { text: Brand.success, background: 'rgba(48, 164, 108, 0.15)' },
-    warning: { text: Brand.warning, background: 'rgba(245, 165, 36, 0.15)' },
-    danger: { text: Brand.danger, background: 'rgba(229, 72, 77, 0.15)' },
+    success: { text: theme.success, background: theme.successSoft },
+    warning: { text: theme.warning, background: theme.warningSoft },
+    danger: { text: theme.danger, background: theme.dangerSoft },
+    info: { text: theme.primary, background: theme.primarySoft },
     muted: { text: theme.textSecondary, background: theme.backgroundSelected },
   }[tone];
   return (

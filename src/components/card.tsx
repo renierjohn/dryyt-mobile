@@ -6,7 +6,9 @@ import { useTheme } from '@/hooks/use-theme';
 
 export function Card({ children, onPress, style }: { children: ReactNode; onPress?: () => void; style?: StyleProp<ViewStyle> }) {
   const theme = useTheme();
-  const content = <View style={[styles.card, { backgroundColor: theme.backgroundElement }, style]}>{children}</View>;
+  const content = (
+    <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }, style]}>{children}</View>
+  );
   if (!onPress) return content;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
@@ -16,5 +18,11 @@ export function Card({ children, onPress, style }: { children: ReactNode; onPres
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: Spacing.three,
+    gap: Spacing.two,
+    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)',
+  },
 });

@@ -27,8 +27,12 @@ export type MenuItem = {
   discount_percent: number;
   category: string;
   best_seller: boolean;
+  /** Units delivered; set by the worker. */
+  popularity: number;
 };
 export type StoreWithMenu = Store & { menu: MenuItem[] };
+/** A menu item on the popular list, with its store. */
+export type PopularItem = MenuItem & { store_id: number; store_name: string; store_logo: string | null };
 export type OrderItem = { id: number; name: string; price: number; qty: number };
 
 export type Order = {

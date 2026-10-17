@@ -9,7 +9,7 @@ import { api, uploadImage } from '@/lib/api';
 import { roadRoute } from '@/lib/road-route';
 import { loadOnline, saveOnline } from '@/lib/session-storage';
 import { shrinkImage } from '@/lib/shrink-image';
-import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, Payout, Store, StoreType, StoreWithMenu } from '@/lib/types';
+import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, Payout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
 
 const POLL_MS = 5000;
 /** Fallback poll for screens that also get live updates over a socket. */
@@ -38,6 +38,14 @@ export const useStore = (id: number) =>
   useQuery({
     queryKey: ['store', id],
     queryFn: () => api<{ store: StoreWithMenu }>(`/stores/${id}`).then((r) => r.store),
+  });
+
+/** Most-ordered food items across stores (`limit` 1–50). */
+export const usePopularMenu = (limit: number) =>
+  useQuery({
+    queryKey: ['popular', limit],
+    queryFn: () => api<{ items: PopularItem[] }>(`/menu/popular?limit=${limit}`).then((r) => r.items),
+    enabled: PICKUP_ENABLED,
   });
 
 /** `?before=` for the page after `next` (null = first page). */
@@ -372,7 +380,7 @@ export function useDeleteStore() {
   });
 }
 
-export type MenuItemInput = Omit<MenuItem, 'id'>;
+export type MenuItemInput = Omit<MenuItem, 'id' | 'popularity'>;
 
 /** `itemId` undefined adds a new item. The menu itself is read with `useStore(storeId)`. */
 export function useSaveMenuItem(storeId: number, itemId?: number) {

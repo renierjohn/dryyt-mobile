@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { CartButton } from '@/components/cart-button';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
@@ -45,6 +46,7 @@ export default function MenuItemScreen() {
   };
 
   return (
+    <View style={styles.fill}>
     <Screen edges={[]} footer={<Button title={`Add to cart · ${peso(discountedPrice(item) * qty)}`} onPress={add} />}>
       <Stack.Screen options={{ title: item.name }} />
       {item.image_url ? (
@@ -84,6 +86,8 @@ export default function MenuItemScreen() {
         <StepButton symbol="+" onPress={() => setQty((q) => Math.min(50, q + 1))} />
       </View>
     </Screen>
+    <CartButton bottom={84} />
+    </View>
   );
 }
 
@@ -99,6 +103,7 @@ function StepButton({ symbol, onPress }: { symbol: string; onPress: () => void }
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16 },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   info: { gap: Spacing.one, alignItems: 'flex-start' },

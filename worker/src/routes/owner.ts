@@ -5,9 +5,10 @@ import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
 import { getMenuItem, listMenu, menuImageKey, menuImageUrl } from '../lib/menu';
 import { readPhoto } from '../lib/photos';
+import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
 import { pushToUsers } from '../lib/push';
-import type { AppEnv, Store } from '../types';
+import type { AppEnv } from '../types';
 
 const storeSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -15,6 +16,11 @@ const storeSchema = z.object({
   address: z.string().trim().min(1).max(300),
   lat: z.number().min(-90).max(90).nullable().default(null),
   lng: z.number().min(-180).max(180).nullable().default(null),
+  store_logo: z.string().trim().url().max(500).nullable().default(null),
+  store_payment_gateway: z
+    .array(z.object({ label: z.string().trim().min(1).max(100), image_url: z.string().trim().url().max(500) }))
+    .max(3)
+    .default([]),
 });
 
 /** `price` in centavos. */
@@ -73,29 +79,71 @@ function cursorParts(before: string, count: number) {
 /** `IN (?, ?, …)` for a list of ids. */
 const inList = (ids: number[]) => `(${ids.map(() => '?').join(', ')})`;
 
+/** Owner list order: not yet paid, waiting for confirmation, confirmed, complete. */
+const OWNER_RANKS = ['payment_pending', 'dropped_off', 'owner_confirmed', 'completed'];
+const OWNER_RANK = `CASE t.status ${OWNER_RANKS.map((s, i) => `WHEN '${s}' THEN ${i}`).join(' ')} END`;
+
 const owner = new Hono<AppEnv>();
 owner.use('*', requireAuth, requireRole('owner'));
 
+/** How many shops this owner may run (`users.maxstore`). */
+async function maxStores(c: Context<AppEnv>) {
+  const row = await c.env.DB.prepare('SELECT maxstore FROM users WHERE id = ?').bind(c.get('user').id).first<{ maxstore: number }>();
+  return row?.maxstore ?? 0;
+}
+
 owner.get('/stores', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM stores WHERE owner_id = ? ORDER BY name').bind(c.get('user').id).all<Store>();
-  return c.json({ stores: results });
+  const { results } = await c.env.DB.prepare('SELECT * FROM stores WHERE owner_id = ? ORDER BY name').bind(c.get('user').id).all<StoreRow>();
+  return c.json({ stores: results.map(toStore), maxstore: await maxStores(c) });
 });
 
 owner.post('/stores', async (c) => {
-  const { name, type, address, lat, lng } = await parseBody(c, storeSchema);
-  const store = await c.env.DB.prepare('INSERT INTO stores (name, type, address, lat, lng, owner_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *')
-    .bind(name, type, address, lat, lng, c.get('user').id)
-    .first<Store>();
-  return c.json({ store }, 201);
+  const s = await parseBody(c, storeSchema);
+  const count = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM stores WHERE owner_id = ?').bind(c.get('user').id).first<{ n: number }>();
+  if ((count?.n ?? 0) >= (await maxStores(c))) fail(409, 'Shop limit reached');
+  const store = await c.env.DB.prepare(
+    'INSERT INTO stores (name, type, address, lat, lng, store_logo, store_payment_gateway, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
+  )
+    .bind(s.name, s.type, s.address, s.lat, s.lng, s.store_logo, JSON.stringify(s.store_payment_gateway), c.get('user').id)
+    .first<StoreRow>();
+  return c.json({ store: toStore(store!) }, 201);
 });
+
+/** The app shrinks logos and QRs to fit before uploading. */
+const MAX_STORE_IMAGE_BYTES = 1024 * 1024;
+
+/** Raw JPEG/PNG body for a logo or payment QR; works before the shop exists. Returns the public URL to save on the shop. */
+owner.post('/stores/image', async (c) => {
+  const ownerId = c.get('user').id;
+  const { body, type, ext } = await readPhoto(c, MAX_STORE_IMAGE_BYTES);
+  const file = `${crypto.randomUUID()}.${ext}`;
+  await c.env.PROOFS.put(`stores/${ownerId}/${file}`, body, { httpMetadata: { contentType: type } });
+  return c.json({ image_url: storeImageUrl(new URL(c.req.url).origin, ownerId, file) }, 201);
+});
+
+/** Removes uploaded logos and QRs the shop no longer shows. */
+function dropStoreImages(c: Context<AppEnv>, before: string[], after: string[] = []) {
+  const gone = before.filter((key) => !after.includes(key));
+  if (gone.length > 0) c.executionCtx.waitUntil(c.env.PROOFS.delete(gone));
+}
 
 owner.post('/stores/:id', async (c) => {
   const id = parseId(c);
-  const { name, type, address, lat, lng } = await parseBody(c, storeSchema);
-  const store = await c.env.DB.prepare('UPDATE stores SET name = ?, type = ?, address = ?, lat = ?, lng = ? WHERE id = ? AND owner_id = ? RETURNING *')
-    .bind(name, type, address, lat, lng, id, c.get('user').id)
-    .first<Store>();
-  if (!store) fail(404, 'Shop not found');
+  const s = await parseBody(c, storeSchema);
+  const db = c.env.DB;
+  const ownerId = c.get('user').id;
+  const before = await db.prepare('SELECT * FROM stores WHERE id = ? AND owner_id = ?').bind(id, ownerId).first<StoreRow>();
+  if (!before) fail(404, 'Shop not found');
+  const row = await db
+    .prepare(
+      `UPDATE stores SET name = ?, type = ?, address = ?, lat = ?, lng = ?, store_logo = ?, store_payment_gateway = ?
+       WHERE id = ? AND owner_id = ? RETURNING *`,
+    )
+    .bind(s.name, s.type, s.address, s.lat, s.lng, s.store_logo, JSON.stringify(s.store_payment_gateway), id, ownerId)
+    .first<StoreRow>();
+  if (!row) fail(404, 'Shop not found');
+  const store = toStore(row);
+  dropStoreImages(c, storeImageKeys(toStore(before)), storeImageKeys(store));
   return c.json({ store });
 });
 
@@ -103,7 +151,7 @@ owner.post('/stores/:id', async (c) => {
 owner.delete('/stores/:id', async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
-  const store = await db.prepare('SELECT id FROM stores WHERE id = ? AND owner_id = ?').bind(id, c.get('user').id).first();
+  const store = await db.prepare('SELECT * FROM stores WHERE id = ? AND owner_id = ?').bind(id, c.get('user').id).first<StoreRow>();
   if (!store) fail(404, 'Shop not found');
   const used = await db
     .prepare(
@@ -118,6 +166,7 @@ owner.delete('/stores/:id', async (c) => {
     db.prepare('DELETE FROM driver_blocks WHERE store_id = ?').bind(id),
     db.prepare('DELETE FROM stores WHERE id = ?').bind(id),
   ]);
+  dropStoreImages(c, storeImageKeys(toStore(store)));
   return c.json({ deleted: true });
 });
 
@@ -193,30 +242,29 @@ owner.delete('/stores/:id/menu/:itemId', async (c) => {
   return c.json({ deleted: true });
 });
 
-/** Waiting-for-confirmation first, then newest; 10 per page, `next` fetches older ones. */
+/** Sorted by OWNER_RANKS, then newest; 10 per page, `next` fetches older ones. */
 owner.get('/transactions', async (c) => {
   const storeIds = await myStoreIds(c);
   const { before, limit } = pageQuery(c);
   const statuses = c.req.query('status') === 'pending' ? "('dropped_off')" : "('dropped_off', 'owner_confirmed', 'completed', 'payment_pending')";
-  const waiting = "(t.status = 'dropped_off')";
   let cursor = '';
   const binds: unknown[] = [...storeIds];
   if (before) {
-    const [w, at, id] = cursorParts(before, 3);
-    cursor = `AND (${waiting} < ? OR (${waiting} = ? AND (t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))))`;
-    binds.push(Number(w), Number(w), at, at, Number(id));
+    const [rank, at, id] = cursorParts(before, 3);
+    cursor = `AND (${OWNER_RANK} > ? OR (${OWNER_RANK} = ? AND (t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))))`;
+    binds.push(Number(rank), Number(rank), at, at, Number(id));
   }
   const rows = await listDropoffs(
     c.env.DB,
     `t.store_id IN ${inList(storeIds)} AND t.status IN ${statuses} ${cursor}
-     ORDER BY ${waiting} DESC, t.updated_at DESC, t.id DESC LIMIT ${limit + 1}`,
+     ORDER BY ${OWNER_RANK}, t.updated_at DESC, t.id DESC LIMIT ${limit + 1}`,
     ...binds,
   );
   const page = rows.slice(0, limit);
   const last = page[page.length - 1];
   return c.json({
     dropoffs: page.map((r) => viewFor(r, c.get('user'))),
-    next: rows.length > limit && last ? `${last.status === 'dropped_off' ? 1 : 0}|${last.updated_at}|${last.id}` : null,
+    next: rows.length > limit && last ? `${OWNER_RANKS.indexOf(last.status)}|${last.updated_at}|${last.id}` : null,
   });
 });
 

@@ -44,6 +44,20 @@ describe('owner stores', () => {
     expect((await api('/owner/stores', { token })).body.stores).toEqual([]);
   });
 
+  it('limits shops to the owner\'s maxstore', async () => {
+    const owner = await registerUser('owner');
+    const t = owner.token;
+    expect((await api('/owner/stores', { token: t })).body.maxstore).toBe(1);
+    expect((await api('/owner/stores', { token: t, body: shop })).status).toBe(201);
+    const over = await api('/owner/stores', { token: t, body: shop });
+    expect(over.status).toBe(409);
+    expect(over.body).toEqual({ error: 'Shop limit reached' });
+
+    await env.DB.prepare('UPDATE users SET maxstore = 2 WHERE id = ?').bind(owner.user.id).run();
+    expect((await api('/owner/stores', { token: t })).body.maxstore).toBe(2);
+    expect((await api('/owner/stores', { token: t, body: shop })).status).toBe(201);
+  });
+
   it('rejects invalid input', async () => {
     expect((await api('/owner/stores', { token, body: { ...shop, name: ' ' } })).status).toBe(400);
     expect(
@@ -72,6 +86,55 @@ describe('owner stores', () => {
       .bind(customer.user.id, id)
       .run();
     expect((await api(`/owner/stores/${id}`, { token, method: 'DELETE' })).status).toBe(409);
+  });
+
+  it('saves a logo and up to 3 payment QRs, and drops images no longer used', async () => {
+    const upload = async () => {
+      const res = await SELF.fetch('https://api.test/owner/stores/image', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'image/jpeg' },
+        body: JPEG,
+      });
+      expect(res.status).toBe(201);
+      return ((await res.json()) as { image_url: string }).image_url;
+    };
+    /** Reads the body too, so R2 isn't left open between tests. */
+    const served = async (url: string) => {
+      const res = await SELF.fetch(url);
+      await res.arrayBuffer();
+      return res.status;
+    };
+    const logo = await upload();
+    expect(logo).toMatch(/^https:\/\/api\.test\/store-images\/\d+\/[\w-]+\.jpg$/);
+    expect(await served(logo)).toBe(200);
+    const gcash = { label: 'GCash 0917 123 4567', image_url: await upload() };
+    const maya = { label: 'Maya', image_url: await upload() };
+
+    const created = await api('/owner/stores', { token, body: { ...shop, store_logo: logo, store_payment_gateway: [gcash, maya] } });
+    expect(created.status).toBe(201);
+    const id = created.body.store.id;
+    expect(created.body.store).toMatchObject({ store_logo: logo, store_payment_gateway: [gcash, maya] });
+    expect((await api(`/stores/${id}`, { token })).body.store.store_payment_gateway).toEqual([gcash, maya]);
+
+    const tooMany = Array(4).fill(gcash);
+    expect((await api(`/owner/stores/${id}`, { token, body: { ...shop, store_payment_gateway: tooMany } })).status).toBe(400);
+    const noLabel = [{ label: ' ', image_url: gcash.image_url }];
+    expect((await api(`/owner/stores/${id}`, { token, body: { ...shop, store_payment_gateway: noLabel } })).status).toBe(400);
+
+    const updated = await api(`/owner/stores/${id}`, { token, body: { ...shop, store_logo: null, store_payment_gateway: [gcash] } });
+    expect(updated.body.store).toMatchObject({ store_logo: null, store_payment_gateway: [gcash] });
+    // The R2 deletes run in waitUntil, after the response.
+    await vi.waitFor(async () => expect(await served(logo)).toBe(404));
+    await vi.waitFor(async () => expect(await served(maya.image_url)).toBe(404));
+    expect(await served(gcash.image_url)).toBe(200);
+
+    await api(`/owner/stores/${id}`, { token, method: 'DELETE' });
+    await vi.waitFor(async () => expect(await served(gcash.image_url)).toBe(404));
+  });
+
+  it('defaults to no logo or payment QRs', async () => {
+    const { store } = (await api('/owner/stores', { token, body: shop })).body;
+    expect(store).toMatchObject({ store_logo: null, store_payment_gateway: [] });
   });
 });
 
@@ -138,6 +201,8 @@ describe('owner menu', () => {
   });
 
   it('rejects laundry shops, bad input and other owners', async () => {
+    const { id: ownerId } = (await api('/me', { token })).body.user;
+    await env.DB.prepare('UPDATE users SET maxstore = 2 WHERE id = ?').bind(ownerId).run();
     const laundry = (await api('/owner/stores', { token, body: shop })).body.store.id;
     expect((await api(`/owner/stores/${laundry}/menu`, { token, body: item })).status).toBe(409);
 

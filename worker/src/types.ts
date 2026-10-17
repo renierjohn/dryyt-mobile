@@ -20,7 +20,12 @@ export type Store = {
   group_id: string;
   lat: number | null;
   lng: number | null;
+  store_logo: string | null;
+  store_payment_gateway: PaymentGateway[];
 };
+
+/** A payment QR the shop accepts, e.g. "GCash 0917 123 4567". */
+export type PaymentGateway = { label: string; image_url: string };
 
 export type LatLng = { lat: number; lng: number };
 

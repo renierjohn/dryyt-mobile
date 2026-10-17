@@ -5,7 +5,19 @@ export type OrderType = 'pickup';
 export type OrderStatus = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
 export type User = { id: number; email: string; name: string; phone: string; role: Role };
-export type Store = { id: number; name: string; type: StoreType; address: string; lat: number | null; lng: number | null };
+export type Store = {
+  id: number;
+  name: string;
+  type: StoreType;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  store_logo: string | null;
+  /** Up to 3. */
+  store_payment_gateway: PaymentGateway[];
+};
+/** A payment QR the shop accepts, e.g. "GCash 0917 123 4567". */
+export type PaymentGateway = { label: string; image_url: string };
 export type MenuItem = {
   id: number;
   name: string;

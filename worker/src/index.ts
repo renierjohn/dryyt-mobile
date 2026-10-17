@@ -8,6 +8,7 @@ import { requireAuth } from './lib/auth';
 import { fail, parseBody } from './lib/http';
 import { menuImageKey } from './lib/menu';
 import { photoResponse } from './lib/photos';
+import { storeImageKey } from './lib/stores';
 import auth from './routes/auth';
 import drivers from './routes/drivers';
 import history from './routes/history';
@@ -28,6 +29,10 @@ app.route('/stores', stores);
 // Menu photos are public (no token) so any client can show them; each upload gets a new name, so cache for good.
 app.get('/menu-images/:store/:file', (c) =>
   photoResponse(c.env.PROOFS, menuImageKey(c.req.url), 'public, max-age=31536000, immutable'),
+);
+// Shop logos and payment QRs, public like menu photos.
+app.get('/store-images/:owner/:file', (c) =>
+  photoResponse(c.env.PROOFS, storeImageKey(c.req.url), 'public, max-age=31536000, immutable'),
 );
 // Pickup is switched off by PICKUP_ENABLED (wrangler.jsonc) while Drop off ships first.
 const pickupOnly = createMiddleware<AppEnv>(async (c, next) => {

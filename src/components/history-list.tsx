@@ -6,8 +6,9 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { OrderSummary } from '@/components/order-summary';
+import { StatusBadge, type Tone } from '@/components/status-badge';
 import { ThemedText } from '@/components/themed-text';
-import { Brand, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useHistory, type HistoryItem } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { dateTime, DROPOFF_STATUS_LABEL, localDay, peso } from '@/lib/format';
@@ -103,34 +104,12 @@ function lineBetween(a: HistoryItem, b: HistoryItem, role: 'customer' | 'driver'
 
 const pinned = (item: HistoryItem) => item.kind === 'dropoff' && item.dropoff.status === 'owner_confirmed';
 
-type Tone = 'success' | 'warning' | 'danger' | 'muted';
-
 /** Shop confirmed = waiting for payment (listed first by the worker); everything not listed is muted. */
 const BADGE_TONE: Partial<Record<DropoffStatus, Tone>> = { completed: 'success', owner_confirmed: 'warning', cancelled: 'danger' };
-
-/** Status pill coloured by `tone`. */
-function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
-  const theme = useTheme();
-  const colors = {
-    success: { text: Brand.success, background: 'rgba(48, 164, 108, 0.15)' },
-    warning: { text: Brand.warning, background: 'rgba(245, 165, 36, 0.15)' },
-    danger: { text: Brand.danger, background: 'rgba(229, 72, 77, 0.15)' },
-    muted: { text: theme.textSecondary, background: theme.backgroundSelected },
-  }[tone];
-  return (
-    <View style={[styles.badge, { backgroundColor: colors.background }]}>
-      <ThemedText type="small" style={[styles.badgeText, { color: colors.text }]}>
-        {label}
-      </ThemedText>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   faded: { opacity: 0.8 },
   separator: { height: StyleSheet.hairlineWidth * 2, marginVertical: Spacing.one },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
   title: { flex: 1 },
-  badge: { borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
-  badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
 });

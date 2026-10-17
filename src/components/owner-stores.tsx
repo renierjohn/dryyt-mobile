@@ -14,6 +14,7 @@ import type { Store } from '@/lib/types';
 export function OwnerStores() {
   const stores = useOwnerStores();
   const remove = useDeleteStore();
+  const limitReached = stores.isSuccess && stores.data.stores.length >= stores.data.maxstore;
 
   const confirmDelete = (store: Store) =>
     Alert.alert('Delete shop?', `${store.name} will be removed.`, [
@@ -26,8 +27,8 @@ export function OwnerStores() {
       <ThemedText type="subtitle">My shops</ThemedText>
       {stores.isPending && <ActivityIndicator />}
       <ErrorText error={stores.error ?? remove.error} />
-      {stores.isSuccess && stores.data.length === 0 && <ThemedText themeColor="textSecondary">No shops yet.</ThemedText>}
-      {stores.data?.map((store) => (
+      {stores.isSuccess && stores.data.stores.length === 0 && <ThemedText themeColor="textSecondary">No shops yet.</ThemedText>}
+      {stores.data?.stores.map((store) => (
         <Card key={store.id} onPress={() => router.push({ pathname: '/owner/store/[id]', params: { id: String(store.id) } })}>
           <View style={styles.row}>
             <View style={styles.text}>
@@ -46,7 +47,11 @@ export function OwnerStores() {
           </View>
         </Card>
       ))}
-      <Button title="Add shop" onPress={() => router.push({ pathname: '/owner/store/[id]', params: { id: 'new' } })} />
+      <Button
+        title={limitReached ? 'Limit Reached' : 'Add shop'}
+        disabled={!stores.isSuccess || limitReached}
+        onPress={() => router.push({ pathname: '/owner/store/[id]', params: { id: 'new' } })}
+      />
     </View>
   );
 }

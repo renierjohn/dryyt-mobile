@@ -46,7 +46,7 @@ export default function OwnerDropoff() {
         <Button
           title={block.data?.blocked ? 'Driver blocked' : 'Block this driver'}
           variant="danger"
-          disabled={block.data?.blocked === true}
+          disabled={block.data?.blocked === true || d.status === 'completed'}
           loading={block.isPending}
           onPress={() => block.mutate({ driver_id: d.driver_id!, blocked: true, store_id: d.store_id })}
         />

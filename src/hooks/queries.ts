@@ -342,12 +342,13 @@ export function useBlockDriver() {
   });
 }
 
-export type StoreInput = Pick<Store, 'name' | 'type' | 'address' | 'lat' | 'lng'>;
+export type StoreInput = Pick<Store, 'name' | 'type' | 'address' | 'lat' | 'lng' | 'store_logo' | 'store_payment_gateway'>;
 
 export const useOwnerStores = () =>
   useQuery({
     queryKey: ['owner', 'stores'],
-    queryFn: () => api<{ stores: Store[] }>('/owner/stores').then((r) => r.stores),
+    /** `maxstore`: how many shops the owner may run. */
+    queryFn: () => api<{ stores: Store[]; maxstore: number }>('/owner/stores'),
   });
 
 /** Customer store lists and the owner's tabs (which need at least one shop) depend on these too. */
@@ -414,6 +415,16 @@ export function useUploadMenuImage(storeId: number) {
     mutationFn: async (photo: { uri: string; width: number; height: number }) => {
       const { uri, type } = await shrinkImage(photo.uri, photo.width, photo.height);
       return uploadImage<{ image_url: string }>(`/owner/stores/${storeId}/menu/image`, uri, type).then((r) => r.image_url);
+    },
+  });
+}
+
+/** Shrinks a picked logo or payment QR under 1 MB, then uploads it; the returned URL goes on the shop on save. */
+export function useUploadStoreImage() {
+  return useMutation({
+    mutationFn: async (photo: { uri: string; width: number; height: number; target: 'logo' | number }) => {
+      const { uri, type } = await shrinkImage(photo.uri, photo.width, photo.height);
+      return uploadImage<{ image_url: string }>('/owner/stores/image', uri, type).then((r) => r.image_url);
     },
   });
 }

@@ -141,12 +141,12 @@ describe('owner', () => {
     expect(await blockedAt()).toEqual([]);
   });
 
-  it('pages drop offs and payouts 10 at a time, waiting/pending first, without repeats', async () => {
+  it('pages drop offs and payouts 10 at a time, not yet paid/pending first, without repeats', async () => {
     const owner = await registerUser('owner');
     const customer = await registerUser('customer');
     const { storeId } = await makeShop({ ownerId: owner.user.id });
-    // 9 confirmed + 3 waiting, two of the waiting ones sharing a timestamp.
-    const statuses = [...Array(9).fill('owner_confirmed'), 'dropped_off', 'dropped_off', 'dropped_off'];
+    // Oldest first; the two waiting ones share a timestamp.
+    const statuses = [...Array(5).fill('completed'), ...Array(3).fill('owner_confirmed'), 'payment_pending', 'payment_pending', 'dropped_off', 'dropped_off'];
     const times = statuses.map((_, i) => `2026-02-${String(i + 1).padStart(2, '0')} 09:00:00`);
     times[11] = times[10];
     const ids: number[] = [];
@@ -181,8 +181,7 @@ describe('owner', () => {
     expect(dropoffs.map((p) => p.length)).toEqual([10, 2]);
     const flat = dropoffs.flat();
     expect(new Set(flat.map((d) => d.id)).size).toBe(12);
-    expect(flat.slice(0, 3).every((d) => d.status === 'dropped_off')).toBe(true);
-    expect(flat[11].id).toBe(ids[0]);
+    expect(flat.map((d) => d.id)).toEqual([9, 8, 11, 10, 7, 6, 5, 4, 3, 2, 1, 0].map((i) => ids[i]));
 
     const payouts = await pages('/owner/payouts', 'payouts');
     expect(payouts.map((p) => p.length)).toEqual([10, 2]);

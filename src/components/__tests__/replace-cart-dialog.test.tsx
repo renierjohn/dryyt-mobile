@@ -34,7 +34,7 @@ it('asks in an in-app dialog, not a system alert, naming the current store', asy
   const alert = jest.spyOn(Alert, 'alert');
   await ask();
   expect(screen.getByText('Start a new cart?')).toBeTruthy();
-  expect(screen.getByText('Your cart from Tea Haven will be cleared.')).toBeTruthy();
+  expect(screen.getByText('Your cart from Tea Haven will be cleared. Since order is from another store.')).toBeTruthy();
   expect(alert).not.toHaveBeenCalled();
 });
 

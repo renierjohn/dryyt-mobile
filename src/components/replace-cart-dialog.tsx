@@ -23,7 +23,7 @@ export function ReplaceCartDialog({ storeName, onConfirm, onCancel }: Props) {
             Start a new cart?
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.body}>
-            Your cart from {storeName} will be cleared.
+            Your cart from {storeName} will be cleared. Since order is from another store.
           </ThemedText>
           <View style={styles.actions}>
             <Button title="Start new cart" variant="danger" onPress={onConfirm} />

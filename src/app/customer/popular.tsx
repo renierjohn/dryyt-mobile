@@ -41,20 +41,27 @@ export default function Popular() {
 
   return (
     <View style={styles.fill}>
-      <Screen edges={[]} onRefresh={popular.refetch}>
-        <View style={[styles.search, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-          <Icon name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} color={theme.textSecondary} />
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Search dishes"
-            placeholderTextColor={theme.textSecondary}
-            returnKeyType="search"
-            autoCorrect={false}
-            style={[styles.input, { color: theme.text }]}
-          />
-        </View>
-        <CategoryChips categories={popular.data?.categories ?? []} selected={category} onSelect={setCategory} />
+      <Screen
+        edges={[]}
+        onRefresh={popular.refetch}
+        header={
+          // Pinned: stays put while the results scroll.
+          <View style={[styles.filters, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+            <View style={[styles.search, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+              <Icon name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={18} color={theme.textSecondary} />
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                placeholder="Search dishes"
+                placeholderTextColor={theme.textSecondary}
+                returnKeyType="search"
+                autoCorrect={false}
+                style={[styles.input, { color: theme.text }]}
+              />
+            </View>
+            <CategoryChips categories={popular.data?.categories ?? []} selected={category} onSelect={setCategory} />
+          </View>
+        }>
         {popular.isPending && <ActivityIndicator />}
         <ErrorText error={popular.error} />
         {popular.isSuccess && items.length === 0 && (
@@ -84,6 +91,7 @@ export default function Popular() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  filters: { gap: Spacing.three, padding: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth },
   search: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.three },
   input: { flex: 1, minHeight: 44, fontSize: 16 },
   empty: { gap: Spacing.three },

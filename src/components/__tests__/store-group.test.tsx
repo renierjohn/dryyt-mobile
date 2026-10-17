@@ -30,3 +30,22 @@ it('opens the store from its header and items from their cards', async () => {
   await fireEvent.press(screen.getByText('Dish 7'));
   expect(onOpenItem).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
 });
+
+it('shows at most 6 items and a More button that opens the store', async () => {
+  const onOpenStore = jest.fn();
+  const [group] = groupByStore([1, 2, 3, 4, 5, 6, 7, 8].map((id) => make(id, 2, 'Burger Barn')));
+  await render(<StoreGroup group={group} onOpenStore={onOpenStore} onOpenItem={() => {}} />);
+
+  expect(screen.getByText('Dish 6')).toBeTruthy();
+  expect(screen.queryByText('Dish 7')).toBeNull();
+  await fireEvent.press(screen.getByText('More'));
+  expect(onOpenStore).toHaveBeenCalledWith(2);
+});
+
+it('has no More button when everything fits', async () => {
+  const [group] = groupByStore([1, 2, 3, 4, 5, 6].map((id) => make(id, 2, 'Burger Barn')));
+  await render(<StoreGroup group={group} onOpenStore={() => {}} onOpenItem={() => {}} />);
+  expect(screen.getByText('Dish 6')).toBeTruthy();
+  expect(screen.queryByText('More')).toBeNull();
+});
+

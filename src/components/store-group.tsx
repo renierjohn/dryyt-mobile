@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
 import { MenuItemCard } from '@/components/menu-item-card';
 import { ThemedText } from '@/components/themed-text';
@@ -11,6 +12,8 @@ import type { PopularItem } from '@/lib/types';
 export type StoreGroupData = { storeId: number; storeName: string; storeLogo: string | null; items: PopularItem[] };
 
 const COLUMNS = 2;
+/** Beyond this, "More" opens the store's full menu. */
+const MAX_ITEMS = 6;
 
 /** Items per store, stores in the order of their first item (so the store with the most popular match leads). */
 export function groupByStore(items: PopularItem[]): StoreGroupData[] {
@@ -25,11 +28,12 @@ export function groupByStore(items: PopularItem[]): StoreGroupData[] {
 
 type Props = { group: StoreGroupData; onOpenStore: (storeId: number) => void; onOpenItem: (item: PopularItem) => void };
 
-/** A tappable store header over its items in a 2-column grid. */
+/** A tappable store header over up to 6 of its items in a 2-column grid, then "More" when there are others. */
 export function StoreGroup({ group, onOpenStore, onOpenItem }: Props) {
   const theme = useTheme();
   const rows: PopularItem[][] = [];
-  for (let i = 0; i < group.items.length; i += COLUMNS) rows.push(group.items.slice(i, i + COLUMNS));
+  const shown = group.items.slice(0, MAX_ITEMS);
+  for (let i = 0; i < shown.length; i += COLUMNS) rows.push(shown.slice(i, i + COLUMNS));
 
   return (
     <View style={styles.group}>
@@ -57,6 +61,7 @@ export function StoreGroup({ group, onOpenStore, onOpenItem }: Props) {
           {row.length < COLUMNS && <View style={styles.spacer} />}
         </View>
       ))}
+      {group.items.length > MAX_ITEMS && <Button title="More" variant="secondary" onPress={() => onOpenStore(group.storeId)} />}
     </View>
   );
 }

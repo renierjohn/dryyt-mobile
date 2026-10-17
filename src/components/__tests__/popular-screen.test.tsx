@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import Popular from '@/app/customer/popular';
@@ -8,6 +8,15 @@ jest.mock('@/hooks/queries', () => ({ usePopularMenu: (args: unknown) => mockUse
 jest.mock('@/components/cart-button', () => ({ CartButton: () => null }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+// Split the screen so tests can tell the pinned header from the scrolling content.
+jest.mock('@/components/screen', () => {
+  const { createElement } = jest.requireActual('react');
+  const { View } = jest.requireActual('react-native');
+  return {
+    Screen: ({ children, header }: { children: unknown; header: unknown }) =>
+      createElement(View, null, createElement(View, { testID: 'pinned' }, header), createElement(View, { testID: 'scrolling' }, children)),
+  };
+});
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
@@ -66,3 +75,13 @@ it('separates store groups with a line, none after the last', async () => {
   await render(<Popular />);
   expect(screen.getAllByTestId('store-separator')).toHaveLength(2);
 });
+
+it('pins the search box and category chips above the scrolling results', async () => {
+  mockUsePopularMenu.mockReturnValue(result([item(6, 2, 'Burger Barn')]));
+  await render(<Popular />);
+  const pinned = within(screen.getByTestId('pinned'));
+  expect(pinned.getByPlaceholderText('Search dishes')).toBeTruthy();
+  expect(pinned.getByText('Burgers')).toBeTruthy();
+  expect(within(screen.getByTestId('scrolling')).getByText('Burger Barn')).toBeTruthy();
+});
+

@@ -23,7 +23,12 @@ export async function getOrder(db: D1Database, id: number): Promise<OrderDetail 
   const order = await db.prepare(`${ORDER_SELECT} WHERE o.id = ?`).bind(id).first<OrderRow>();
   if (!order) return null;
   const { results: items } = await db
-    .prepare('SELECT id, name, price, qty FROM order_items WHERE order_id = ? ORDER BY id')
+    // The photo comes from the menu item as it is now (none once it's deleted); name and price stay as ordered.
+    .prepare(
+      `SELECT oi.id, oi.name, oi.price, oi.qty, m.image_url
+       FROM order_items oi LEFT JOIN store_menu_items m ON m.id = oi.menu_item_id
+       WHERE oi.order_id = ? ORDER BY oi.id`,
+    )
     .bind(id)
     .all<OrderItem>();
   return { ...order, items };

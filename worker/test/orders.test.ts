@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { api, registerUser } from './helpers';
@@ -37,9 +38,21 @@ describe('POST /orders', () => {
       notes: 'less ice',
     });
     expect(res.body.order.items).toEqual([
-      { id: expect.any(Number), name: 'Wintermelon Milk Tea', price: 12000, qty: 2 },
-      { id: expect.any(Number), name: 'Taro Milk Tea', price: 12500, qty: 1 },
+      { id: expect.any(Number), name: 'Wintermelon Milk Tea', price: 12000, qty: 2, image_url: null },
+      { id: expect.any(Number), name: 'Taro Milk Tea', price: 12500, qty: 1, image_url: null },
     ]);
+  });
+
+  it("shows each line's current menu photo, or none once the item is deleted", async () => {
+    await env.DB.prepare("UPDATE store_menu_items SET image_url = 'https://img.test/tea.jpg' WHERE id = 1").run();
+    const id = (await api('/orders', { token: customer, body: foodOrder })).body.order.id;
+    expect((await api(`/orders/${id}`, { token: customer })).body.order.items.map((i: { image_url: string | null }) => i.image_url)).toEqual([
+      'https://img.test/tea.jpg',
+      null,
+    ]);
+
+    await env.DB.prepare('DELETE FROM store_menu_items WHERE id = 1').run();
+    expect((await api(`/orders/${id}`, { token: customer })).body.order.items[0]).toMatchObject({ name: 'Wintermelon Milk Tea', image_url: null });
   });
 
   it('requires at least one item for food', async () => {

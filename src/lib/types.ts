@@ -33,7 +33,7 @@ export type MenuItem = {
 export type StoreWithMenu = Store & { menu: MenuItem[] };
 /** A menu item on the popular list, with its store. */
 export type PopularItem = MenuItem & { store_id: number; store_name: string; store_logo: string | null };
-export type OrderItem = { id: number; name: string; price: number; qty: number };
+export type OrderItem = { id: number; name: string; price: number; qty: number; image_url: string | null };
 
 export type Order = {
   id: number;

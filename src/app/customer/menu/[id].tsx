@@ -51,7 +51,24 @@ export default function MenuItemScreen() {
 
   return (
     <View style={styles.fill}>
-    <Screen edges={[]} footer={<Button title={`Add to cart · ${peso(discountedPrice(item) * qty)}`} onPress={add} />}>
+    <Screen
+      edges={[]}
+      footer={
+        <View style={styles.footer}>
+          <View testID="footer-back" style={styles.back}>
+            <Button
+              title="Go Back"
+              variant="secondary"
+              stacked
+              icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }}
+              onPress={() => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } })}
+            />
+          </View>
+          <View testID="footer-add" style={styles.add}>
+            <Button title={`Add to cart · ${peso(discountedPrice(item) * qty)}`} onPress={add} />
+          </View>
+        </View>
+      }>
       <Stack.Screen options={{ title: item.name }} />
       {item.image_url ? (
         <Image source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
@@ -116,6 +133,10 @@ function StepButton({ symbol, onPress }: { symbol: string; onPress: () => void }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // 20% / 80%.
+  footer: { flexDirection: 'row', gap: Spacing.two },
+  back: { flex: 1 },
+  add: { flex: 4 },
   photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16 },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   info: { gap: Spacing.one, alignItems: 'flex-start' },

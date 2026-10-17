@@ -24,3 +24,16 @@ it('draws secondary as primary-blue text on a soft blue pill', async () => {
   await render(<Button title="More" variant="secondary" onPress={() => {}} />);
   expect(StyleSheet.flatten(screen.getByText('More').props.style).color).toBe(Colors.light.primary);
 });
+
+it('shows an icon beside the title when given one', async () => {
+  await render(<Button title="Go Back" icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }} onPress={() => {}} />);
+  expect(screen.getByTestId('button-icon')).toBeTruthy();
+  expect(screen.getByText('Go Back')).toBeTruthy();
+});
+
+it('stacks icon over a small title with tight padding for narrow slots', async () => {
+  await render(<Button title="Go Back" stacked icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }} onPress={() => {}} />);
+  expect(StyleSheet.flatten(screen.getByTestId('button-content').props.style).flexDirection).toBe('column');
+  expect(StyleSheet.flatten(screen.getByText('Go Back').props.style).fontSize).toBe(12);
+});
+

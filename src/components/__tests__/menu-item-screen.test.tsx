@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { StyleSheet } from 'react-native';
 
 import MenuItemScreen from '@/app/customer/menu/[id]';
 import { CartProvider } from '@/hooks/use-cart';
@@ -16,7 +17,7 @@ jest.mock('@/hooks/queries', () => ({
 jest.mock('expo-router', () => {
   const { createElement } = jest.requireActual('react');
   return {
-    router: { push: jest.fn(), back: jest.fn() },
+    router: { push: jest.fn(), back: jest.fn(), dismissTo: jest.fn() },
     useLocalSearchParams: () => ({ id: '1', storeId: '2' }),
     Stack: { Screen: () => createElement('View') },
   };
@@ -58,5 +59,18 @@ it('puts the store name above the dish name, on one line with Best seller', asyn
   // Reading order: store line, then the dish name heading.
   const json = JSON.stringify(screen.toJSON());
   expect(json.indexOf('Burger Barn')).toBeLessThan(json.indexOf('"Dish 1"'));
+});
+
+it('footer splits 20/80 between Go Back to the store and Add to cart', async () => {
+  await renderItem();
+  await fireEvent.press(screen.getByText('Go Back'));
+  expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/customer/new-order', params: { storeId: '2' } });
+
+  const flexOf = (id: string) => StyleSheet.flatten(screen.getByTestId(id).props.style).flex;
+  expect(flexOf('footer-back')).toBe(1);
+  expect(flexOf('footer-add')).toBe(4);
+  // Too narrow for icon and text side by side.
+  expect(StyleSheet.flatten(within(screen.getByTestId('footer-back')).getByTestId('button-content').props.style).flexDirection).toBe('column');
+  expect(within(screen.getByTestId('footer-add')).getByText('Add to cart · ₱100.00')).toBeTruthy();
 });
 

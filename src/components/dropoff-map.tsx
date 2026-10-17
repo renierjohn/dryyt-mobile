@@ -20,11 +20,11 @@ const ICON_PATHS: Record<PinIcon, string> = {
 };
 
 export const PinColor = {
-  customer: '#30A46C',
+  customer: Brand.success,
   shop: Brand.primary,
-  driver: '#30A46C',
-  near: '#30A46C',
-  far: '#F5A524',
+  driver: Brand.success,
+  near: Brand.success,
+  far: Brand.warning,
 };
 
 const ZOOM = 13; // ~5 km across

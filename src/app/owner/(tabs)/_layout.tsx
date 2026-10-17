@@ -8,9 +8,10 @@ export default function OwnerTabs() {
   const colors = useTheme();
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      backgroundColor={colors.backgroundElement}
+      indicatorColor={colors.primarySoft}
+      tintColor={colors.primary}
+      labelStyle={{ selected: { color: colors.primary } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Drop offs</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="tray.and.arrow.down.fill" md="move_to_inbox" />

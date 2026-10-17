@@ -38,15 +38,17 @@ export default function MenuItemScreen() {
   const openStore = () => router.push({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
   // The menu arrives in the owner's sort_order; everything but this dish.
   const related = store.data.menu.filter((m) => m.id !== item.id);
+  // Back to the store page if it's in the stack (opened from the store), else open it (opened from Popular).
+  const backToStore = () => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
   const add = () => {
     if (cart.add(item, shop, qty) === 'needs-replace') {
       cart.confirmReplace(() => {
         cart.replace(item, shop, qty);
-        router.back();
+        backToStore();
       });
       return;
     }
-    router.back();
+    backToStore();
   };
 
   return (
@@ -61,7 +63,7 @@ export default function MenuItemScreen() {
               variant="secondary"
               iconOnly
               icon={{ ios: 'storefront', android: 'storefront', web: 'storefront' }}
-              onPress={() => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } })}
+              onPress={backToStore}
             />
           </View>
           <View testID="footer-add" style={styles.add}>

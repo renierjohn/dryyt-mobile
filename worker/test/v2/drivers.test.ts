@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { api, registerUser } from '../helpers';
+import { api, placeOrder, registerUser } from '../helpers';
 import { acceptedDropoff } from './helpers';
 import { closeAll } from './socket';
 
@@ -11,7 +11,7 @@ const busyOf = async (userId: number) => (await env.DB.prepare('SELECT busy FROM
 
 async function pickupOrder() {
   const customer = await registerUser('customer');
-  const res = await api('/orders', {
+  const res = await placeOrder({
     token: customer.token,
     body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 5, qty: 1 }], customer_address: '1 Customer St, Makati' },
   });

@@ -15,6 +15,8 @@ const clamp = (qty: number) => Math.min(MAX_QTY, Math.max(0, qty));
 
 function useCartState() {
   const [cart, setCart] = useState<Cart>(EMPTY);
+  /** The order created when the customer sent proof of payment; the cart waits on it until it's placed. */
+  const [orderId, setOrderId] = useState<number | null>(null);
 
   return useMemo(() => {
     const addTo = (base: Cart, item: MenuItem, store: CartStore, qty: number): Cart => {
@@ -27,6 +29,8 @@ function useCartState() {
 
     return {
       ...cart,
+      orderId,
+      setOrderId,
       count: cart.lines.reduce((sum, l) => sum + l.qty, 0),
       itemsTotal: cart.lines.reduce((sum, l) => sum + discountedPrice(l.item) * l.qty, 0),
       qtyOf: (itemId: number) => cart.lines.find((l) => l.item.id === itemId)?.qty ?? 0,
@@ -42,9 +46,12 @@ function useCartState() {
           const lines = c.lines.map((l) => (l.item.id === itemId ? { ...l, qty: clamp(qty) } : l)).filter((l) => l.qty > 0);
           return lines.length ? { ...c, lines } : EMPTY;
         }),
-      clear: () => setCart(EMPTY),
+      clear: () => {
+        setCart(EMPTY);
+        setOrderId(null);
+      },
     };
-  }, [cart]);
+  }, [cart, orderId]);
 }
 
 type CartContextValue = ReturnType<typeof useCartState> & {

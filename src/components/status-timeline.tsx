@@ -7,8 +7,10 @@ import { STATUS_LABEL } from '@/lib/format';
 import type { OrderStatus } from '@/lib/types';
 
 const STEPS: OrderStatus[] = ['pending', 'accepted', 'picked_up', 'delivered'];
+const PAID_STEPS: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', ...STEPS];
 
-export function StatusTimeline({ status }: { status: OrderStatus }) {
+/** `paid`: paid upfront (food), so the payment steps come first. */
+export function StatusTimeline({ status, paid = false }: { status: OrderStatus; paid?: boolean }) {
   const theme = useTheme();
 
   if (status === 'cancelled') {
@@ -19,10 +21,11 @@ export function StatusTimeline({ status }: { status: OrderStatus }) {
     );
   }
 
-  const current = STEPS.indexOf(status);
+  const steps = paid ? PAID_STEPS : STEPS;
+  const current = steps.indexOf(status);
   return (
     <View style={styles.list}>
-      {STEPS.map((step, i) => (
+      {steps.map((step, i) => (
         <View key={step} style={styles.row}>
           <View style={[styles.dot, { backgroundColor: i < current ? theme.success : i === current ? theme.primary : theme.backgroundSelected }]} />
           <ThemedText type={i === current ? 'smallBold' : 'small'} themeColor={i <= current ? 'text' : 'textSecondary'}>

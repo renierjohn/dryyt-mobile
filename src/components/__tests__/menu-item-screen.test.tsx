@@ -74,3 +74,11 @@ it('footer splits 20/80 between Go Back to the store and Add to cart', async () 
   expect(within(screen.getByTestId('footer-add')).getByText('Add to cart · ₱100.00')).toBeTruthy();
 });
 
+
+it("Add to cart goes to the dish's store page", async () => {
+  jest.clearAllMocks();
+  await renderItem();
+  await fireEvent.press(screen.getByText('Add to cart · ₱100.00'));
+  expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/customer/new-order', params: { storeId: '2' } });
+  expect(router.back).not.toHaveBeenCalled();
+});

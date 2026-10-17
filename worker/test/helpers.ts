@@ -1,4 +1,4 @@
-import { SELF } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
 
 type Options = { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown; token?: string };
 
@@ -30,4 +30,17 @@ export async function registerUser(role: 'customer' | 'driver' | 'owner') {
     },
   });
   return body;
+}
+
+/** POST /orders with a payment reference; a food order is then released to drivers as if the owner confirmed it and the customer placed it. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function placeOrder<T = any>(opts: Omit<Options, 'method'> & { body: Record<string, unknown> }) {
+  const res = await api<T>('/orders', { ...opts, body: { payment_ref: 'GCASH-REF-1', ...opts.body } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const order = (res.body as any)?.order;
+  if (res.status === 201 && order.status === 'awaiting_payment') {
+    await env.DB.prepare("UPDATE orders SET status = 'pending' WHERE id = ?").bind(order.id).run();
+    order.status = 'pending';
+  }
+  return res;
 }

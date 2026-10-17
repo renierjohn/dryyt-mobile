@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Lists stores with their type, owner and map pin.
-// Usage: yarn stores [food|laundry] [--remote]
-// Without --remote it reads the local D1 database used by `yarn dev`.
+// Usage: bun run stores [food|laundry] [--remote]
+// Without --remote it reads the local D1 database used by `bun run dev`.
 import { execFileSync } from 'node:child_process';
 
 const args = process.argv.slice(2);
@@ -9,7 +9,7 @@ const remote = args.includes('--remote');
 const [type] = args.filter((a) => a !== '--remote');
 
 if (type !== undefined && type !== 'food' && type !== 'laundry') {
-  console.error('type must be food or laundry\nUsage: yarn stores [food|laundry] [--remote]');
+  console.error('type must be food or laundry\nUsage: bun run stores [food|laundry] [--remote]');
   process.exit(1);
 }
 

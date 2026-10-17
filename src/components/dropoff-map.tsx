@@ -81,15 +81,17 @@ window.setPins = (pins, path) => {
   const pathKey = JSON.stringify(path);
   if (pathKey !== lastPath) {
     lastPath = pathKey;
+    const firstRoad = !line;
     if (line) line.remove();
     line = null;
     if (path.length > 1) {
       line = L.polyline(path, { color: '${Brand.primary}', weight: 5, opacity: 0.8 }).addTo(map);
-      fitted = false;
+      // Re-fit only for the first road: refits on every GPS refinement made the map jump.
+      if (firstRoad) fitted = false;
     }
   }
-  // Fit every pin (and the road) on first show, when a new pin appears (e.g. the driver's first fix) and when the road changes;
-  // live pin moves leave the view alone.
+  // Fit every pin (and the road) on first show, when a new pin appears (e.g. the driver's first fix) and when the first road arrives;
+  // live pin moves and later road changes leave the view alone.
   if (pins.some((p) => !fittedKeys.has(p.key))) fitted = false;
   if (!fitted && pins.length > 0) {
     fitted = true;

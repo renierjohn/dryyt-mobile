@@ -8,19 +8,19 @@ Backend (Cloudflare Worker + D1):
 
 ```bash
 cd worker
-yarn
+bun install
 cp .dev.vars.example .dev.vars   # set JWT_SECRET
-yarn db:migrate:local
-yarn dev                          # http://localhost:8788
-yarn test
+bun run db:migrate:local
+bun run dev                      # http://localhost:8788
+bun run test
 ```
 
 App (Expo):
 
 ```bash
-yarn
+bun install
 cp .env.example .env              # set EXPO_PUBLIC_API_URL for your simulator/device
-yarn ios                          # or yarn android
+bun run ios                      # or bun run android
 ```
 
 ## Deploy the worker
@@ -29,8 +29,8 @@ yarn ios                          # or yarn android
 cd worker
 npx wrangler d1 create dryyt      # paste database_id into wrangler.jsonc
 npx wrangler secret put JWT_SECRET
-yarn db:migrate:remote
-yarn deploy
+bun run db:migrate:remote
+bun run deploy
 ```
 
 Then set `EXPO_PUBLIC_API_URL` to the deployed `*.workers.dev` URL.

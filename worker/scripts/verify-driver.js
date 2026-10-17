@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Developer only: marks a driver verified (status 1) so the app shows the badge and locks their photos and plate,
 // or unverified with --off so the driver can change them again.
-// Usage: yarn driver:verify <userId|email> [--off] [--remote]
-// Without --remote it updates the local D1 database used by `yarn dev`.
+// Usage: bun run driver:verify <userId|email> [--off] [--remote]
+// Without --remote it updates the local D1 database used by `bun run dev`.
 import { d1, usageError } from './lib/mock.js';
 
-const usage = usageError('yarn driver:verify <userId|email> [--off] [--remote]');
+const usage = usageError('bun run driver:verify <userId|email> [--off] [--remote]');
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

@@ -2,7 +2,7 @@
 export type Role = 'customer' | 'driver' | 'owner';
 export type StoreType = 'food' | 'laundry';
 export type OrderType = 'pickup';
-export type OrderStatus = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
+export type OrderStatus = 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
 export type User = { id: number; email: string; name: string; phone: string; role: Role };
 export type Store = {
@@ -45,9 +45,15 @@ export type Order = {
   customer_address: string;
   notes: string;
   items_total: number;
+  /** What the customer pays for delivery: the driver's share plus service_fee. */
   delivery_fee: number;
+  /** The app's cut of delivery_fee; 0 for flat-fee orders. */
+  service_fee: number;
   created_at: string;
   updated_at: string;
+  /** Proof of an upfront (food) payment: a reference number and/or a photo (see /owner/orders/:id/payment-photo). */
+  payment_ref: string;
+  payment_photo_key: string | null;
   store_name: string;
   store_address: string;
   store_type: StoreType;

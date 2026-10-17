@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api, registerUser } from './helpers';
+import { api, placeOrder, registerUser } from './helpers';
 
 const JPEG: Uint8Array<ArrayBuffer> = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 
@@ -187,7 +187,7 @@ describe('owner menu', () => {
     const storeId = (await api('/owner/stores', { token, body: { ...shop, type: 'food' } })).body.store.id;
     const itemId = (await api(`/owner/stores/${storeId}/menu`, { token, body: item })).body.item.id;
     const customer = (await registerUser('customer')).token;
-    const order = await api('/orders', {
+    const order = await placeOrder({
       token: customer,
       body: {
         type: 'pickup',

@@ -16,6 +16,7 @@ jest.mock('@/hooks/queries', () => ({
   }),
   useDropoffAction: () => ({ mutate: jest.fn(), isPending: false, error: new Error('Cancel failed') }),
   useCreateDropoff: () => ({ mutate: jest.fn(), isPending: false, error: null }),
+  useRoadRoute: () => ({ data: undefined }),
 }));
 // Split the screen so the test can tell scroll content from the sticky footer.
 jest.mock('@/components/screen', () => {

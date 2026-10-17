@@ -14,11 +14,12 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
-/** Every push the worker sends carries the drop off it's about. */
-const transactionOf = (n: Notifications.Notification) => {
-  const id = Number(n.request.content.data?.transaction_id);
+/** Every push the worker sends carries the drop off (`transaction_id`) or the pickup order (`order_id`) it's about. */
+const idOf = (n: Notifications.Notification, field: 'transaction_id' | 'order_id') => {
+  const id = Number(n.request.content.data?.[field]);
   return Number.isInteger(id) && id > 0 ? id : null;
 };
+const transactionOf = (n: Notifications.Notification) => idOf(n, 'transaction_id');
 
 type Step = 'channel' | 'permission' | 'projectId' | 'getExpoPushTokenAsync' | 'save';
 
@@ -69,8 +70,15 @@ async function register(ask: boolean) {
 }
 
 /** Where a tap on a push lands, per role. */
-function open(role: Role, id: number | null) {
+function open(role: Role, n: Notifications.Notification) {
   if (role === 'driver') return router.navigate('/driver');
+  const orderId = idOf(n, 'order_id');
+  if (orderId !== null) {
+    if (role === 'customer') router.push({ pathname: '/customer/order/[id]', params: { id: String(orderId) } });
+    else router.navigate('/owner/orders');
+    return;
+  }
+  const id = transactionOf(n);
   if (id === null) return;
   if (role === 'customer') router.push({ pathname: '/customer/dropoff/[id]', params: { id: String(id) } });
   else router.push({ pathname: '/owner/dropoff/[id]', params: { id: String(id) } });
@@ -126,6 +134,8 @@ export function usePushNotifications(role: Role) {
     const sub = Notifications.addNotificationReceivedListener((n) => {
       const id = transactionOf(n);
       if (id !== null) qc.invalidateQueries({ queryKey: ['dropoff', id] });
+      const orderId = idOf(n, 'order_id');
+      if (orderId !== null) qc.invalidateQueries({ queryKey: ['order', orderId] });
       if (role === 'driver') qc.invalidateQueries({ queryKey: ['driver'] });
       if (role === 'owner') qc.invalidateQueries({ queryKey: ['owner'] });
     });
@@ -134,7 +144,7 @@ export function usePushNotifications(role: Role) {
 
   useEffect(() => {
     if (!tapped || tapped.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    open(role, transactionOf(tapped.notification));
+    open(role, tapped.notification);
     // Handled once; otherwise a remount (e.g. sign out and back in) would open it again.
     Notifications.clearLastNotificationResponseAsync().catch(() => {});
   }, [tapped, role]);

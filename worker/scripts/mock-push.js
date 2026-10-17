@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Sends a test push notification to a user's phone, shaped exactly like the worker's pushes.
-// Usage: yarn mock:push <userId|email> [preset] [--title <text>] [--body <text>] [--remote]
+// Usage: bun run mock:push <userId|email> [preset] [--title <text>] [--body <text>] [--remote]
 // Presets mirror the app's real pushes: new-dropoff (driver), arrived / waiting (owner),
 // received / cancelled (customer). Default: a plain "Test notification".
 // The user needs a saved push token: sign in once on a development or release build (not Expo Go).
 import { d1, usageError } from './lib/mock.js';
 
 const PRESETS = {
-  test: { title: 'Test notification', body: 'Push from yarn mock:push.' },
+  test: { title: 'Test notification', body: 'Push from bun run mock:push.' },
   // Same channel and Dryyt chime as the worker's real new drop off push (PUSH_STYLES.newDropoff).
   'new-dropoff': { title: 'New drop off nearby', body: 'Fresh Fold Laundry: open Dryyt to accept.', channelId: 'new-dropoff', sound: 'dryyt.wav' },
   arrived: { title: 'New drop off', body: "Mock Customer's laundry has arrived." },
@@ -16,7 +16,7 @@ const PRESETS = {
   cancelled: { title: 'Drop off cancelled', body: 'Your driver cancelled the trip.' },
 };
 
-const usage = usageError(`yarn mock:push <userId|email> [${Object.keys(PRESETS).join('|')}] [--title <text>] [--body <text>] [--remote]`);
+const usage = usageError(`bun run mock:push <userId|email> [${Object.keys(PRESETS).join('|')}] [--title <text>] [--body <text>] [--remote]`);
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

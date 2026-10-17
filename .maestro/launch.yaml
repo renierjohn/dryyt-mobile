@@ -1,5 +1,5 @@
 # Smoke test: the app opens and reaches sign-in without crashing.
-# Run on a booted emulator with the app installed: yarn e2e
+# Run on a booted emulator with the app installed: bun run e2e
 appId: com.dryyt.mobile
 ---
 - launchApp:

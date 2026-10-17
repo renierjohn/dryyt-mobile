@@ -91,7 +91,7 @@ export function d1(sql, remote) {
 
 /**
  * Signs in as an existing user without their password: looks them up in D1 (by id or email) and signs a
- * token with JWT_SECRET from worker/.dev.vars, like the worker's signToken. Works against `yarn dev` only,
+ * token with JWT_SECRET from worker/.dev.vars, like the worker's signToken. Works against `bun run dev` only,
  * since a deployed worker has a different secret.
  */
 export function tokenForUser(who, role) {

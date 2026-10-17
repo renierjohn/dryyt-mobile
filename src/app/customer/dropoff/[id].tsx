@@ -12,7 +12,7 @@ import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useCreateDropoff, useDropoff, useDropoffAction } from '@/hooks/queries';
+import { useCreateDropoff, useDropoff, useDropoffAction, useRoadRoute } from '@/hooks/queries';
 import { useSocket } from '@/hooks/use-socket';
 import { DROPOFF_STATUS_LABEL, peso } from '@/lib/format';
 import type { DropoffStatus, LatLng, NearbyDriver } from '@/lib/types';
@@ -45,6 +45,8 @@ export default function DropoffDetail() {
   useEffect(() => {
     live.current = connected;
   });
+  // Pins are fixed once booked, so the road from the customer to the shop is fetched once.
+  const route = useRoadRoute(d ? { lat: d.customer_lat, lng: d.customer_lng } : null, d ? { lat: d.shop_lat, lng: d.shop_lng } : null);
 
   if (!d) {
     return <Screen edges={[]}>{dropoff.isPending ? <ActivityIndicator /> : <ErrorText error={dropoff.error} />}</Screen>;
@@ -114,6 +116,7 @@ export default function DropoffDetail() {
           <View style={styles.mapCard}>
             <DropoffMap
               center={customer}
+              path={route.data?.path}
               pins={[
                 ...pins,
                 ...drivers.map((x, i) => ({ key: `driver-${i}`, at: x, color: x.colour === 'green' ? PinColor.near : PinColor.far, icon: 'motorcycle' as const })),
@@ -144,6 +147,7 @@ export default function DropoffDetail() {
           <View style={styles.mapCard}>
             <DropoffMap
               center={driverAt ?? customer}
+              path={route.data?.path}
               pins={[...pins, ...(driverAt ? [{ key: 'driver', at: driverAt, title: d.driver_name ?? 'Driver', color: PinColor.driver, icon: 'motorcycle' as const }] : [])]}
             />
           </View>

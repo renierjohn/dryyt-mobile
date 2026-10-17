@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
-import { api, registerUser } from './helpers';
+import { api, placeOrder, registerUser } from './helpers';
 
 const popularity = async (id: number) =>
   (await env.DB.prepare('SELECT popularity FROM store_menu_items WHERE id = ?').bind(id).first<{ popularity: number }>())!.popularity;
@@ -22,7 +22,7 @@ describe('menu popularity', () => {
   it('backfills from delivered order lines matched by store and name', async () => {
     const { token } = await registerUser('customer');
     const place = (qty: number) =>
-      api('/orders', { token, body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 6, qty }], customer_address: '1 Customer St, Makati' } });
+      placeOrder({ token, body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 6, qty }], customer_address: '1 Customer St, Makati' } });
     const delivered = (await place(3)).body.order.id;
     const cancelled = (await place(5)).body.order.id;
     // Old data: lines without menu_item_id.
@@ -46,7 +46,7 @@ describe('menu popularity', () => {
     ).body.store.id;
     const itemId = (await api(`/owner/stores/${storeId}/menu`, { token: owner, body: { name: 'Fries', price: 5000 } })).body.item.id;
     const orderId = (
-      await api('/orders', {
+      await placeOrder({
         token,
         body: { type: 'pickup', store_id: storeId, items: [{ menu_item_id: itemId, qty: 1 }], customer_address: '1 Customer St, Makati' },
       })
@@ -64,7 +64,7 @@ describe('menu popularity', () => {
   async function deliveredOrder(items: { menu_item_id: number; qty: number }[]) {
     const customer = (await registerUser('customer')).token;
     const driver = (await registerUser('driver')).token;
-    const id = (await api('/orders', { token: customer, body: { type: 'pickup', store_id: 2, items, customer_address: '1 Customer St, Makati' } })).body.order.id;
+    const id = (await placeOrder({ token: customer, body: { type: 'pickup', store_id: 2, items, customer_address: '1 Customer St, Makati' } })).body.order.id;
     await api(`/jobs/${id}/accept`, { token: driver, method: 'POST' });
     await api(`/jobs/${id}/status`, { token: driver, body: { status: 'picked_up' } });
     return { id, driver, deliver: () => api(`/jobs/${id}/status`, { token: driver, body: { status: 'delivered' } }) };
@@ -72,7 +72,7 @@ describe('menu popularity', () => {
 
   it('links new order lines to their menu item', async () => {
     const { token } = await registerUser('customer');
-    const id = (await api('/orders', { token, body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 7, qty: 2 }], customer_address: '1 Customer St, Makati' } })).body.order.id;
+    const id = (await placeOrder({ token, body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 7, qty: 2 }], customer_address: '1 Customer St, Makati' } })).body.order.id;
     const line = await env.DB.prepare('SELECT menu_item_id FROM order_items WHERE order_id = ?').bind(id).first();
     expect(line).toEqual({ menu_item_id: 7 });
   });

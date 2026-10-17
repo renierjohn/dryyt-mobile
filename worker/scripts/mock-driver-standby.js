@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Puts an existing driver online at a fixed spot and only watches: prints each drop off request that
 // reaches them (fee and distance) and when it goes away. Never accepts. Ctrl+C restores their online state.
-// Usage: yarn mock:standby <driverId|email> <lat> <lng> [--api <url>]
-// Signs in with worker/.dev.vars JWT_SECRET, so it works against local `yarn dev` only.
+// Usage: bun run mock:standby <driverId|email> <lat> <lng> [--api <url>]
+// Signs in with worker/.dev.vars JWT_SECRET, so it works against local `bun run dev` only.
 import { openRoom, parseArgs, peso, sleep, time, tokenForUser, usageError } from './lib/mock.js';
 
 const { api, positional } = parseArgs();
@@ -10,7 +10,7 @@ const [who, latArg, lngArg] = positional;
 const lat = Number(latArg);
 const lng = Number(lngArg);
 
-const usage = usageError('yarn mock:standby <driverId|email> <lat> <lng> [--api <url>]');
+const usage = usageError('bun run mock:standby <driverId|email> <lat> <lng> [--api <url>]');
 if (!who) usage('Pass the driver id or email');
 if (!Number.isFinite(lat) || lat < -90 || lat > 90) usage('lat must be between -90 and 90');
 if (!Number.isFinite(lng) || lng < -180 || lng > 180) usage('lng must be between -180 and 180');

@@ -59,7 +59,7 @@ function PickupJob() {
       <ThemedText type="subtitle">Active job</ThemedText>
       <StatusTimeline status={job.status} />
       <Card>
-        <OrderSummary order={job} />
+        <OrderSummary order={job} showFees />
       </Card>
       <Card>
         <ThemedText type="smallBold">Customer</ThemedText>

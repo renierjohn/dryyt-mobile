@@ -2,7 +2,7 @@ import { createExecutionContext, env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
 import app from '../../src/index';
-import { api, registerUser } from '../helpers';
+import { api, placeOrder, registerUser } from '../helpers';
 
 /** The worker with PICKUP_ENABLED off, as in wrangler.jsonc (the test pool turns it on for the Pickup suites). */
 async function offline(path: string, token: string, init: RequestInit = {}) {
@@ -32,7 +32,7 @@ describe('Pickup switched off', () => {
   it('leaves Pickup orders out of history', async () => {
     const customer = await registerUser('customer');
     // Placed while Pickup was on (the pool default).
-    await api('/orders', {
+    await placeOrder({
       token: customer.token,
       body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 5, qty: 1 }], customer_address: '1 Customer St, Makati' },
     });

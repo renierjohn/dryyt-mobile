@@ -31,7 +31,12 @@ export default function Pickup() {
             icon={option.icon}
             title={option.title}
             body={option.body}
-            onPress={() => router.push({ pathname: '/customer/stores', params: { type: option.type, mode: 'pickup' } })}
+            onPress={() =>
+              // Food opens the same store-grouped menu as Home's "Popular now" → More.
+              option.type === 'food'
+                ? router.push('/customer/popular')
+                : router.push({ pathname: '/customer/stores', params: { type: option.type, mode: 'pickup' } })
+            }
           />
         ))}
       </View>

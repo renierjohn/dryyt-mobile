@@ -61,7 +61,7 @@ export function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer
     const { order } = item;
     return (
       <Card onPress={role === 'customer' ? () => router.push(`/customer/order/${order.id}`) : undefined}>
-        <OrderSummary order={order} />
+        <OrderSummary order={order} showFees={role === 'driver'} />
       </Card>
     );
   }

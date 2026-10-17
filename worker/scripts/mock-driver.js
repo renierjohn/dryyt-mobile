@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Plays the driver side of a drop off so a customer can test with the real app.
-// Usage: yarn mock:driver <lat> <lng> [--api <url>] [--speed <km/h>]
+// Usage: bun run mock:driver <lat> <lng> [--api <url>] [--speed <km/h>]
 // Goes online at lat/lng, accepts the first nearby request, waits for the customer to confirm,
 // drives the road to the customer and then to the shop (sending GPS every 3 s), and drops off with a proof photo.
 // Ctrl+C goes offline.
@@ -14,7 +14,7 @@ const speedKmh = speedAt >= 0 ? Number(argv.splice(speedAt, 2)[1]) : 120;
 const { api, positional } = parseArgs(argv);
 const [lat, lng] = positional.map(Number);
 
-const usage = usageError('yarn mock:driver <lat> <lng> [--api <url>] [--speed <km/h>]');
+const usage = usageError('bun run mock:driver <lat> <lng> [--api <url>] [--speed <km/h>]');
 if (!Number.isFinite(lat) || lat < -90 || lat > 90) usage('lat must be between -90 and 90');
 if (!Number.isFinite(lng) || lng < -180 || lng > 180) usage('lng must be between -180 and 180');
 if (!Number.isFinite(speedKmh) || speedKmh <= 0) usage('speed must be a positive number');

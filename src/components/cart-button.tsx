@@ -21,10 +21,11 @@ export function CartButton({ bottom = 0 }: { bottom?: number }) {
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.pill,
-        { backgroundColor: pressed ? theme.primaryPressed : theme.primary, bottom: bottom + insets.bottom + Spacing.three },
+        // Secondary look, like Button variant="secondary": fades while pressed.
+        { backgroundColor: theme.primarySoft, opacity: pressed ? 0.8 : 1, bottom: bottom + insets.bottom + Spacing.three },
       ]}>
-      <Icon name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} size={20} color={theme.onPrimary} />
-      <ThemedText type="smallBold" style={{ color: theme.onPrimary }}>
+      <Icon name={{ ios: 'cart.fill', android: 'shopping_cart', web: 'shopping_cart' }} size={20} color={theme.primary} />
+      <ThemedText type="smallBold" style={{ color: theme.primary }}>
         {cart.count} {cart.count === 1 ? 'item' : 'items'} · {peso(cart.itemsTotal)}
       </ThemedText>
     </Pressable>

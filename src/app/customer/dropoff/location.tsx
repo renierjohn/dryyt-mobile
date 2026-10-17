@@ -7,7 +7,7 @@ import { DropoffMap, PinColor } from '@/components/dropoff-map';
 import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { useCreateDropoff, useRoadRoute, useStore } from '@/hooks/queries';
+import { useCreateDropoff, useStore } from '@/hooks/queries';
 import { useCurrentLocation } from '@/hooks/use-location';
 import type { LatLng } from '@/lib/types';
 
@@ -20,8 +20,8 @@ export default function DropoffLocation() {
 
   const shop = store.data?.lat != null && store.data.lng != null ? { lat: store.data.lat, lng: store.data.lng } : null;
   const at = pin ?? here.loc;
+  // No road lookup here: the server measures the road distance when Find a driver books the drop off.
   const center = at ?? shop;
-  const route = useRoadRoute(at, shop);
 
   return (
     <Screen edges={[]}>
@@ -34,7 +34,6 @@ export default function DropoffLocation() {
         <DropoffMap
           center={center}
           onPress={setPin}
-          path={route.data?.path}
           pins={[
             ...(at ? [{ key: 'me', at, title: 'Pickup here', color: PinColor.customer, icon: 'person' as const }] : []),
             ...(shop ? [{ key: 'shop', at: shop, title: store.data?.name, color: PinColor.shop, icon: 'store' as const }] : []),
@@ -43,9 +42,7 @@ export default function DropoffLocation() {
       ) : (
         <ActivityIndicator />
       )}
-      {route.data && <ThemedText>Approx. {route.data.road_km.toFixed(1)} km by road to the shop</ThemedText>}
-      {route.isFetching && <ActivityIndicator />}
-      <ErrorText error={store.error ?? route.error ?? create.error} />
+      <ErrorText error={store.error ?? create.error} />
       <Button
         title="Find a driver"
         disabled={!at}

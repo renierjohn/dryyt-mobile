@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Plays the laundry shop owner so customers and drivers can test with the real app.
-// Usage: yarn mock:owner <storeId> [--paid] [--api <url>] [--remote]
+// Usage: bun run mock:owner <storeId> [--paid] [--api <url>] [--remote]
 // Links a test owner to the shop (if the shop has no owner yet), then confirms every
 // drop off that arrives. With --paid it also marks it paid, completing the drop off.
 // --remote links the owner in the deployed D1; use it together with --api.
@@ -11,7 +11,7 @@ const storeId = Number(positional[0]);
 const remote = flags.has('--remote');
 const markPaid = flags.has('--paid');
 
-const usage = usageError('yarn mock:owner <storeId> [--paid] [--api <url>] [--remote]');
+const usage = usageError('bun run mock:owner <storeId> [--paid] [--api <url>] [--remote]');
 if (!Number.isInteger(storeId) || storeId <= 0) usage('storeId must be a positive integer');
 
 // Test-only account; override with MOCK_OWNER_EMAIL / MOCK_OWNER_PASSWORD.

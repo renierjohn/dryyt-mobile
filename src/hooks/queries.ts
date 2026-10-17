@@ -24,9 +24,44 @@ export type NewOrder = {
   type: OrderType;
   store_id: number;
   items: { menu_item_id: number; qty: number }[];
-  customer_address: string;
-  notes: string;
+  /** A pinned location prices delivery by road distance; otherwise `customer_address` is required. */
+  lat?: number;
+  lng?: number;
+  customer_address?: string;
+  notes?: string;
+  /** Food is paid upfront: a reference number, a photo key from useUploadPaymentPhoto, or both. */
+  payment_ref?: string;
+  payment_photo_key?: string;
 };
+
+/** Proof of payment photo, uploaded before the order is created; resolves to its key. */
+export const useUploadPaymentPhoto = () =>
+  useMutation({
+    mutationFn: async (photo: { uri: string; width: number; height: number }) => {
+      const { uri, type } = await shrinkImage(photo.uri, photo.width, photo.height);
+      return uploadImage<{ key: string }>('/orders/payment-photo', uri, type).then((r) => r.key);
+    },
+  });
+
+/** Releases a payment-confirmed order to drivers. */
+export function usePlaceOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ order: OrderDetail }>(`/orders/${id}/place`, { method: 'POST' }).then((r) => r.order),
+    onSuccess: (order) => {
+      qc.setQueryData(['order', order.id], order);
+      return qc.invalidateQueries({ queryKey: ['history'] });
+    },
+  });
+}
+
+export type DeliveryQuote = { road_km: number; delivery_fee: number };
+
+/** Delivery fee from a pin to the store, priced like a drop off. */
+export const useOrderQuote = () =>
+  useMutation({
+    mutationFn: (input: { store_id: number } & LatLng) => api<{ quote: DeliveryQuote }>('/orders/quote', { body: input }).then((r) => r.quote),
+  });
 
 export const useStores = (type: StoreType) =>
   useQuery({
@@ -204,13 +239,14 @@ export const useDropoff = (id: number, isLive?: () => boolean) => {
 };
 
 
-/** Road route between two pins via OpenStreetMap routing; refetches when a pin moves. */
+/** Road route between two pins via OpenStreetMap routing; refetches when a pin moves, keeping the old road until the new one arrives. */
 export const useRoadRoute = (from: LatLng | null, to: LatLng | null) =>
   useQuery({
     queryKey: ['road-route', from?.lat, from?.lng, to?.lat, to?.lng],
     queryFn: () => roadRoute(from!, to!),
     enabled: from !== null && to !== null,
     staleTime: Infinity,
+    placeholderData: keepPreviousData,
   });
 
 export function useCreateDropoff() {
@@ -346,6 +382,27 @@ export const usePayouts = () => {
     refetchInterval: poll,
   });
 };
+
+/** Pickup orders at the owner's shops, newest first. */
+export const useOwnerOrders = () => {
+  const poll = usePoll();
+  return useInfiniteQuery({
+    queryKey: ['owner', 'orders'],
+    queryFn: ({ pageParam: next }) => api<{ orders: OrderDetail[]; next: string | null }>(`/owner/orders${pageParam(next)}`),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next,
+    refetchInterval: poll,
+  });
+};
+
+/** Done Pay: the owner saw the customer's payment. */
+export function useConfirmPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ order: OrderDetail }>(`/owner/orders/${id}/confirm-payment`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'orders'] }),
+  });
+}
 
 export function useMarkPayoutPaid() {
   const qc = useQueryClient();

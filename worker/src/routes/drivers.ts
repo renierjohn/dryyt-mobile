@@ -62,7 +62,7 @@ drivers.get('/me/verification', async (c) => c.json({ verification: verification
 
 const LOCKED = 'Your details are verified and can no longer be changed';
 
-// Verified details are locked; a developer unverifies (yarn driver:verify --off) to allow changes.
+// Verified details are locked; a developer unverifies (bun run driver:verify --off) to allow changes.
 drivers.post('/me/verification', async (c) => {
   const { notes } = await parseBody(c, notesSchema);
   const userId = c.get('user').id;

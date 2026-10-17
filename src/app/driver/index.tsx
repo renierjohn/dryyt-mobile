@@ -56,7 +56,7 @@ export default function AvailableJobs() {
           )}
           {jobs.data?.map((job) => (
             <Card key={job.id}>
-              <OrderSummary order={job} />
+              <OrderSummary order={job} showFees />
               <Button
                 title="Accept job"
                 disabled={busy}

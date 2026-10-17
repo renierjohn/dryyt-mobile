@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Plays the customer side of a drop off so a driver can test with the real app.
-// Usage: yarn mock:customer <storeId> <lat> <lng> [--user <customerId|email>] [--api <url>]
-// Signs in as --user (an existing customer, local `yarn dev` only) or else the test customer
+// Usage: bun run mock:customer <storeId> <lat> <lng> [--user <customerId|email>] [--api <url>]
+// Signs in as --user (an existing customer, local `bun run dev` only) or else the test customer
 // (created on first run), requests a drop off at lat/lng,
 // prints status changes, confirms the driver as soon as one accepts, and cancels on Ctrl+C.
 import { appApiUrl, tokenForUser } from './lib/mock.js';
@@ -15,7 +15,7 @@ console.log(`Worker: ${API}`);
 const [storeId, lat, lng] = args.map(Number);
 
 const usage = (msg) => {
-  console.error(`${msg}\nUsage: yarn mock:customer <storeId> <lat> <lng> [--user <customerId|email>] [--api <url>]`);
+  console.error(`${msg}\nUsage: bun run mock:customer <storeId> <lat> <lng> [--user <customerId|email>] [--api <url>]`);
   process.exit(1);
 };
 if (asUser === '' || asUser?.startsWith('--')) usage('--user needs a customer id or email');

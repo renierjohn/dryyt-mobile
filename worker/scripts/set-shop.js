@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Updates a store's details. Set only the fields you pass.
-// Usage: yarn shop:set <storeId> [--lat <lat> --lng <lng>] [--address <text>] [--type food|laundry]
+// Usage: bun run shop:set <storeId> [--lat <lat> --lng <lng>] [--address <text>] [--type food|laundry]
 //                                [--name <text>] [--owner <userId>|none] [--remote]
-// Without --remote it updates the local D1 database used by `yarn dev`.
+// Without --remote it updates the local D1 database used by `bun run dev`.
 import { d1, usageError } from './lib/mock.js';
 
-const USAGE = 'yarn shop:set <storeId> [--lat <lat> --lng <lng>] [--address <text>] [--type food|laundry] [--name <text>] [--owner <userId>|none] [--remote]';
+const USAGE = 'bun run shop:set <storeId> [--lat <lat> --lng <lng>] [--address <text>] [--type food|laundry] [--name <text>] [--owner <userId>|none] [--remote]';
 const usage = usageError(USAGE);
 
 const args = process.argv.slice(2);

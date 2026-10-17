@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { api, registerUser } from './helpers';
+import { api, placeOrder as postOrder, registerUser } from './helpers';
 
 let customer: string;
 let driver: string;
@@ -13,7 +13,7 @@ beforeEach(async () => {
 });
 
 async function placeOrder(): Promise<number> {
-  const res = await api('/orders', {
+  const res = await postOrder({
     token: customer,
     body: { type: 'pickup', store_id: 2, items: [{ menu_item_id: 5, qty: 1 }], customer_address: '1 Customer St, Makati' },
   });

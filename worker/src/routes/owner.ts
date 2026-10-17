@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
 import { getMenuItem, listMenu, menuImageKey, menuImageUrl } from '../lib/menu';
-import { readPhoto } from '../lib/photos';
+import { getOrder, listOrders } from '../lib/orders';
+import { photoResponse, readPhoto } from '../lib/photos';
 import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
 import { pushToUsers } from '../lib/push';
@@ -266,6 +267,50 @@ owner.get('/transactions', async (c) => {
     dropoffs: page.map((r) => viewFor(r, c.get('user'))),
     next: rows.length > limit && last ? `${OWNER_RANKS.indexOf(last.status)}|${last.updated_at}|${last.id}` : null,
   });
+});
+
+/** Pickup orders at the owner's shops with their lines, newest first; 10 per page, `next` fetches older ones. */
+owner.get('/orders', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const { before, limit } = pageQuery(c);
+  const binds: unknown[] = [...storeIds];
+  if (before) binds.push(Number(cursorParts(before, 1)[0]));
+  const rows = await listOrders(
+    c.env.DB,
+    `o.store_id IN ${inList(storeIds)} ${before ? 'AND o.id < ?' : ''} ORDER BY o.id DESC LIMIT ${limit + 1}`,
+    ...binds,
+  );
+  const page = await Promise.all(rows.slice(0, limit).map((o) => getOrder(c.env.DB, o.id)));
+  const last = page[page.length - 1];
+  return c.json({ orders: page, next: rows.length > limit && last ? String(last.id) : null });
+});
+
+/** One of the owner's orders, or 404. */
+async function myOrder(c: Context<AppEnv>) {
+  const storeIds = await myStoreIds(c);
+  const order = await getOrder(c.env.DB, parseId(c));
+  if (!order || !storeIds.includes(order.store_id)) fail(404, 'Order not found');
+  return order;
+}
+
+owner.get('/orders/:id/payment-photo', async (c) => {
+  const order = await myOrder(c);
+  return photoResponse(c.env.PROOFS, order.payment_photo_key);
+});
+
+/** Done Pay: the owner saw the payment; the customer can now place the order. */
+owner.post('/orders/:id/confirm-payment', async (c) => {
+  const order = await myOrder(c);
+  const db = c.env.DB;
+  const { meta } = await db
+    .prepare("UPDATE orders SET status = 'payment_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'")
+    .bind(order.id)
+    .run();
+  if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
+  c.executionCtx.waitUntil(
+    pushToUsers(db, [order.customer_id], 'Payment confirmed', `${order.store_name} confirmed your payment. Place your order now.`, { order_id: order.id }),
+  );
+  return c.json({ order: await getOrder(db, order.id) });
 });
 
 owner.post('/transactions/:id/confirm', async (c) => {

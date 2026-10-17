@@ -496,7 +496,7 @@
   <tr><td>History (orders + drop offs, paged; drivers also get <code>earnings</code> on page 1). No polling: on focus / pull, ≥ 60 s apart.</td><td><span class="p https">HTTPS</span> <code>GET /history</code></td><td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>transactions</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span><span class="t r"><b>R</b>driver_data</span></td></tr>
   <tr><td>Driver verification: see own photos, plate, badge</td><td class="stack"><span><span class="p https">HTTPS</span> <code>GET /drivers/me/verification</code></span><span><span class="p https">HTTPS</span> <code>GET /drivers/me/verification/photo/face|id</code> → <span class="p r2">R2</span> get</span></td><td><span class="t r"><b>R</b>driver_data</span></td></tr>
   <tr><td>Driver verification: upload face / license photo, save license plate. 409 once verified (locked).</td><td class="stack"><span><span class="p https">HTTPS</span> <code>POST /drivers/me/verification/photo/face|id</code> → <span class="p r2">R2</span> put <code>driver/&lt;user&gt;/…</code></span><span><span class="p https">HTTPS</span> <code>POST /drivers/me/verification</code> <code>{notes}</code></span></td><td><span class="t w"><b>W</b>driver_data</span></td></tr>
-  <tr><td>Mark a driver verified / unverified (developer only, no API route)</td><td><code>yarn driver:verify &lt;id|email&gt; [--off] [--remote]</code></td><td><span class="t w"><b>W</b>driver_data.status</span></td></tr>
+  <tr><td>Mark a driver verified / unverified (developer only, no API route)</td><td><code>bun run driver:verify &lt;id|email&gt; [--off] [--remote]</code></td><td><span class="t w"><b>W</b>driver_data.status</span></td></tr>
 </table>
 
 <!-- ================================================================ -->
@@ -519,7 +519,7 @@
   <tr><td><code>POST /owner/payouts/:id/paid</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /drivers/me/verification</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td></tr>
   <tr><td><code>POST /drivers/me/verification/photo/:kind</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td>put</td></tr>
-  <tr><td><code>yarn driver:verify</code> (script)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td></tr>
+  <tr><td><code>bun run driver:verify</code> (script)</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td></tr>
   <tr><td><code>POST /owner/blocks</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /ws/ticket</code> · <code>GET /ws/*</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td></tr>
   <tr><td>Dispatch DO: WSS <code>accept</code></td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>

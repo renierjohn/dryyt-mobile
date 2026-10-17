@@ -7,7 +7,11 @@ import { useTheme } from '@/hooks/use-theme';
 import { orderTitle, peso, route, STATUS_LABEL } from '@/lib/format';
 import type { Order, OrderDetail } from '@/lib/types';
 
-export function OrderSummary({ order }: { order: Order | OrderDetail }) {
+/**
+ * `showFees`: the driver's view, with the delivery fee split into the driver's share and the service fee.
+ * Customers see one delivery fee that already includes the service fee.
+ */
+export function OrderSummary({ order, showFees = false }: { order: Order | OrderDetail; showFees?: boolean }) {
   const theme = useTheme();
   const { from, to } = route(order);
   return (
@@ -39,6 +43,29 @@ export function OrderSummary({ order }: { order: Order | OrderDetail }) {
         ))}
       {order.notes ? <ThemedText type="small">Notes: {order.notes}</ThemedText> : null}
       <View testID="order-total-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
+      {showFees ? (
+        <>
+          <View style={styles.item}>
+            <ThemedText type="small" style={styles.grow}>
+              Delivery fee
+            </ThemedText>
+            <ThemedText type="small">{peso(order.delivery_fee - order.service_fee)}</ThemedText>
+          </View>
+          <View style={styles.item}>
+            <ThemedText type="small" style={styles.grow}>
+              Service fee
+            </ThemedText>
+            <ThemedText type="small">{peso(order.service_fee)}</ThemedText>
+          </View>
+        </>
+      ) : (
+        <View style={styles.item}>
+          <ThemedText type="small" style={styles.grow}>
+            Delivery fee
+          </ThemedText>
+          <ThemedText type="small">{peso(order.delivery_fee)}</ThemedText>
+        </View>
+      )}
       <View style={styles.item}>
         <ThemedText type="smallBold" style={styles.grow}>
           Total (cash)

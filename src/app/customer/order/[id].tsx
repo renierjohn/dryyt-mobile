@@ -11,13 +11,16 @@ import { StatusBadge, type Tone } from '@/components/status-badge';
 import { StatusTimeline } from '@/components/status-timeline';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useCancelOrder, useOrder } from '@/hooks/queries';
+import { useCancelOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
+import { useCart } from '@/hooks/use-cart';
 import { STATUS_LABEL } from '@/lib/format';
 
 export default function OrderScreen() {
   const id = Number(useLocalSearchParams<{ id: string }>().id);
   const order = useOrder(id);
   const cancel = useCancelOrder(id);
+  const place = usePlaceOrder();
+  const cart = useCart();
 
   if (order.isPending) {
     return (
@@ -45,7 +48,7 @@ export default function OrderScreen() {
           </ThemedText>
           <StatusBadge label={STATUS_LABEL[o.status]} tone={tone} />
         </View>
-        <StatusTimeline status={o.status} />
+        <StatusTimeline status={o.status} paid={o.store_type === 'food'} />
       </Card>
       <Card>
         <OrderSummary order={o} />
@@ -63,8 +66,17 @@ export default function OrderScreen() {
           </View>
         </Card>
       )}
-      <ErrorText error={cancel.error} />
-      {o.status === 'pending' && (
+      <ErrorText error={cancel.error ?? place.error} />
+      {(o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
+        <Button
+          title="Place order"
+          disabled={o.status !== 'payment_confirmed'}
+          loading={place.isPending}
+          // The cart was waiting on this order; it's done once placed.
+          onPress={() => place.mutate(id, { onSuccess: () => cart.orderId === id && cart.clear() })}
+        />
+      )}
+      {(o.status === 'pending' || o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
         <Button title="Cancel order" variant="danger" onPress={() => cancel.mutate()} loading={cancel.isPending} />
       )}
     </Screen>

@@ -22,6 +22,8 @@ export function dateTime(d1Utc: string) {
 }
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
+  awaiting_payment: 'Waiting for the store to confirm payment',
+  payment_confirmed: 'Payment confirmed',
   pending: 'Waiting for a driver',
   accepted: 'Driver accepted',
   picked_up: 'Picked up',

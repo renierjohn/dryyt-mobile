@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
+import { Card } from '@/components/card';
 import { DriverVerification, VerifiedBadge } from '@/components/driver/driver-verification';
 import { OwnerStores } from '@/components/owner-stores';
 import { Screen } from '@/components/screen';
@@ -17,17 +19,35 @@ export function ProfileScreen() {
 
   return (
     <Screen>
-      <View style={styles.nameRow}>
-        <ThemedText type="subtitle">{user.name}</ThemedText>
-        {driver && <DriverBadge />}
+      <View style={styles.header}>
+        <Avatar name={user.name} size={64} />
+        <View style={styles.grow}>
+          <View style={styles.nameRow}>
+            <ThemedText type="subtitle">{user.name}</ThemedText>
+            {driver && <DriverBadge />}
+          </View>
+          <ThemedText themeColor="textSecondary">{{ customer: 'Customer', driver: 'Driver', owner: 'Shop owner' }[user.role]}</ThemedText>
+        </View>
       </View>
-      <ThemedText>{user.email}</ThemedText>
-      <ThemedText>{user.phone}</ThemedText>
-      <ThemedText themeColor="textSecondary">{{ customer: 'Customer', driver: 'Driver', owner: 'Shop owner' }[user.role]}</ThemedText>
+      <Card>
+        <InfoRow label="Email" value={user.email} />
+        <InfoRow label="Phone" value={user.phone} />
+      </Card>
       {driver && <DriverVerification />}
       {user.role === 'owner' && <OwnerStores />}
-      <Button title="Sign out" variant="secondary" onPress={signOut} />
+      <Button title="Sign out" variant="outline" onPress={signOut} />
     </Screen>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {label}
+      </ThemedText>
+      <ThemedText type="small">{value}</ThemedText>
+    </View>
   );
 }
 
@@ -37,5 +57,8 @@ function DriverBadge() {
 }
 
 const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  grow: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
 });

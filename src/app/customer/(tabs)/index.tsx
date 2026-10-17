@@ -1,51 +1,58 @@
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Card } from '@/components/card';
-import { Icon } from '@/components/icon';
-import { PICKUP_ENABLED } from '@/constants/features';
+import { HeaderBand } from '@/components/header-band';
+import { HistoryCard, historyKey } from '@/components/history-list';
 import { Screen } from '@/components/screen';
+import { ServiceTile } from '@/components/service-tile';
 import { ThemedText } from '@/components/themed-text';
+import { PICKUP_ENABLED } from '@/constants/features';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
+import { useHistory } from '@/hooks/queries';
 
 export default function CustomerHome() {
   const { state } = useAuth();
   const name = state.status === 'signedIn' ? state.user.name : '';
+  const history = useHistory();
+  const recent = history.data?.pages[0]?.items.slice(0, 3) ?? [];
 
   return (
-    <Screen>
-      <ThemedText type="subtitle">Hi, {name}</ThemedText>
-      <ThemedText themeColor="textSecondary">What do you need today?</ThemedText>
-      {PICKUP_ENABLED && (
-        <Card onPress={() => router.push('/customer/pickup')}>
-          <View style={styles.row}>
-            <Icon name={{ ios: 'bag.fill', android: 'shopping_bag', web: 'shopping_bag' }} />
-            <View style={styles.text}>
-              <ThemedText type="smallBold">Pickup</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                We pick up food, drinks, or finished laundry from a store and bring it to you.
-              </ThemedText>
-            </View>
+    <Screen edges={[]} onRefresh={history.refresh} header={<HeaderBand title={`Hi, ${name}`} subtitle="What do you need today?" />}>
+      <View style={styles.tiles}>
+        {PICKUP_ENABLED && (
+          <ServiceTile
+            icon={{ ios: 'bag.fill', android: 'shopping_bag', web: 'shopping_bag' }}
+            title="Pickup"
+            body="We pick up food, drinks, or finished laundry from a store and bring it to you."
+            onPress={() => router.push('/customer/pickup')}
+          />
+        )}
+        <ServiceTile
+          icon={{ ios: 'tray.and.arrow.down.fill', android: 'move_to_inbox', web: 'move_to_inbox' }}
+          title="Drop off"
+          body="We collect your laundry and drop it at the laundry shop you choose."
+          onPress={() => router.push({ pathname: '/customer/stores', params: { type: 'laundry', mode: 'dropoff' } })}
+        />
+      </View>
+      {recent.length > 0 && (
+        <>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="smallBold">Recent orders</ThemedText>
+            <Pressable onPress={() => router.push('/customer/orders')}>
+              <ThemedText type="linkPrimary">See all</ThemedText>
+            </Pressable>
           </View>
-        </Card>
+          {recent.map((item) => (
+            <HistoryCard key={historyKey(item)} item={item} role="customer" />
+          ))}
+        </>
       )}
-      <Card onPress={() => router.push({ pathname: '/customer/stores', params: { type: 'laundry', mode: 'dropoff' } })}>
-        <View style={styles.row}>
-          <Icon name={{ ios: 'tray.and.arrow.down.fill', android: 'move_to_inbox', web: 'move_to_inbox' }} />
-          <View style={styles.text}>
-            <ThemedText type="smallBold">Drop off</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              We collect your laundry and drop it at the laundry shop you choose.
-            </ThemedText>
-          </View>
-        </View>
-      </Card>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  text: { flex: 1 },
+  tiles: { flexDirection: 'row', gap: Spacing.three },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

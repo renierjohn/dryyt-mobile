@@ -26,11 +26,11 @@ export function HistoryList({ history, role, empty }: { history: ReturnType<type
       <ErrorText error={history.error} />
       {history.isSuccess && items.length === 0 && <ThemedText themeColor="textSecondary">{empty}</ThemedText>}
       {items.map((item, i) => (
-        <Fragment key={item.kind === 'order' ? `order-${item.order.id}` : `dropoff-${item.dropoff.id}`}>
+        <Fragment key={historyKey(item)}>
           <HistoryCard item={item} role={role} />
           {/* Line under the shop-confirmed group the worker lists first, and between days after it. */}
           {i + 1 < items.length && lineBetween(item, items[i + 1], role) && (
-            <View style={[styles.separator, { backgroundColor: theme.backgroundSelected }]} />
+            <View style={[styles.separator, { backgroundColor: theme.border }]} />
           )}
         </Fragment>
       ))}
@@ -56,7 +56,7 @@ function NextLoadCountdown({ at }: { at: number }) {
   );
 }
 
-function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer' | 'driver' }) {
+export function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer' | 'driver' }) {
   if (item.kind === 'order') {
     const { order } = item;
     return (
@@ -84,11 +84,18 @@ function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer' | 'dr
         </ThemedText>
         <StatusBadge label={DROPOFF_STATUS_LABEL[d.status]} tone={BADGE_TONE[d.status] ?? 'muted'} />
       </View>
-      <ThemedText type="small" themeColor="textSecondary">
-        {amount} · {dateTime(d.created_at)}
-      </ThemedText>
+      <View style={styles.meta}>
+        <ThemedText type="smallBold">{amount}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {dateTime(d.created_at)}
+        </ThemedText>
+      </View>
     </Card>
   );
+}
+
+export function historyKey(item: HistoryItem) {
+  return item.kind === 'order' ? `order-${item.order.id}` : `dropoff-${item.dropoff.id}`;
 }
 
 /** The timestamp the worker sorts by: when customers placed it, when drivers finished it. */
@@ -112,4 +119,5 @@ const styles = StyleSheet.create({
   separator: { height: StyleSheet.hairlineWidth * 2, marginVertical: Spacing.one },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
   title: { flex: 1 },
+  meta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

@@ -1,25 +1,26 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
-import { StatusBadge } from '@/components/status-badge';
 import { Screen } from '@/components/screen';
+import { StatusBadge } from '@/components/status-badge';
+import { Stepper } from '@/components/stepper';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useStore } from '@/hooks/queries';
-import { useTheme } from '@/hooks/use-theme';
+import { confirmReplace, useCart } from '@/hooks/use-cart';
 import { discountedPrice, peso } from '@/lib/format';
+import type { MenuItem } from '@/lib/types';
 
 export default function NewOrder() {
-  const params = useLocalSearchParams<{ storeId: string }>();
-  const storeId = Number(params.storeId);
+  const storeId = Number(useLocalSearchParams<{ storeId: string }>().storeId);
   const store = useStore(storeId);
+  const cart = useCart();
   const createOrder = useCreateOrder();
-  const [qty, setQty] = useState<Record<number, number>>({});
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -39,34 +40,55 @@ export default function NewOrder() {
   }
 
   const { name, address: storeAddress, type, menu } = store.data;
-  const isFood = type === 'food';
-  const items = menu.filter((m) => (qty[m.id] ?? 0) > 0).map((m) => ({ menu_item_id: m.id, qty: qty[m.id] }));
-  const itemsTotal = menu.reduce((sum, m) => sum + discountedPrice(m) * (qty[m.id] ?? 0), 0);
-  const change = (id: number, delta: number) =>
-    setQty((q) => ({ ...q, [id]: Math.min(50, Math.max(0, (q[id] ?? 0) + delta)) }));
+  const shop = { id: storeId, name };
+  const inThisCart = cart.store?.id === storeId;
 
-  const submit = () =>
-    createOrder.mutate(
-      { type: 'pickup', store_id: storeId, items, customer_address: address, notes },
-      { onSuccess: (order) => router.replace(`/customer/order/${order.id}`) },
+  const change = (item: MenuItem, delta: number) => {
+    if (inThisCart && cart.qtyOf(item.id) > 0) return cart.setQty(item.id, cart.qtyOf(item.id) + delta);
+    if (delta <= 0) return;
+    if (cart.add(item, shop, delta) === 'needs-replace') confirmReplace(cart.store!.name, () => cart.replace(item, shop, delta));
+  };
+
+  // Laundry pickups have no items: order straight from here.
+  if (type === 'laundry') {
+    const submit = () =>
+      createOrder.mutate(
+        { type: 'pickup', store_id: storeId, items: [], customer_address: address, notes },
+        { onSuccess: (order) => router.replace({ pathname: '/customer/order/[id]', params: { id: String(order.id) } }) },
+      );
+    return (
+      <Screen
+        edges={[]}
+        footer={
+          <>
+            <ErrorText error={createOrder.error} />
+            <Button title="Place order" onPress={submit} loading={createOrder.isPending} />
+          </>
+        }>
+        <Card>
+          <ThemedText type="smallBold">{name}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {storeAddress}
+          </ThemedText>
+        </Card>
+        <TextField label="Delivery address" value={address} onChangeText={setAddress} multiline />
+        <TextField label="Notes" placeholder="e.g. claim ticket #, number of bags" value={notes} onChangeText={setNotes} multiline />
+        <ThemedText type="small" themeColor="textSecondary">
+          Pay cash to the driver.
+        </ThemedText>
+      </Screen>
     );
+  }
 
   return (
     <Screen
       edges={[]}
       footer={
-        <>
-          {isFood && (
-            <View style={styles.row}>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
-                Items + delivery fee
-              </ThemedText>
-              <ThemedText type="smallBold">{peso(itemsTotal)}</ThemedText>
-            </View>
-          )}
-          <ErrorText error={createOrder.error} />
-          <Button title="Place order" onPress={submit} loading={createOrder.isPending} disabled={isFood && items.length === 0} />
-        </>
+        <Button
+          title={cart.count > 0 ? `View cart · ${peso(cart.itemsTotal)}` : 'View cart'}
+          onPress={() => router.push('/customer/cart')}
+          disabled={cart.count === 0}
+        />
       }>
       <Card>
         <ThemedText type="smallBold">{name}</ThemedText>
@@ -74,60 +96,28 @@ export default function NewOrder() {
           {storeAddress}
         </ThemedText>
       </Card>
-      {isFood &&
-        menu.map((item) => (
-          <Card key={item.id}>
-            <View style={styles.row}>
-              <View style={[styles.grow, styles.itemText]}>
-                <View style={styles.nameRow}>
-                  <ThemedText type="small">{item.name}</ThemedText>
-                  {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
-                </View>
-                <View style={styles.nameRow}>
-                  <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
-                  {item.discount_percent > 0 && (
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.struck}>
-                      {peso(item.price)}
-                    </ThemedText>
-                  )}
-                </View>
+      {menu.map((item) => (
+        <Card key={item.id} onPress={() => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } })}>
+          <View style={styles.row}>
+            <View style={[styles.grow, styles.itemText]}>
+              <View style={styles.nameRow}>
+                <ThemedText type="small">{item.name}</ThemedText>
+                {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
               </View>
-              <Stepper value={qty[item.id] ?? 0} onChange={(delta) => change(item.id, delta)} />
+              <View style={styles.nameRow}>
+                <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
+                {item.discount_percent > 0 && (
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.struck}>
+                    {peso(item.price)}
+                  </ThemedText>
+                )}
+              </View>
             </View>
-          </Card>
-        ))}
-      <TextField label="Delivery address" value={address} onChangeText={setAddress} multiline />
-      <TextField
-        label="Notes"
-        placeholder={isFood ? 'e.g. less ice, no onions' : 'e.g. claim ticket #, number of bags'}
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-      />
-      <ThemedText type="small" themeColor="textSecondary">
-        Pay cash to the driver.
-      </ThemedText>
+            <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
+          </View>
+        </Card>
+      ))}
     </Screen>
-  );
-}
-
-function Stepper({ value, onChange }: { value: number; onChange: (delta: number) => void }) {
-  const theme = useTheme();
-  const step = (symbol: string, delta: number) => (
-    <Pressable onPress={() => onChange(delta)} style={[styles.step, { backgroundColor: theme.primarySoft }]}>
-      <ThemedText type="smallBold" style={{ color: theme.primary }}>
-        {symbol}
-      </ThemedText>
-    </Pressable>
-  );
-  return (
-    <View style={styles.row}>
-      {step('−', -1)}
-      <ThemedText type="smallBold" style={styles.count}>
-        {value}
-      </ThemedText>
-      {step('+', 1)}
-    </View>
   );
 }
 
@@ -137,6 +127,4 @@ const styles = StyleSheet.create({
   itemText: { gap: Spacing.half },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
   struck: { textDecorationLine: 'line-through' },
-  step: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  count: { minWidth: 24, textAlign: 'center' },
 });

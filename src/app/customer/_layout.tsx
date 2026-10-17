@@ -12,7 +12,7 @@ export default function CustomerLayout() {
         {/* Pickup screens: unreachable (even by link) while Pickup is switched off. */}
         <Stack.Protected guard={PICKUP_ENABLED}>
           <Stack.Screen name="pickup" options={{ title: 'Pickup', headerBackTitle: 'Back' }} />
-          <Stack.Screen name="new-order" options={{ title: 'New order', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="new-order" options={{ title: 'Menu', headerBackTitle: 'Back' }} />
           <Stack.Screen name="order/[id]" options={{ title: 'Order', headerBackTitle: 'Back' }} />
           <Stack.Screen name="popular" options={{ title: 'Popular now', headerBackTitle: 'Back' }} />
           <Stack.Screen name="menu/[id]" options={{ title: 'Item', headerBackTitle: 'Back' }} />

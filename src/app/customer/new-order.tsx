@@ -1,10 +1,14 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { Image } from 'expo-image';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { CategoryChips } from '@/components/category-chips';
 import { ErrorText } from '@/components/error-text';
+import { HeaderBand } from '@/components/header-band';
+import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
 import { StatusBadge } from '@/components/status-badge';
 import { Stepper } from '@/components/stepper';
@@ -13,6 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useStore } from '@/hooks/queries';
 import { confirmReplace, useCart } from '@/hooks/use-cart';
+import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem } from '@/lib/types';
 
@@ -23,6 +28,8 @@ export default function NewOrder() {
   const createOrder = useCreateOrder();
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [category, setCategory] = useState<string | null>(null);
+  const theme = useTheme();
 
   if (store.isPending) {
     return (
@@ -80,9 +87,32 @@ export default function NewOrder() {
     );
   }
 
+  // Categories in the owner's menu order; tabs only when the store uses them.
+  const categories = [...new Set(menu.map((m) => m.category).filter(Boolean))];
+  const shown = category ? menu.filter((m) => m.category === category) : menu;
+
   return (
     <Screen
       edges={[]}
+      header={
+        <>
+          {/* The navigation bar turns blue too, so it runs into the band. */}
+          <Stack.Screen
+            options={{
+              title: '',
+              headerStyle: { backgroundColor: theme.primary },
+              headerTintColor: theme.onPrimary,
+              headerShadowVisible: false,
+            }}
+          />
+          <HeaderBand title={name} subtitle={storeAddress} backgroundImage={store.data.store_logo} inset={false} />
+          {categories.length > 0 && (
+            <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
+              <CategoryChips categories={categories} selected={category} onSelect={setCategory} />
+            </View>
+          )}
+        </>
+      }
       footer={
         <Button
           title={cart.count > 0 ? `View cart · ${peso(cart.itemsTotal)}` : 'View cart'}
@@ -90,15 +120,16 @@ export default function NewOrder() {
           disabled={cart.count === 0}
         />
       }>
-      <Card>
-        <ThemedText type="smallBold">{name}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {storeAddress}
-        </ThemedText>
-      </Card>
-      {menu.map((item) => (
+      {shown.map((item) => (
         <Card key={item.id} onPress={() => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } })}>
           <View style={styles.row}>
+            {item.image_url ? (
+              <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
+            ) : (
+              <View testID={`dish-photo-placeholder-${item.id}`} style={[styles.photo, styles.placeholder, { backgroundColor: theme.primarySoft }]}>
+                <Icon name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }} size={32} color={theme.primary} />
+              </View>
+            )}
             <View style={[styles.grow, styles.itemText]}>
               <View style={styles.nameRow}>
                 <ThemedText type="small">{item.name}</ThemedText>
@@ -112,8 +143,8 @@ export default function NewOrder() {
                   </ThemedText>
                 )}
               </View>
+              <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
             </View>
-            <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
           </View>
         </Card>
       ))}
@@ -127,4 +158,7 @@ const styles = StyleSheet.create({
   itemText: { gap: Spacing.half },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
   struck: { textDecorationLine: 'line-through' },
+  tabs: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderBottomWidth: StyleSheet.hairlineWidth },
+  photo: { width: 96, height: 96, borderRadius: 12 },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
 });

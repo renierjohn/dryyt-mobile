@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useCallback, type ReactNode } from 'react';
@@ -9,8 +10,18 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-/** Primary-blue band at the top of a tab screen; pair with `<Screen edges={[]} header={…}>`. */
-export function HeaderBand({ title, subtitle, children }: { title: string; subtitle?: string; children?: ReactNode }) {
+type Props = {
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+  /** Shown faintly behind the text (e.g. a store's logo); the logo circle shows it too. */
+  backgroundImage?: string | null;
+  /** False under a navigation bar, which already clears the status bar. */
+  inset?: boolean;
+};
+
+/** Primary-blue band at the top of a screen; pair with `<Screen edges={[]} header={…}>`. */
+export function HeaderBand({ title, subtitle, children, backgroundImage, inset = true }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   // Dark status bar icons vanish on the blue band; tab screens stay mounted, so switch back when this one loses focus.
@@ -21,10 +32,14 @@ export function HeaderBand({ title, subtitle, children }: { title: string; subti
     }, []),
   );
   return (
-    <View style={[styles.band, { backgroundColor: theme.primary, paddingTop: insets.top + Spacing.three }]}>
-      {/* White ring so the blue logo stands out on the blue band. */}
+    <View style={[styles.band, { backgroundColor: theme.primary, paddingTop: (inset ? insets.top : 0) + Spacing.three }]}>
+      {backgroundImage && (
+        // Faint, so the white text on the blue band stays readable.
+        <Image testID="band-background" source={{ uri: backgroundImage }} style={styles.background} contentFit="cover" />
+      )}
+      {/* White ring so the logo stands out on the blue band. */}
       <View style={styles.logoRing}>
-        <AppLogo size={36} />
+        {backgroundImage ? <Image source={{ uri: backgroundImage }} style={styles.logo} contentFit="cover" /> : <AppLogo size={36} />}
       </View>
       <ThemedText type="subtitle" style={{ color: theme.onPrimary }}>
         {title}
@@ -42,7 +57,10 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    overflow: 'hidden',
   },
+  background: { ...StyleSheet.absoluteFill, opacity: 0.2 },
+  logo: { width: 36, height: 36, borderRadius: 18 },
   logoRing: { alignSelf: 'flex-start', padding: 3, borderRadius: 999, backgroundColor: '#FFFFFF', marginBottom: Spacing.two },
   subtitle: { opacity: 0.85 },
 });

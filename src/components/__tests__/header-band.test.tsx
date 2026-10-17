@@ -21,3 +21,9 @@ it('uses light status bar icons while focused and restores them after', async ()
   await view.unmount();
   expect(setStatusBarStyle).toHaveBeenLastCalledWith('auto');
 });
+
+it('can sit under a navigation bar and show an image behind the text', async () => {
+  await render(<HeaderBand title="Burger Barn" backgroundImage="https://img.test/logo.png" inset={false} />);
+  expect([screen.getByTestId('band-background').props.source].flat()).toEqual([{ uri: 'https://img.test/logo.png' }]);
+});
+

@@ -18,7 +18,7 @@ export default function CustomerHome() {
   const { state } = useAuth();
   const name = state.status === 'signedIn' ? state.user.name : '';
   const history = useHistory();
-  const popular = usePopularMenu(4);
+  const popular = usePopularMenu({ limit: 4 });
   const recent = history.data?.pages[0]?.items.slice(0, 3) ?? [];
 
   return (
@@ -41,7 +41,7 @@ export default function CustomerHome() {
           />
         </View>
         {PICKUP_ENABLED && (
-          <PopularRow items={popular.data} onSeeAll={() => router.push('/customer/popular')} onOpen={openMenuItem} />
+          <PopularRow items={popular.data?.items} onSeeAll={() => router.push('/customer/popular')} onOpen={openMenuItem} />
         )}
         {recent.length > 0 && (
           <>

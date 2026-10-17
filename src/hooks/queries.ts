@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { useCallback } from 'react';
 
@@ -40,12 +40,23 @@ export const useStore = (id: number) =>
     queryFn: () => api<{ store: StoreWithMenu }>(`/stores/${id}`).then((r) => r.store),
   });
 
-/** Most-ordered food items across stores (`limit` 1–50). */
-export const usePopularMenu = (limit: number) =>
+export type PopularFilter = { limit: number; q?: string; category?: string | null };
+
+/**
+ * Most-ordered food items across stores (`limit` 1–50), optionally narrowed by name (`q`) and `category`.
+ * `categories` is every food category, whatever the filters. Keeps showing the last results while a new filter loads.
+ */
+export const usePopularMenu = ({ limit, q = '', category = null }: PopularFilter) =>
   useQuery({
-    queryKey: ['popular', limit],
-    queryFn: () => api<{ items: PopularItem[] }>(`/menu/popular?limit=${limit}`).then((r) => r.items),
+    queryKey: ['popular', limit, q, category],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (q) params.set('q', q);
+      if (category) params.set('category', category);
+      return api<{ items: PopularItem[]; categories: string[] }>(`/menu/popular?${params}`);
+    },
     enabled: PICKUP_ENABLED,
+    placeholderData: keepPreviousData,
   });
 
 /** `?before=` for the page after `next` (null = first page). */

@@ -10,7 +10,7 @@ jest.mock('@/components/cart-button', () => {
 jest.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ state: { status: 'signedIn', user: { name: 'Ana' } } }) }));
 jest.mock('@/hooks/queries', () => ({
   useHistory: () => ({ data: undefined, refresh: jest.fn() }),
-  usePopularMenu: () => ({ data: [], refetch: jest.fn() }),
+  usePopularMenu: () => ({ data: { items: [], categories: [] }, refetch: jest.fn() }),
 }));
 jest.mock('@/components/header-band', () => ({ HeaderBand: () => null }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));

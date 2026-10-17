@@ -9,18 +9,40 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#0F172A',
+    textSecondary: '#64748B',
+    background: '#F8FAFC',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#E2E8F0',
+    border: '#E2E8F0',
+    primary: '#3B82F6',
+    primaryPressed: '#2563EB',
+    primarySoft: '#EFF6FF',
+    onPrimary: '#FFFFFF',
+    success: '#10B981',
+    successSoft: '#ECFDF5',
+    warning: '#F59E0B',
+    warningSoft: '#FFFBEB',
+    danger: '#EF4444',
+    dangerSoft: '#FEF2F2',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    background: '#020617',
+    backgroundElement: '#0F172A',
+    backgroundSelected: '#1E293B',
+    border: '#1E293B',
+    primary: '#3B82F6',
+    primaryPressed: '#60A5FA',
+    primarySoft: '#172554',
+    onPrimary: '#FFFFFF',
+    success: '#10B981',
+    successSoft: '#052E16',
+    warning: '#F59E0B',
+    warningSoft: '#451A03',
+    danger: '#EF4444',
+    dangerSoft: '#450A0A',
   },
 } as const;
 
@@ -64,9 +86,10 @@ export const Spacing = {
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
 
+/** Scheme-independent colours for places without a theme (map HTML, icons' default tint). */
 export const Brand = {
-  primary: '#208AEF',
-  danger: '#E5484D',
-  success: '#30A46C',
-  warning: '#F5A524',
+  primary: '#3B82F6',
+  danger: '#EF4444',
+  success: '#10B981',
+  warning: '#F59E0B',
 } as const;

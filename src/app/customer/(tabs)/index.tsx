@@ -10,7 +10,7 @@ import { Screen } from '@/components/screen';
 import { ServiceTile } from '@/components/service-tile';
 import { ThemedText } from '@/components/themed-text';
 import { PICKUP_ENABLED } from '@/constants/features';
-import { Spacing } from '@/constants/theme';
+import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useAuth } from '@/hooks/use-auth';
 import { useHistory, usePopularMenu } from '@/hooks/queries';
 
@@ -57,7 +57,7 @@ export default function CustomerHome() {
           </>
         )}
       </Screen>
-      <CartButton />
+      <CartButton bottom={BottomTabInset} />
     </View>
   );
 }

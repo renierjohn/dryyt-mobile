@@ -5,7 +5,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "DELIVERY_FEE": "5000",
-    // Pickup (/orders, /jobs, orders in /history) is off while Drop off ships first. "true" turns it back on.
+    // Pickup (food/laundry from a store to the customer): "true" serves /orders, /jobs and /menu; "false" refuses them with 403.
     "PICKUP_ENABLED": "true",
     "OSRM_URL": "https://router.project-osrm.org",
     // Identifies the app (not the user) to the routing server; public OSRM drops requests without one.

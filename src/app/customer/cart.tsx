@@ -52,12 +52,7 @@ export default function CartScreen() {
       edges={[]}
       footer={
         <>
-          <View style={styles.row}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
-              Items + delivery fee
-            </ThemedText>
-            <ThemedText type="smallBold">{peso(cart.itemsTotal)}</ThemedText>
-          </View>
+          <ThemedText type="smallBold">Items {peso(cart.itemsTotal)} + delivery fee</ThemedText>
           <ErrorText error={createOrder.error} />
           <Button title="Place order" onPress={submit} loading={createOrder.isPending} />
         </>

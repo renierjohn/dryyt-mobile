@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
+import { StatusBadge } from '@/components/status-badge';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
@@ -51,37 +52,51 @@ export default function NewOrder() {
     );
 
   return (
-    <Screen edges={[]}>
-      <View>
+    <Screen
+      edges={[]}
+      footer={
+        <>
+          {isFood && (
+            <View style={styles.row}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
+                Items + delivery fee
+              </ThemedText>
+              <ThemedText type="smallBold">{peso(itemsTotal)}</ThemedText>
+            </View>
+          )}
+          <ErrorText error={createOrder.error} />
+          <Button title="Place order" onPress={submit} loading={createOrder.isPending} disabled={isFood && items.length === 0} />
+        </>
+      }>
+      <Card>
         <ThemedText type="smallBold">{name}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {storeAddress}
         </ThemedText>
-      </View>
+      </Card>
       {isFood &&
         menu.map((item) => (
           <Card key={item.id}>
             <View style={styles.row}>
-              <View style={styles.grow}>
-                <ThemedText type="small">
-                  {item.name}
-                  {item.best_seller ? ' · Best seller' : ''}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {peso(discountedPrice(item))}
-                  {item.discount_percent > 0 ? ` (${item.discount_percent}% off ${peso(item.price)})` : ''}
-                </ThemedText>
+              <View style={[styles.grow, styles.itemText]}>
+                <View style={styles.nameRow}>
+                  <ThemedText type="small">{item.name}</ThemedText>
+                  {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
+                </View>
+                <View style={styles.nameRow}>
+                  <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
+                  {item.discount_percent > 0 && (
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.struck}>
+                      {peso(item.price)}
+                    </ThemedText>
+                  )}
+                </View>
               </View>
               <Stepper value={qty[item.id] ?? 0} onChange={(delta) => change(item.id, delta)} />
             </View>
           </Card>
         ))}
-      <TextField
-        label="Delivery address"
-        value={address}
-        onChangeText={setAddress}
-        multiline
-      />
+      <TextField label="Delivery address" value={address} onChangeText={setAddress} multiline />
       <TextField
         label="Notes"
         placeholder={isFood ? 'e.g. less ice, no onions' : 'e.g. claim ticket #, number of bags'}
@@ -89,12 +104,9 @@ export default function NewOrder() {
         onChangeText={setNotes}
         multiline
       />
-      {isFood && <ThemedText type="smallBold">Items: {peso(itemsTotal)} + delivery fee</ThemedText>}
       <ThemedText type="small" themeColor="textSecondary">
         Pay cash to the driver.
       </ThemedText>
-      <ErrorText error={createOrder.error} />
-      <Button title="Place order" onPress={submit} loading={createOrder.isPending} disabled={isFood && items.length === 0} />
     </Screen>
   );
 }
@@ -102,8 +114,10 @@ export default function NewOrder() {
 function Stepper({ value, onChange }: { value: number; onChange: (delta: number) => void }) {
   const theme = useTheme();
   const step = (symbol: string, delta: number) => (
-    <Pressable onPress={() => onChange(delta)} style={[styles.step, { backgroundColor: theme.backgroundSelected }]}>
-      <ThemedText type="smallBold">{symbol}</ThemedText>
+    <Pressable onPress={() => onChange(delta)} style={[styles.step, { backgroundColor: theme.primarySoft }]}>
+      <ThemedText type="smallBold" style={{ color: theme.primary }}>
+        {symbol}
+      </ThemedText>
     </Pressable>
   );
   return (
@@ -120,6 +134,9 @@ function Stepper({ value, onChange }: { value: number; onChange: (delta: number)
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   grow: { flex: 1 },
+  itemText: { gap: Spacing.half },
+  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
+  struck: { textDecorationLine: 'line-through' },
   step: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   count: { minWidth: 24, textAlign: 'center' },
 });

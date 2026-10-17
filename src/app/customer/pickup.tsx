@@ -1,10 +1,8 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { Card } from '@/components/card';
-import { Icon } from '@/components/icon';
 import { Screen } from '@/components/screen';
-import { ThemedText } from '@/components/themed-text';
+import { ServiceTile } from '@/components/service-tile';
 import { Spacing } from '@/constants/theme';
 import type { StoreType } from '@/lib/types';
 
@@ -26,26 +24,21 @@ const OPTIONS = [
 export default function Pickup() {
   return (
     <Screen edges={[]}>
-      {OPTIONS.map((option) => (
-        <Card
-          key={option.type}
-          onPress={() => router.push({ pathname: '/customer/stores', params: { type: option.type, mode: 'pickup' } })}>
-          <View style={styles.row}>
-            <Icon name={option.icon} />
-            <View style={styles.text}>
-              <ThemedText type="smallBold">{option.title}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {option.body}
-              </ThemedText>
-            </View>
-          </View>
-        </Card>
-      ))}
+      <View style={styles.grid}>
+        {OPTIONS.map((option) => (
+          <ServiceTile
+            key={option.type}
+            icon={option.icon}
+            title={option.title}
+            body={option.body}
+            onPress={() => router.push({ pathname: '/customer/stores', params: { type: option.type, mode: 'pickup' } })}
+          />
+        ))}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  text: { flex: 1 },
+  grid: { flexDirection: 'row', gap: Spacing.three },
 });

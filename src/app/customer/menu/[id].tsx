@@ -61,11 +61,13 @@ export default function MenuItemScreen() {
         </View>
       )}
       <View style={styles.info}>
-        {item.best_seller && <StatusBadge label="Best seller" tone="info" />}
+        <View testID="store-line" style={styles.storeLine}>
+          <Pressable onPress={openStore}>
+            <ThemedText type="linkPrimary">{shop.name}</ThemedText>
+          </Pressable>
+          {item.best_seller && <StatusBadge label="Best seller" tone="info" />}
+        </View>
         <ThemedText type="subtitle">{item.name}</ThemedText>
-        <Pressable onPress={openStore}>
-          <ThemedText type="linkPrimary">{shop.name}</ThemedText>
-        </Pressable>
         {item.category ? (
           <ThemedText type="small" themeColor="textSecondary">
             {item.category}
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
   photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16 },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
   info: { gap: Spacing.one, alignItems: 'flex-start' },
+  storeLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
   prices: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   price: { fontSize: 20, lineHeight: 28 },
   struck: { textDecorationLine: 'line-through' },

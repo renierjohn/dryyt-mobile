@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import MenuItemScreen from '@/app/customer/menu/[id]';
 import { CartProvider } from '@/hooks/use-cart';
 
 const mockDish = (id: number) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: id === 1, popularity: 0,
 });
 // Menu as the worker returns it: already in the owner's sort_order (not id order).
 const mockMenu = [3, 1, 9, 4, 8, 2, 7, 5, 6].map(mockDish);
@@ -48,3 +48,15 @@ it("shows the store's other dishes in sort order, at most 6, then More to the st
   await fireEvent.press(screen.getByText('Dish 9'));
   expect(router.push).toHaveBeenLastCalledWith({ pathname: '/customer/menu/[id]', params: { id: '9', storeId: '2' } });
 });
+
+it('puts the store name above the dish name, on one line with Best seller', async () => {
+  await renderItem();
+  const line = within(screen.getByTestId('store-line'));
+  expect(line.getByText('Burger Barn')).toBeTruthy();
+  expect(line.getByText('Best seller')).toBeTruthy();
+
+  // Reading order: store line, then the dish name heading.
+  const json = JSON.stringify(screen.toJSON());
+  expect(json.indexOf('Burger Barn')).toBeLessThan(json.indexOf('"Dish 1"'));
+});
+

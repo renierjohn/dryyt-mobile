@@ -17,11 +17,22 @@ it('renders nothing without items', async () => {
   expect(screen.queryByText('Popular now')).toBeNull();
 });
 
-it('shows at most 4 items and See all', async () => {
+it('scrolls 6 items then a More tile that opens See all, with no header link', async () => {
   const onSeeAll = jest.fn();
-  await render(<PopularRow items={[1, 2, 3, 4, 5].map(make)} onSeeAll={onSeeAll} onOpen={() => {}} />);
-  expect(screen.getByText('Dish 4')).toBeTruthy();
-  expect(screen.queryByText('Dish 5')).toBeNull();
-  await fireEvent.press(screen.getByText('See all'));
+  const onOpen = jest.fn();
+  await render(<PopularRow items={[1, 2, 3, 4, 5, 6, 7, 8].map(make)} onSeeAll={onSeeAll} onOpen={onOpen} />);
+  expect(screen.getByText('Dish 6')).toBeTruthy();
+  expect(screen.queryByText('Dish 7')).toBeNull();
+  expect(screen.queryByText('See all')).toBeNull();
+
+  await fireEvent.press(screen.getByText('More'));
   expect(onSeeAll).toHaveBeenCalled();
+  await fireEvent.press(screen.getByText('Dish 2'));
+  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }));
+});
+
+it('still ends with More when there are fewer than 6', async () => {
+  await render(<PopularRow items={[1, 2].map(make)} onSeeAll={() => {}} onOpen={() => {}} />);
+  expect(screen.getByText('Dish 2')).toBeTruthy();
+  expect(screen.getByText('More')).toBeTruthy();
 });

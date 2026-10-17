@@ -18,7 +18,7 @@ export default function CustomerHome() {
   const { state } = useAuth();
   const name = state.status === 'signedIn' ? state.user.name : '';
   const history = useHistory();
-  const popular = usePopularMenu({ limit: 4 });
+  const popular = usePopularMenu({ limit: 6 });
   const recent = history.data?.pages[0]?.items.slice(0, 3) ?? [];
 
   return (

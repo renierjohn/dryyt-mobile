@@ -16,7 +16,7 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useStore } from '@/hooks/queries';
-import { confirmReplace, useCart } from '@/hooks/use-cart';
+import { useCart } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem } from '@/lib/types';
@@ -53,7 +53,7 @@ export default function NewOrder() {
   const change = (item: MenuItem, delta: number) => {
     if (inThisCart && cart.qtyOf(item.id) > 0) return cart.setQty(item.id, cart.qtyOf(item.id) + delta);
     if (delta <= 0) return;
-    if (cart.add(item, shop, delta) === 'needs-replace') confirmReplace(cart.store!.name, () => cart.replace(item, shop, delta));
+    if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
   };
 
   // Laundry pickups have no items: order straight from here.

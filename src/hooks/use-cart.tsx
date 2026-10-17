@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Alert } from 'react-native';
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { ReplaceCartDialog } from '@/components/replace-cart-dialog';
 
 import { discountedPrice } from '@/lib/format';
 import type { MenuItem } from '@/lib/types';
@@ -46,23 +47,52 @@ function useCartState() {
   }, [cart]);
 }
 
-const CartContext = createContext<ReturnType<typeof useCartState> | null>(null);
+type CartContextValue = ReturnType<typeof useCartState> & {
+  /** Asks before an item from another store clears the cart; `onConfirm` runs only if the customer agrees. */
+  confirmReplace: (onConfirm: () => void) => void;
+};
 
-/** The customer's cart, shared by Home, the menu screens and checkout. Memory only. */
+const CartContext = createContext<CartContextValue | null>(null);
+
+/** The customer's cart, shared by Home, the menu screens and checkout. Memory only. Owns the "Start a new cart?" dialog. */
 export function CartProvider({ children }: { children: ReactNode }) {
-  return <CartContext.Provider value={useCartState()}>{children}</CartContext.Provider>;
+  const state = useCartState();
+  const [asking, setAsking] = useState(false);
+  const pending = useRef<(() => void) | null>(null);
+
+  const value = useMemo<CartContextValue>(
+    () => ({
+      ...state,
+      confirmReplace: (onConfirm) => {
+        pending.current = onConfirm;
+        setAsking(true);
+      },
+    }),
+    [state],
+  );
+  const close = () => {
+    pending.current = null;
+    setAsking(false);
+  };
+
+  return (
+    <CartContext.Provider value={value}>
+      {children}
+      <ReplaceCartDialog
+        storeName={asking ? (state.store?.name ?? '') : null}
+        onCancel={close}
+        onConfirm={() => {
+          const confirm = pending.current;
+          close();
+          confirm?.();
+        }}
+      />
+    </CartContext.Provider>
+  );
 }
 
 export function useCart() {
   const cart = useContext(CartContext);
   if (!cart) throw new Error('useCart needs a CartProvider');
   return cart;
-}
-
-/** Asks before an item from another store clears the cart. */
-export function confirmReplace(current: string, onConfirm: () => void) {
-  Alert.alert('Start a new cart?', `Your cart from ${current} will be cleared.`, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Start new cart', style: 'destructive', onPress: onConfirm },
-  ]);
 }

@@ -13,7 +13,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useStore } from '@/hooks/queries';
-import { confirmReplace, useCart } from '@/hooks/use-cart';
+import { useCart } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 
@@ -40,7 +40,7 @@ export default function MenuItemScreen() {
   const related = store.data.menu.filter((m) => m.id !== item.id);
   const add = () => {
     if (cart.add(item, shop, qty) === 'needs-replace') {
-      confirmReplace(cart.store!.name, () => {
+      cart.confirmReplace(() => {
         cart.replace(item, shop, qty);
         router.back();
       });

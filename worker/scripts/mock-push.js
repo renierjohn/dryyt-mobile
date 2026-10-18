@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Sends a test push notification to a user's phone, shaped exactly like the worker's pushes.
 // Usage: bun run mock:push <userId|email> [preset] [--title <text>] [--body <text>] [--remote]
-// Presets mirror the app's real pushes: new-dropoff (driver), arrived / waiting (owner),
+// Presets mirror the app's real pushes: new-dropoff (driver), arrived / waiting / order (owner),
 // received / cancelled (customer). Default: a plain "Test notification".
 // The user needs a saved push token: sign in once on a development or release build (not Expo Go).
 import { d1, usageError } from './lib/mock.js';
@@ -10,8 +10,10 @@ const PRESETS = {
   test: { title: 'Test notification', body: 'Push from bun run mock:push.' },
   // Same channel and Dryyt chime as the worker's real new drop off push (PUSH_STYLES.newDropoff).
   'new-dropoff': { title: 'New drop off nearby', body: 'Fresh Fold Laundry: open Dryyt to accept.', channelId: 'new-dropoff', sound: 'dryyt.wav' },
-  arrived: { title: 'New drop off', body: "Mock Customer's laundry has arrived." },
-  waiting: { title: 'Drop off waiting', body: 'A laundry drop off is waiting for your confirmation.' },
+  // Owner pushes use the order chime (PUSH_STYLES.ownerOrder).
+  arrived: { title: 'New drop off', body: "Mock Customer's laundry has arrived.", channelId: 'owner-order', sound: 'dryyt-order.wav' },
+  waiting: { title: 'Drop off waiting', body: 'A laundry drop off is waiting for your confirmation.', channelId: 'owner-order', sound: 'dryyt-order.wav' },
+  order: { title: 'New order', body: 'A customer sent a proof of payment. Check Orders.', channelId: 'owner-order', sound: 'dryyt-order.wav' },
   received: { title: 'Laundry received', body: 'The shop confirmed your drop off. Check your summary.' },
   cancelled: { title: 'Drop off cancelled', body: 'Your driver cancelled the trip.' },
 };

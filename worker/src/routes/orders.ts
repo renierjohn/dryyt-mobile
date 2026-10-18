@@ -149,7 +149,7 @@ orders.post('/', requireRole('customer'), async (c) => {
   // Laundry pickups go straight to drivers.
   if (status === 'pending') pickupChanged(c, id, { room: false });
   if (status === 'awaiting_payment' && store.owner_id !== null) {
-    c.executionCtx.waitUntil(pushToUsers(db, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }));
+    c.executionCtx.waitUntil(pushToUsers(db, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }, 'ownerOrder'));
   }
   return c.json({ order: await getOrder(db, id) }, 201);
 });

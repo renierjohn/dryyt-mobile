@@ -6,7 +6,7 @@
 // Ctrl+C goes offline.
 import { readFileSync } from 'node:fs';
 
-import { openRoom, parseArgs, peso, sleep, testUser, time, usageError } from './lib/mock.js';
+import { car, openRoom, parseArgs, peso, sleep, testUser, time, usageError } from './lib/mock.js';
 
 const argv = process.argv.slice(2);
 const speedAt = argv.indexOf('--speed');
@@ -33,58 +33,10 @@ const POLL_MS = 3000;
 // The app logo stands in for the proof photo, so the owner app has a real image to show.
 const PROOF_PNG = readFileSync(new URL('../../assets/images/logo@3x.png', import.meta.url));
 
-const R = 6371;
-const rad = (d) => (d * Math.PI) / 180;
-function km(a, b) {
-  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-let here = { lat, lng };
 let user;
 let room = null;
-
-/** Road path from `here` to `to` as points via the public OSRM server; a straight line if it fails. */
-async function roadPath(to) {
-  try {
-    const res = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${here.lng},${here.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`,
-      { headers: { 'user-agent': 'dryyt-mock-driver' } },
-    );
-    const data = await res.json();
-    if (data.code === 'Ok') return [...data.routes[0].geometry.coordinates.map(([lng, lat]) => ({ lat, lng })), to];
-  } catch {
-    // fall through
-  }
-  console.log(`[${time()}] No road route, driving straight`);
-  return [to];
-}
-
-/** Drives along the road to `to` at speedKmh, sending a fix to `room` every tick. */
-async function driveTo(to, label) {
-  const path = await roadPath(to);
-  const total = path.reduce((sum, p, i) => sum + km(i === 0 ? here : path[i - 1], p), 0);
-  console.log(`[${time()}] Driving to ${label} (${total.toFixed(2)} km by road)`);
-  const stepKm = (speedKmh * TICK_MS) / 3_600_000;
-  let next = 0;
-  while (next < path.length) {
-    // Walk stepKm along the path, across as many points as it covers.
-    let budget = stepKm;
-    while (next < path.length) {
-      const leg = km(here, path[next]);
-      if (leg > budget) {
-        const f = budget / leg;
-        here = { lat: here.lat + (path[next].lat - here.lat) * f, lng: here.lng + (path[next].lng - here.lng) * f };
-        break;
-      }
-      budget -= leg;
-      here = path[next++];
-    }
-    room?.send({ t: 'loc', ...here });
-    if (next < path.length) await sleep(TICK_MS);
-  }
-  console.log(`[${time()}] Arrived at ${label}`);
-}
+const driver = car({ lat, lng }, speedKmh, () => room);
+const driveTo = driver.driveTo;
 
 async function job() {
   return (await user.must('/drivers/me')).job;
@@ -126,7 +78,7 @@ async function main() {
     });
     // Location every tick keeps the request list fresh.
     while (!accepted) {
-      dispatch.send({ t: 'loc', ...here });
+      dispatch.send({ t: 'loc', ...driver.here });
       await sleep(TICK_MS);
     }
     dispatch.close();

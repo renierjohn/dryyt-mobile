@@ -170,9 +170,14 @@ export class Trip extends DurableObject<Bindings> {
       .bind(id)
       .first<{ owner_id: number | null }>();
     if (row?.owner_id) {
-      await pushToUsers(this.env.DB, [row.owner_id], 'Drop off waiting', 'A laundry drop off is waiting for your confirmation.', {
-        transaction_id: id,
-      });
+      await pushToUsers(
+        this.env.DB,
+        [row.owner_id],
+        'Drop off waiting',
+        'A laundry drop off is waiting for your confirmation.',
+        { transaction_id: id },
+        'ownerOrder',
+      );
     }
   }
 

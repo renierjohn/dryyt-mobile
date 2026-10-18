@@ -268,7 +268,7 @@ dropoffs.post('/:id/drop', requireRole('driver'), async (c) => {
   await afterCommit('drop trip finish', () => trip.finish());
   if (row.store_owner_id) {
     c.executionCtx.waitUntil(
-      pushToUsers(db, [row.store_owner_id], 'New drop off', `${row.customer_name}'s laundry has arrived.`, { transaction_id: row.id }),
+      pushToUsers(db, [row.store_owner_id], 'New drop off', `${row.customer_name}'s laundry has arrived.`, { transaction_id: row.id }, 'ownerOrder'),
     );
   }
   return respond(c, row.id);

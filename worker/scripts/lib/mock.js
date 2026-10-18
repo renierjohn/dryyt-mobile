@@ -66,10 +66,30 @@ export async function testUser(api, account) {
   return { call, must, user: created.user };
 }
 
-/** Opens a dispatch or trip room socket. `onMessage` gets parsed messages. */
+/** Signed-in calls with a token from tokenForUser, shaped like testUser's. */
+export function tokenUser(api, { token, user }) {
+  async function call(path, body, { method, headers, raw } = {}) {
+    const res = await fetch(`${api}${path}`, {
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
+      headers: { ...(raw ? {} : { 'content-type': 'application/json' }), authorization: `Bearer ${token}`, ...headers },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+    });
+    return { status: res.status, data: await res.json().catch(() => ({})) };
+  }
+
+  async function must(path, body, opts) {
+    const res = await call(path, body, opts);
+    if (res.status >= 400) throw new Error(`${path}: ${res.status} ${res.data.error ?? ''}`);
+    return res.data;
+  }
+
+  return { call, must, user };
+}
+
+/** Opens a dispatch, trip or pickup order (`order-<id>`) room socket. `onMessage` gets parsed messages. */
 export async function openRoom(api, user, room, onMessage) {
   const { ticket } = await user.must('/ws/ticket', { room });
-  const path = room === 'dispatch' ? '/ws/dispatch' : `/ws/trip/${room}`;
+  const path = room === 'dispatch' ? '/ws/dispatch' : room.startsWith('order-') ? `/ws/order/${room.slice(6)}` : `/ws/trip/${room}`;
   const ws = new WebSocket(`${api.replace(/^http/, 'ws')}${path}?ticket=${ticket}`);
   ws.addEventListener('message', (e) => onMessage(JSON.parse(e.data)));
   await new Promise((resolve, reject) => {
@@ -115,5 +135,66 @@ export function tokenForUser(who, role) {
 }
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const R = 6371;
+const rad = (d) => (d * Math.PI) / 180;
+export function km(a, b) {
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+const TICK_MS = 3000; // above the server's 2 s location limit
+
+/**
+ * A mock driver's car at `start`. `driveTo` follows the road at speedKmh and sends a fix to `room()` every 3 s
+ * (a function, so the room can change between legs).
+ */
+export function car(start, speedKmh, room = () => null) {
+  const self = { here: start };
+
+  /** Road path from `here` to `to` as points via the public OSRM server; a straight line if it fails. */
+  async function roadPath(to) {
+    const { here } = self;
+    try {
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${here.lng},${here.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`,
+        { headers: { 'user-agent': 'dryyt-mock-driver' } },
+      );
+      const data = await res.json();
+      if (data.code === 'Ok') return [...data.routes[0].geometry.coordinates.map(([lng, lat]) => ({ lat, lng })), to];
+    } catch {
+      // fall through
+    }
+    console.log(`[${time()}] No road route, driving straight`);
+    return [to];
+  }
+
+  self.driveTo = async (to, label) => {
+    const path = await roadPath(to);
+    const total = path.reduce((sum, p, i) => sum + km(i === 0 ? self.here : path[i - 1], p), 0);
+    console.log(`[${time()}] Driving to ${label} (${total.toFixed(2)} km by road)`);
+    const stepKm = (speedKmh * TICK_MS) / 3_600_000;
+    let next = 0;
+    while (next < path.length) {
+      // Walk stepKm along the path, across as many points as it covers.
+      let budget = stepKm;
+      while (next < path.length) {
+        const leg = km(self.here, path[next]);
+        if (leg > budget) {
+          const f = budget / leg;
+          self.here = { lat: self.here.lat + (path[next].lat - self.here.lat) * f, lng: self.here.lng + (path[next].lng - self.here.lng) * f };
+          break;
+        }
+        budget -= leg;
+        self.here = path[next++];
+      }
+      room()?.send({ t: 'loc', ...self.here });
+      if (next < path.length) await sleep(TICK_MS);
+    }
+    console.log(`[${time()}] Arrived at ${label}`);
+  };
+
+  return self;
+}
 export const time = () => new Date().toLocaleTimeString();
 export const peso = (centavos) => `₱${(centavos / 100).toFixed(2)}`;

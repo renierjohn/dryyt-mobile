@@ -1,11 +1,12 @@
 /**
- * How a push sounds. `default`: the system sound. `newDropoff`: the Dryyt chime bundled in the app (app.json
- * `expo-notifications.sounds`); Android plays the channel's sound, iOS the `sound` file. Keep in step with the app's
- * channels in use-push-notifications.ts.
+ * How a push sounds. `default`: the system sound. `newDropoff`: the Dryyt chime, `ownerOrder`: the owner's order
+ * chime, both bundled in the app (app.json `expo-notifications.sounds`); Android plays the channel's sound, iOS the
+ * `sound` file. Keep in step with the app's channels in use-push-notifications.ts.
  */
 export const PUSH_STYLES = {
   default: { channelId: 'default', sound: 'default' },
   newDropoff: { channelId: 'new-dropoff', sound: 'dryyt.wav' },
+  ownerOrder: { channelId: 'owner-order', sound: 'dryyt-order.wav' },
 } as const;
 export type PushStyle = keyof typeof PUSH_STYLES;
 

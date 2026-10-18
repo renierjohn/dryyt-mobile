@@ -18,7 +18,7 @@ if (role !== undefined && !ROLES.includes(role)) {
 const sql = `SELECT u.id, u.email, u.name, u.phone, u.role, d.online, d.busy, d.group_id, u.push_token IS NOT NULL AS push, u.created_at
   FROM users u LEFT JOIN drivers d ON d.user_id = u.id${role ? ` WHERE u.role = '${role}'` : ''} ORDER BY u.id`;
 const users = JSON.parse(
-  execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt', remote ? '--remote' : '--local', '--json', '--command', sql], {
+  execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt-mobile', remote ? '--remote' : '--local', '--json', '--command', sql], {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'inherit'],
   }),

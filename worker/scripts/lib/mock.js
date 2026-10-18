@@ -102,7 +102,7 @@ export async function openRoom(api, user, room, onMessage) {
 /** Runs SQL on the local (or --remote) D1 database and returns the rows. Only pass validated values. */
 export function d1(sql, remote) {
   return JSON.parse(
-    execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt', remote ? '--remote' : '--local', '--json', '--command', sql], {
+    execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt-mobile', remote ? '--remote' : '--local', '--json', '--command', sql], {
       encoding: 'utf8',
       stdio: ['inherit', 'pipe', 'inherit'],
     }),

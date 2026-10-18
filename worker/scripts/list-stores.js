@@ -16,7 +16,7 @@ if (type !== undefined && type !== 'food' && type !== 'laundry') {
 // type is checked against a fixed list above, so it's safe to inline.
 const sql = `SELECT id, name, type, address, lat, lng, owner_id FROM stores${type ? ` WHERE type = '${type}'` : ''} ORDER BY id`;
 const stores = JSON.parse(
-  execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt', remote ? '--remote' : '--local', '--json', '--command', sql], {
+  execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt-mobile', remote ? '--remote' : '--local', '--json', '--command', sql], {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'inherit'],
   }),

@@ -4,6 +4,14 @@ import { fail } from './http';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
+/**
+ * SQL for a short tag that changes whenever a driver retakes either photo, for the app to put in the photo URL so its
+ * image cache (keyed by URL) never shows the old one. Keys end in `-<uuid>.jpg|png`: this is a slice of each UUID, so
+ * the keys themselves stay server-side. `t` is the driver_data table alias.
+ */
+export const driverPhotoVersion = (t: string) =>
+  `COALESCE(substr(${t}.photo_face, -12, 8), '') || '-' || COALESCE(substr(${t}.photo_id, -12, 8), '')`;
+
 /** Image type from the file's first bytes; React Native doesn't reliably send the Content-Type of a Blob body. */
 function imageType(bytes: Uint8Array): { type: string; ext: string } | null {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { type: 'image/jpeg', ext: 'jpg' };

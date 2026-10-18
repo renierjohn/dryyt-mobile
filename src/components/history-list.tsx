@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
+import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { OrderSummary } from '@/components/order-summary';
 import { StatusBadge, type Tone } from '@/components/status-badge';
 import { ThemedText } from '@/components/themed-text';
@@ -21,7 +22,7 @@ export function HistoryList({ history, role, empty }: { history: ReturnType<type
 
   return (
     <>
-      {__DEV__ && <NextLoadCountdown at={history.nextAt} />}
+      {__DEV__ && <NextLoadCountdown at={history.nextAt} label="/history" />}
       {history.isPending && <ActivityIndicator />}
       <ErrorText error={history.error} />
       {history.isSuccess && items.length === 0 && <ThemedText themeColor="textSecondary">{empty}</ThemedText>}
@@ -42,20 +43,6 @@ export function HistoryList({ history, role, empty }: { history: ReturnType<type
 }
 
 /** Dev builds only: seconds until focus or pull-to-refresh may request /history again. */
-function NextLoadCountdown({ at }: { at: number }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const left = Math.max(0, Math.ceil((at - now) / 1000));
-  return (
-    <ThemedText type="small" themeColor="textSecondary">
-      [dev] /history {left > 0 ? `refresh in ${left}s` : 'refreshes on focus or pull'}
-    </ThemedText>
-  );
-}
-
 export function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer' | 'driver' }) {
   if (item.kind === 'order') {
     const { order } = item;

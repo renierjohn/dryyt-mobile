@@ -1,7 +1,9 @@
-import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
+import { Image, type ImageSource } from 'expo-image';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card } from '@/components/card';
+import { PhotoViewer } from '@/components/photo-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { dateTime, peso } from '@/lib/format';
@@ -18,6 +20,8 @@ function Row({ label, value, bold = false }: { label: string; value: string; bol
 
 /** Fees shown depend on who is looking: the API omits delivery/service fee for customers. */
 export function DropoffSummary({ dropoff: d }: { dropoff: Dropoff }) {
+  const [viewing, setViewing] = useState<ImageSource | null>(null);
+  const proof = { uri: apiUrl(`/dropoffs/${d.id}/proof`), headers: authHeaders() };
   return (
     <Card>
       <ThemedText type="small" themeColor="textSecondary">
@@ -35,8 +39,11 @@ export function DropoffSummary({ dropoff: d }: { dropoff: Dropoff }) {
       {d.laundry_fee !== null && <Row label="Total to pay the shop" value={peso(d.total_delivery_fee + d.laundry_fee)} bold />}
       {d.drop_notes ? <ThemedText type="small">{d.drop_notes}</ThemedText> : null}
       {d.has_proof && (
-        <Image source={{ uri: apiUrl(`/dropoffs/${d.id}/proof`), headers: authHeaders() }} style={styles.photo} contentFit="cover" />
+        <Pressable accessibilityLabel="View proof photo" onPress={() => setViewing(proof)}>
+          <Image source={proof} style={styles.photo} contentFit="cover" />
+        </Pressable>
       )}
+      <PhotoViewer source={viewing} onClose={() => setViewing(null)} />
     </Card>
   );
 }

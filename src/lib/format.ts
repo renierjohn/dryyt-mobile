@@ -1,6 +1,8 @@
 import type { DropoffStatus, Order, OrderStatus } from './types';
 
-export const peso = (centavos: number) => `₱${(centavos / 100).toFixed(2)}`;
+/** Centavos as pesos with thousands commas, e.g. 123456 → "₱1,234.56". */
+export const peso = (centavos: number) =>
+  `₱${(centavos / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** A menu price (centavos) after its percent discount; matches the worker's checkout math. */
 /** Every computed amount is rounded up to a whole peso (centavos always 00); same as the worker's roundUpToPeso. */
@@ -16,6 +18,13 @@ export const d1Time = (d1Utc: string) => new Date(`${d1Utc.replace(' ', 'T')}Z`)
 export function localDay(d1Utc: string) {
   const date = new Date(d1Time(d1Utc));
   return Number.isNaN(date.getTime()) ? d1Utc : date.toDateString();
+}
+
+/** The local day of D1 UTC text as e.g. "Sat, Oct 17, 2026", for date group titles; the input itself when unparseable. */
+export function dayLabel(d1Utc: string) {
+  const date = new Date(d1Time(d1Utc));
+  if (Number.isNaN(date.getTime())) return d1Utc;
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /** D1's `datetime('now')` text ("2026-10-13 05:45:53", UTC) as local time, e.g. "Oct 13, 2026, 1:45 PM". */

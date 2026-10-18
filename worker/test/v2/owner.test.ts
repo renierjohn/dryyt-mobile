@@ -191,6 +191,36 @@ describe('owner', () => {
     expect((await api('/owner/payouts?before=junk', { token: owner.token })).status).toBe(400);
   });
 
+  it("lists delivered pickups' driver share and marks it paid once", async () => {
+    const owner = await registerUser('owner');
+    const { storeId } = await makeShop({ ownerId: owner.user.id });
+    const driver = await registerUser('driver');
+    const customer = await registerUser('customer');
+    const insert = (status: string) =>
+      env.DB.prepare(
+        `INSERT INTO orders (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, service_fee)
+         VALUES ('pickup', ?, ?, ?, ?, '1 Customer St', 0, 8800, 800) RETURNING id`,
+      )
+        .bind(customer.user.id, driver.user.id, storeId, status)
+        .first<{ id: number }>();
+    const delivered = (await insert('delivered'))!.id;
+    const onTheWay = (await insert('picked_up'))!.id;
+
+    const list = await api('/owner/pickup-payouts', { token: owner.token });
+    expect(list.body.payouts).toEqual([
+      expect.objectContaining({ id: delivered, driver_id: driver.user.id, driver_name: driver.user.name, amount: 8000, paid_at: null }),
+    ]);
+
+    const res = await post(`/owner/orders/${delivered}/driver-paid`, owner.token);
+    expect(res.body.payout).toMatchObject({ id: delivered, paid_at: expect.any(String) });
+    expect((await post(`/owner/orders/${delivered}/driver-paid`, owner.token)).status).toBe(409);
+    expect((await post(`/owner/orders/${onTheWay}/driver-paid`, owner.token)).status).toBe(409);
+    const other = await registerUser('owner');
+    await makeShop({ ownerId: other.user.id });
+    expect((await post(`/owner/orders/${delivered}/driver-paid`, other.token)).status).toBe(404);
+    expect((await api('/owner/pickup-payouts?before=junk', { token: owner.token })).status).toBe(400);
+  });
+
   it('a failed confirm leaves the drop off confirmable', async () => {
     const { owner, id } = await withOwner();
     await env.DB.prepare("INSERT INTO payouts (transaction_id, payer_store_id, payee_type, payee_id, amount) SELECT id, store_id, 'driver', driver_id, 1 FROM transactions WHERE id = ?").bind(id).run();

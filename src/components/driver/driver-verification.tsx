@@ -30,8 +30,6 @@ export function DriverVerification() {
   const upload = useUploadVerificationPhoto();
   const saveNotes = useSaveVerificationNotes();
   const [plate, setPlate] = useState<string | null>(null);
-  // Bumped after each upload so the photo reloads instead of showing the cached one.
-  const [version, setVersion] = useState(0);
   const [faceCamera, setFaceCamera] = useState(false);
 
   const v = verification.data;
@@ -39,7 +37,7 @@ export function DriverVerification() {
   const plateText = plate ?? v.notes;
 
   const send = (kind: VerificationPhoto, uri: string, type: string, faceCheck?: FaceCheck) =>
-    upload.mutate({ kind, uri, type, faceCheck }, { onSuccess: () => setVersion((n) => n + 1) });
+    upload.mutate({ kind, uri, type, faceCheck });
 
   /** The face goes through FaceCamera's live check; the license uses the plain camera. */
   const pick = async (kind: VerificationPhoto) => {
@@ -62,7 +60,7 @@ export function DriverVerification() {
       </ThemedText>
       {has && (
         <Image
-          source={{ uri: apiUrl(`/drivers/me/verification/photo/${kind}?v=${version}`), headers: authHeaders() }}
+          source={{ uri: apiUrl(`/drivers/me/verification/photo/${kind}?v=${v.photo_version}`), headers: authHeaders() }}
           style={kind === 'face' ? styles.face : styles.license}
           contentFit="cover"
         />

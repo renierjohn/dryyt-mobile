@@ -10,6 +10,11 @@ describe('peso', () => {
     expect(peso(12345)).toBe('₱123.45');
     expect(peso(0)).toBe('₱0.00');
   });
+
+  it('adds thousands commas', () => {
+    expect(peso(123456)).toBe('₱1,234.56');
+    expect(peso(123456789)).toBe('₱1,234,567.89');
+  });
 });
 
 describe('orderTitle', () => {

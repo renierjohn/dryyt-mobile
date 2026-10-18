@@ -8,7 +8,7 @@ const order = {
   id: 7, type: 'pickup' as const, customer_id: 1, driver_id: null, store_id: 1, status: 'pending' as const,
   customer_address: '1 Customer St', notes: '', items_total: 36500, delivery_fee: 5000, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
   customer_lat: null, customer_lng: null, store_lat: null, store_lng: null, driver_lat: null, driver_lng: null, driver_loc_at: null,
-  driver_has_face: false, driver_has_id: false, driver_notes: '', driver_verified: false,
+  driver_has_face: false, driver_has_id: false, driver_photo_version: '-', driver_notes: '', driver_verified: false,
   store_name: 'Tea Haven', store_address: '12 Mabini St', store_type: 'food' as const, customer_name: 'Ana',
   customer_phone: null, driver_name: null, driver_phone: null,
   items: [

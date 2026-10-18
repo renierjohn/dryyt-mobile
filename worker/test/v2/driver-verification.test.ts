@@ -34,17 +34,19 @@ describe('driver verification', () => {
   it('starts empty and unverified', async () => {
     const driver = await registerUser('driver');
     expect((await api('/drivers/me/verification', { token: driver.token })).body).toEqual({
-      verification: { has_face: false, has_id: false, face_check: null, notes: '', verified: false },
+      verification: { has_face: false, has_id: false, photo_version: '-', face_check: null, notes: '', verified: false },
     });
   });
 
   it('saves photos and the license plate, and serves the photos back', async () => {
     const driver = await registerUser('driver');
     expect((await upload('face', driver.token)).status).toBe(201);
-    expect((await upload('id', driver.token)).body.verification).toMatchObject({ has_face: true, has_id: true });
+    const { verification } = (await upload('id', driver.token)).body;
+    expect(verification).toMatchObject({ has_face: true, has_id: true });
     expect((await api('/drivers/me/verification', { token: driver.token, body: { notes: ' ABC 1234 ' } })).body.verification).toEqual({
       has_face: true,
       has_id: true,
+      photo_version: verification?.photo_version,
       face_check: 'passed',
       notes: 'ABC 1234',
       verified: false,
@@ -53,6 +55,16 @@ describe('driver verification', () => {
     const photo = await SELF.fetch('https://api.test/drivers/me/verification/photo/face', { headers: { authorization: `Bearer ${driver.token}` } });
     expect(photo.headers.get('content-type')).toBe('image/jpeg');
     expect(new Uint8Array(await photo.arrayBuffer())).toEqual(JPEG);
+  });
+
+  it('changes the photo version on each retake, so the app never shows a cached old photo', async () => {
+    const driver = await registerUser('driver');
+    const version = async (kind: string) => String((await upload(kind, driver.token)).body.verification?.photo_version);
+    const face = await version('face');
+    expect(face).toMatch(/^[0-9a-f]{8}-$/);
+    const both = await version('id');
+    expect(both).toMatch(new RegExp(`^${face}[0-9a-f]{8}$`));
+    expect(await version('face')).not.toBe(both);
   });
 
   it('rejects non-images and unknown photo kinds', async () => {
@@ -77,6 +89,7 @@ describe('driver verification', () => {
     expect((await api('/drivers/me/verification', { token: driver.token })).body.verification).toEqual({
       has_face: true,
       has_id: false,
+      photo_version: expect.stringMatching(/^[0-9a-f]{8}-$/),
       face_check: 'passed',
       notes: 'ABC 1234',
       verified: true,
@@ -115,6 +128,8 @@ describe("customer view of the driver's verification", () => {
     const seen = (await api(`/dropoffs/${id}`, { token: customer.token })).body.dropoff;
     expect(seen).toMatchObject({ driver_has_face: true, driver_has_id: false, driver_notes: 'ABC 1234', driver_verified: true });
     expect(seen).not.toHaveProperty('driver_photo_face');
+    const { verification } = (await api('/drivers/me/verification', { token: driver.token })).body;
+    expect(seen.driver_photo_version).toBe(verification.photo_version);
 
     const face = await photo(id, 'face', customer.token);
     expect(face.status).toBe(200);

@@ -7,14 +7,14 @@ import { Spacing } from '@/constants/theme';
 import { apiUrl, authHeaders } from '@/lib/api';
 import type { Dropoff } from '@/lib/types';
 
-type Driver = Pick<Dropoff, 'driver_name' | 'driver_phone' | 'driver_has_face' | 'driver_has_id' | 'driver_notes' | 'driver_verified'>;
+type Driver = Pick<Dropoff, 'driver_name' | 'driver_phone' | 'driver_has_face' | 'driver_has_id' | 'driver_photo_version' | 'driver_notes' | 'driver_verified'>;
 
 /**
  * The assigned driver as the customer sees them: face, license, plate and badge. `photoPath` is the drop off's or
  * order's driver-photo route, e.g. `/orders/7/driver-photo`.
  */
 export function DriverDetails({ driver: d, photoPath }: { driver: Driver; photoPath: string }) {
-  const photo = (kind: 'face' | 'id') => ({ uri: apiUrl(`${photoPath}/${kind}`), headers: authHeaders() });
+  const photo = (kind: 'face' | 'id') => ({ uri: apiUrl(`${photoPath}/${kind}?v=${d.driver_photo_version}`), headers: authHeaders() });
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>

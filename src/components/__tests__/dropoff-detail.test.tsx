@@ -5,6 +5,7 @@ import DropoffDetail from '@/app/customer/dropoff/[id]';
 jest.mock('expo-router', () => ({ router: { replace: jest.fn() }, useLocalSearchParams: () => ({ id: '7' }) }));
 jest.mock('@/hooks/use-socket', () => ({ useSocket: () => ({ connected: false }) }));
 jest.mock('@/components/driver-details', () => ({ DriverDetails: () => null }));
+jest.mock('@/components/photo-viewer');
 jest.mock('@/components/dropoff-map', () => ({ DropoffMap: () => null, PinColor: {} }));
 jest.mock('@/hooks/queries', () => ({
   useDropoff: () => ({

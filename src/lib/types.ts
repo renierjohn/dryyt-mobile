@@ -72,6 +72,8 @@ export type Order = {
   /** The assigned driver's verification (face/license photos via /orders/:id/driver-photo/face|id). */
   driver_has_face: boolean;
   driver_has_id: boolean;
+  /** Changes when the driver retakes a photo; goes in the driver-photo URLs as `?v=`. */
+  driver_photo_version: string;
   /** The driver's license plate. */
   driver_notes: string;
   driver_verified: boolean;
@@ -121,6 +123,8 @@ export type Dropoff = {
   /** The assigned driver's verification: photos (fetch via /dropoffs/:id/driver-photo/face|id), license plate, badge. */
   driver_has_face: boolean;
   driver_has_id: boolean;
+  /** Changes when the driver retakes a photo; goes in the driver-photo URLs as `?v=`. */
+  driver_photo_version: string;
   driver_notes: string;
   driver_verified: boolean;
   weight_kg: number | null;
@@ -156,6 +160,8 @@ export type DriverMe = { driver: { online: boolean; busy: boolean; pickup_online
 export type DriverVerification = {
   has_face: boolean;
   has_id: boolean;
+  /** Changes when a photo is retaken; goes in the photo URLs as `?v=`. */
+  photo_version: string;
   /** How the face photo was taken; 'skipped' waits for a closer manual review. null: no face photo, or an older one. */
   face_check: 'passed' | 'skipped' | null;
   notes: string;
@@ -173,4 +179,16 @@ export type Payout = {
   status: 'pending' | 'paid';
   paid_at: string | null;
   created_at: string;
+};
+
+/** A delivered pickup's driver share of the delivery fee; `id` is the order id. */
+export type PickupPayout = {
+  id: number;
+  store_id: number;
+  store_name: string;
+  driver_id: number;
+  driver_name: string | null;
+  amount: number;
+  paid_at: string | null;
+  updated_at: string;
 };

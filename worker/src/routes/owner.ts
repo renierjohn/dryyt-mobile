@@ -386,6 +386,44 @@ owner.post('/payouts/:id/paid', async (c) => {
   return c.json({ payout: await db.prepare(`${PAYOUT_SELECT} WHERE p.id = ?`).bind(id).first() });
 });
 
+const PICKUP_PAYOUT_SELECT = `SELECT o.id, o.store_id, s.name AS store_name, o.driver_id, u.name AS driver_name,
+  o.delivery_fee - o.service_fee AS amount, o.driver_paid_at AS paid_at, o.updated_at
+  FROM orders o JOIN stores s ON s.id = o.store_id LEFT JOIN users u ON u.id = o.driver_id`;
+
+/** Drivers' share of delivered pickups' delivery fees. Not yet paid first, then newest; 10 per page. */
+owner.get('/pickup-payouts', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const { before, limit } = pageQuery(c);
+  let cursor = '';
+  const binds: unknown[] = [...storeIds];
+  if (before) {
+    const [paid, id] = cursorParts(before, 2);
+    cursor = 'AND ((o.driver_paid_at IS NOT NULL) > ? OR ((o.driver_paid_at IS NOT NULL) = ? AND o.id < ?))';
+    binds.push(Number(paid), Number(paid), Number(id));
+  }
+  const { results } = await c.env.DB.prepare(
+    `${PICKUP_PAYOUT_SELECT} WHERE o.store_id IN ${inList(storeIds)} AND o.status = 'delivered' AND o.driver_id IS NOT NULL ${cursor}
+     ORDER BY o.driver_paid_at IS NOT NULL, o.id DESC LIMIT ${limit + 1}`,
+  )
+    .bind(...binds)
+    .all<{ id: number; paid_at: string | null }>();
+  const page = results.slice(0, limit);
+  const last = page[page.length - 1];
+  return c.json({ payouts: page, next: results.length > limit && last ? `${last.paid_at ? 1 : 0}|${last.id}` : null });
+});
+
+owner.post('/orders/:id/driver-paid', async (c) => {
+  const order = await myOrder(c);
+  const db = c.env.DB;
+  if (order.status !== 'delivered' || order.driver_id === null) fail(409, 'Only a delivered pickup can be paid out');
+  const { meta } = await db
+    .prepare("UPDATE orders SET driver_paid_at = datetime('now') WHERE id = ? AND driver_paid_at IS NULL")
+    .bind(order.id)
+    .run();
+  if (meta.changes === 0) fail(409, 'Driver is already marked paid');
+  return c.json({ payout: await db.prepare(`${PICKUP_PAYOUT_SELECT} WHERE o.id = ?`).bind(order.id).first() });
+});
+
 owner.post('/blocks', async (c) => {
   const storeIds = await myStoreIds(c);
   const { driver_id, blocked, store_id } = await parseBody(c, blockSchema);

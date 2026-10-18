@@ -16,9 +16,11 @@ type Props = {
   header?: ReactNode;
   /** Sticky actions pinned below the scroll area. */
   footer?: ReactNode;
+  /** Indexes of `children` (as a flat list, nulls dropped) that stick to the top while scrolling, each pushing off the last. */
+  stickyHeaderIndices?: number[];
 };
 
-export function Screen({ children, edges = ['top'], onRefresh, header, footer }: Props) {
+export function Screen({ children, edges = ['top'], onRefresh, header, footer, stickyHeaderIndices }: Props) {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -32,6 +34,7 @@ export function Screen({ children, edges = ['top'], onRefresh, header, footer }:
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      stickyHeaderIndices={stickyHeaderIndices}
       refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined}>
       {children}
     </ScrollView>

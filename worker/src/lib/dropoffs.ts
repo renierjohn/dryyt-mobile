@@ -1,4 +1,5 @@
 import type { AuthUser, DropoffStatus } from '../types';
+import { driverPhotoVersion } from './photos';
 
 export type DropoffRow = {
   id: number;
@@ -32,6 +33,7 @@ export type DropoffRow = {
   proof_photo_key: string | null;
   driver_photo_face: string | null;
   driver_photo_id: string | null;
+  driver_photo_version: string;
   driver_notes: string | null;
   driver_status: number | null;
   owner_status: 'pending' | 'ok' | null;
@@ -41,7 +43,7 @@ const SELECT = `SELECT t.*,
     s.name AS store_name, s.address AS store_address, s.owner_id AS store_owner_id, s.group_id AS store_group_id,
     cu.name AS customer_name, cu.phone AS customer_phone,
     d.name AS driver_name, d.phone AS driver_phone,
-    dd.photo_face AS driver_photo_face, dd.photo_id AS driver_photo_id, dd.notes AS driver_notes, dd.status AS driver_status,
+    dd.photo_face AS driver_photo_face, dd.photo_id AS driver_photo_id, ${driverPhotoVersion('dd')} AS driver_photo_version, dd.notes AS driver_notes, dd.status AS driver_status,
     ot.weight_kg, ot.notes AS drop_notes, ot.proof_photo_key, ot.status AS owner_status
   FROM transactions t
   JOIN stores s ON s.id = t.store_id

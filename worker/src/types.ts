@@ -75,6 +75,8 @@ export type OrderRow = {
   updated_at: string;
   payment_ref: string;
   payment_photo_key: string | null;
+  /** When the owner paid the driver their share of the delivery fee. */
+  driver_paid_at: string | null;
   /** Map pins: the customer's pinned spot (null for typed addresses), the store's, and the driver's latest fix while picked up. */
   customer_lat: number | null;
   customer_lng: number | null;
@@ -92,6 +94,8 @@ export type OrderRow = {
   driver_phone: string | null;
   driver_has_face: boolean;
   driver_has_id: boolean;
+  /** Changes when the driver retakes a photo; goes in the driver-photo URLs as `?v=`. */
+  driver_photo_version: string;
   /** The driver's license plate. */
   driver_notes: string;
   driver_verified: boolean;

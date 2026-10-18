@@ -9,7 +9,7 @@ import { orderTitle, peso, route, STATUS_LABEL } from '@/lib/format';
 import type { Order, OrderDetail } from '@/lib/types';
 
 /**
- * `showFees`: the driver's view, with the delivery fee split into the driver's share and the service fee.
+ * `showFees`: the driver's and owner's view, with the delivery fee split into the driver's share and the service fee.
  * Customers see one delivery fee that already includes the service fee.
  */
 export function OrderSummary({ order, showFees = false }: { order: Order | OrderDetail; showFees?: boolean }) {
@@ -25,7 +25,12 @@ export function OrderSummary({ order, showFees = false }: { order: Order | Order
           #{order.id}
         </ThemedText>
       </View>
-      <ThemedText type="small">{STATUS_LABEL[order.status]}</ThemedText>
+      {/* Green once delivered, red when cancelled. */}
+      <ThemedText
+        type="small"
+        style={order.status === 'delivered' ? { color: theme.success } : order.status === 'cancelled' ? { color: theme.danger } : undefined}>
+        {STATUS_LABEL[order.status]}
+      </ThemedText>
       {/* Where the driver collects: the store's address. */}
       <View style={styles.item}>
         <Icon name={{ ios: 'mappin.and.ellipse', android: 'location_on', web: 'location_on' }} size={16} color={theme.textSecondary} />

@@ -9,7 +9,7 @@ import { api, uploadImage } from '@/lib/api';
 import { roadRoute } from '@/lib/road-route';
 import { loadOnline, saveOnline } from '@/lib/session-storage';
 import { shrinkImage } from '@/lib/shrink-image';
-import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, Payout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
+import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
 
 const POLL_MS = 5000;
 /** Fallback poll for screens that also get live updates over a socket. */
@@ -18,6 +18,27 @@ const LIVE_POLL_MS = 30_000;
 /** Poll only while the screen is on top: tab screens stay mounted when you leave them. */
 function usePoll(ms: number = POLL_MS) {
   return useIsFocused() ? ms : false;
+}
+
+/** On-demand owner lists load at most once per this long, however often the screen is focused or pulled. */
+export const OWNER_MIN_GAP_MS = 5_000;
+
+/**
+ * Query options for screens that load on demand, without polling: the query listens only while its screen is focused,
+ * so it loads on each visit (and on return to the app while on it), unless it loaded under OWNER_MIN_GAP_MS ago.
+ */
+const useLoadOnFocus = () => ({ subscribed: useIsFocused(), staleTime: OWNER_MIN_GAP_MS });
+
+type Loadable = { refetch: () => Promise<unknown>; isFetching: boolean; dataUpdatedAt: number; errorUpdatedAt: number };
+
+/** Adds `refresh()` for pull to refresh, skipped within OWNER_MIN_GAP_MS of the last load, and `nextAt` (epoch ms). */
+function withMinGap<Q extends Loadable>(query: Q) {
+  const nextAt = Math.max(query.dataUpdatedAt, query.errorUpdatedAt) + OWNER_MIN_GAP_MS;
+  const refresh = async () => {
+    if (query.isFetching || Date.now() < nextAt) return;
+    await query.refetch();
+  };
+  return { ...query, refresh, nextAt };
 }
 
 export type NewOrder = {
@@ -382,14 +403,16 @@ export function useUploadVerificationPhoto() {
 
 /** Waiting-for-confirmation first, then newest; 10 per page (`fetchNextPage` for more). */
 export const useOwnerDropoffs = () => {
-  const poll = usePoll();
-  return useInfiniteQuery({
-    queryKey: ['owner', 'dropoffs'],
-    queryFn: ({ pageParam: next }) => api<{ dropoffs: Dropoff[]; next: string | null }>(`/owner/transactions${pageParam(next)}`),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next,
-    refetchInterval: poll,
-  });
+  const loadOnFocus = useLoadOnFocus();
+  return withMinGap(
+    useInfiniteQuery({
+      queryKey: ['owner', 'dropoffs'],
+      queryFn: ({ pageParam: next }) => api<{ dropoffs: Dropoff[]; next: string | null }>(`/owner/transactions${pageParam(next)}`),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next,
+      ...loadOnFocus,
+    }),
+  );
 };
 
 export function useOwnerConfirm() {
@@ -405,26 +428,44 @@ export function useOwnerConfirm() {
 
 /** Pending first, then newest; 10 per page (`fetchNextPage` for more). */
 export const usePayouts = () => {
-  const poll = usePoll();
-  return useInfiniteQuery({
-    queryKey: ['owner', 'payouts'],
-    queryFn: ({ pageParam: next }) => api<{ payouts: Payout[]; next: string | null }>(`/owner/payouts${pageParam(next)}`),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next,
-    refetchInterval: poll,
-  });
+  const loadOnFocus = useLoadOnFocus();
+  return withMinGap(
+    useInfiniteQuery({
+      queryKey: ['owner', 'payouts'],
+      queryFn: ({ pageParam: next }) => api<{ payouts: Payout[]; next: string | null }>(`/owner/payouts${pageParam(next)}`),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next,
+      ...loadOnFocus,
+    }),
+  );
+};
+
+/** Delivered pickups' driver share: not yet paid first, then newest; 10 per page. */
+export const usePickupPayouts = () => {
+  const loadOnFocus = useLoadOnFocus();
+  return withMinGap(
+    useInfiniteQuery({
+      queryKey: ['owner', 'pickup-payouts'],
+      queryFn: ({ pageParam: next }) => api<{ payouts: PickupPayout[]; next: string | null }>(`/owner/pickup-payouts${pageParam(next)}`),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next,
+      ...loadOnFocus,
+    }),
+  );
 };
 
 /** Pickup orders at the owner's shops, newest first. */
 export const useOwnerOrders = () => {
-  const poll = usePoll();
-  return useInfiniteQuery({
-    queryKey: ['owner', 'orders'],
-    queryFn: ({ pageParam: next }) => api<{ orders: OrderDetail[]; next: string | null }>(`/owner/orders${pageParam(next)}`),
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next,
-    refetchInterval: poll,
-  });
+  const loadOnFocus = useLoadOnFocus();
+  return withMinGap(
+    useInfiniteQuery({
+      queryKey: ['owner', 'orders'],
+      queryFn: ({ pageParam: next }) => api<{ orders: OrderDetail[]; next: string | null }>(`/owner/orders${pageParam(next)}`),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next,
+      ...loadOnFocus,
+    }),
+  );
 };
 
 /** Done Pay: the owner saw the customer's payment. */
@@ -441,6 +482,14 @@ export function useMarkPayoutPaid() {
   return useMutation({
     mutationFn: (id: number) => api<{ payout: Payout }>(`/owner/payouts/${id}/paid`, { method: 'POST' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'payouts'] }),
+  });
+}
+
+export function useMarkPickupPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: number) => api<{ payout: PickupPayout }>(`/owner/orders/${orderId}/driver-paid`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'pickup-payouts'] }),
   });
 }
 

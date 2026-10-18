@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../lib/auth';
 import { listDropoffs, viewFor } from '../lib/dropoffs';
 import { fail, parseBody } from '../lib/http';
-import { photoResponse, readPhoto } from '../lib/photos';
+import { driverPhotoVersion, photoResponse, readPhoto } from '../lib/photos';
 import type { AppEnv } from '../types';
 
 const onlineSchema = z.object({ online: z.boolean() });
@@ -12,7 +12,14 @@ const notesSchema = z.object({ notes: z.string().trim().max(200) });
 
 /** URL kind → driver_data column. */
 const PHOTO_COLUMNS = { face: 'photo_face', id: 'photo_id' } as const;
-type DriverData = { photo_face: string | null; photo_id: string | null; notes: string; status: number; face_check: 'passed' | 'skipped' | null };
+type DriverData = {
+  photo_face: string | null;
+  photo_id: string | null;
+  photo_version: string;
+  notes: string;
+  status: number;
+  face_check: 'passed' | 'skipped' | null;
+};
 
 function photoColumn(kind: string) {
   if (!(kind in PHOTO_COLUMNS)) fail(404, 'Not found');
@@ -20,12 +27,17 @@ function photoColumn(kind: string) {
 }
 
 const loadData = (db: D1Database, userId: number) =>
-  db.prepare('SELECT photo_face, photo_id, notes, status, face_check FROM driver_data WHERE user_id = ?').bind(userId).first<DriverData>();
+  db
+    .prepare(`SELECT photo_face, photo_id, ${driverPhotoVersion('dd')} AS photo_version, notes, status, face_check FROM driver_data dd WHERE user_id = ?`)
+    .bind(userId)
+    .first<DriverData>();
 
 /** What the driver sees: whether each photo is in, the notes, and the badge. Keys stay server-side. */
 const verificationView = (d: DriverData | null) => ({
   has_face: Boolean(d?.photo_face),
   has_id: Boolean(d?.photo_id),
+  /** Goes in the photo URLs (`?v=`) so a retaken photo isn't served from the image cache. */
+  photo_version: d?.photo_version ?? '-',
   /** 'skipped': the face photo was taken without the live face check and waits for a closer look. */
   face_check: d?.photo_face ? (d.face_check ?? null) : null,
   notes: d?.notes ?? '',

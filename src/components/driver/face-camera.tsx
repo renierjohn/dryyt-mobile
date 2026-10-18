@@ -1,19 +1,16 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View, type LayoutRectangle } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View, type LayoutRectangle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CommonResolutions, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
-import { Camera, useImageFaceDetector, type Face } from 'react-native-vision-camera-face-detector';
 
 import { Button } from '@/components/button';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
-import { faceProblem } from '@/lib/face-check';
+import { faceProblem, type FaceBounds } from '@/lib/face-check';
+import { NativeFaceCamera, type FaceBox, type NativeFaceCameraRef } from '../../../modules/face-camera';
 
 /** The face must stay valid this long before the shutter unlocks, so a passing glance doesn't count. */
 const STEADY_MS = 600;
-/** Re-render the box at most this often (ms); detection runs faster than the eye needs. */
-const UPDATE_MS = 80;
 
 export type FaceCheck = 'passed' | 'skipped';
 
@@ -40,21 +37,18 @@ export function FaceCamera({ visible, onClose, onCapture }: Props) {
 }
 
 function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
-  const permission = useCameraPermission();
-  const device = useCameraDevice('front');
-  const photoOutput = usePhotoOutput({ targetResolution: CommonResolutions.HD_4_3, containerFormat: 'jpeg', quality: 0.85 });
-  const imageDetector = useImageFaceDetector(DETECTOR_OPTIONS);
+  const [permission, requestPermission] = ImagePicker.useCameraPermissions();
+  const camera = useRef<NativeFaceCameraRef>(null);
 
   const [layout, setLayout] = useState<LayoutRectangle | null>(null);
-  const [face, setFace] = useState<Face['bounds'] | null>(null);
+  const [face, setFace] = useState<FaceBounds | null>(null);
   const [problem, setProblem] = useState<string | null>('Place your face inside the frame');
   const [validSince, setValidSince] = useState<number | null>(null);
   const [now, setNow] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** The check hasn't passed after FALLBACK_MS, or the detector failed: offer to skip it. */
+  /** The check hasn't passed after FALLBACK_MS, or the camera can't detect faces: offer to skip it. */
   const [stuck, setStuck] = useState(false);
-  const lastUpdate = useRef(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setStuck(true), FALLBACK_MS);
@@ -62,8 +56,8 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
   }, []);
 
   useEffect(() => {
-    if (permission.canRequestPermission) permission.requestPermission();
-  }, [permission]);
+    if (permission && !permission.granted && permission.canAskAgain) requestPermission();
+  }, [permission, requestPermission]);
 
   // Ticks while the face is valid so the shutter unlocks once it has been steady for STEADY_MS.
   useEffect(() => {
@@ -72,12 +66,13 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
     return () => clearInterval(timer);
   }, [validSince]);
 
-  const onFacesDetected = (faces: Face[]) => {
+  /** Boxes come normalized to the view; the native side already throttles them. */
+  const onFaces = (boxes: FaceBox[]) => {
+    if (!layout) return;
     const at = Date.now();
-    if (!layout || at - lastUpdate.current < UPDATE_MS) return;
-    lastUpdate.current = at;
+    const faces = boxes.map((b) => ({ x: b.x * layout.width, y: b.y * layout.height, width: b.width * layout.width, height: b.height * layout.height }));
     const next = faceProblem(faces, layout);
-    setFace(faces.length === 1 ? { ...faces[0].bounds } : null);
+    setFace(faces.length === 1 ? faces[0] : null);
     setProblem(next);
     setValidSince((since) => (next ? null : (since ?? at)));
     setNow(at);
@@ -87,17 +82,12 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
 
   /** `skipCheck`: the fallback, taken without the face check. */
   const capture = async (skipCheck = false) => {
-    if (!ready && !skipCheck) return;
+    if ((!ready && !skipCheck) || !camera.current) return;
     setCapturing(true);
     setError(null);
     try {
-      const { filePath } = await photoOutput.capturePhotoToFile({ enableShutterSound: true }, {});
-      const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
-      if (skipCheck) return onCapture(uri, 'skipped');
-      // The live check ran on preview frames; confirm the saved photo too.
-      const faces = imageDetector.detectFaces(uri);
-      if (faces.length !== 1) throw new Error(faces.length === 0 ? 'No face in the photo. Try again.' : 'Only one face, please. Try again.');
-      onCapture(uri, 'passed');
+      const uri = await camera.current.takePhoto();
+      onCapture(uri, skipCheck ? 'skipped' : 'passed');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,17 +95,17 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
     }
   };
 
-  if (!permission.hasPermission) {
+  if (permission && !permission.granted) {
     return (
       <SafeAreaView style={[styles.fill, styles.center]}>
         <ThemedText style={styles.light}>Allow camera access to take your face photo.</ThemedText>
-        {permission.canRequestPermission && <Button title="Allow camera" onPress={permission.requestPermission} />}
+        {permission.canAskAgain && <Button title="Allow camera" onPress={requestPermission} />}
         <Button title="Cancel" variant="secondary" onPress={onClose} />
       </SafeAreaView>
     );
   }
-  if (!device) {
-    // The phone's own camera app, without the face check.
+  if (Platform.OS !== 'android') {
+    // The phone's own camera app, without the face check (the native face camera is Android-only).
     const usePhoneCamera = async () => {
       const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, cameraType: ImagePicker.CameraType.front });
       const asset = result.assets?.[0];
@@ -132,26 +122,22 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
       </SafeAreaView>
     );
   }
+  if (!permission) return <View style={styles.fill} />;
 
   const color = ready ? Brand.success : problem === null ? Brand.warning : Brand.danger;
 
   return (
     <View style={styles.fill}>
       <View style={styles.fill} onLayout={(e) => setLayout(e.nativeEvent.layout)}>
-        <Camera
+        <NativeFaceCamera
+          ref={camera}
           style={StyleSheet.absoluteFill}
-          device={device}
-          isActive
-          outputs={[photoOutput]}
-          resizeMode="cover"
-          cameraFacing="front"
-          autoMode
-          performanceMode="fast"
-          runClassifications
-          minFaceSize={0.2}
-          onFacesDetected={onFacesDetected}
-          onError={(err) => {
-            setError(err.message);
+          onReady={(e) => {
+            if (!e.nativeEvent.faceDetection) setStuck(true);
+          }}
+          onFaces={(e) => onFaces(e.nativeEvent.faces)}
+          onCameraError={(e) => {
+            setError(e.nativeEvent.message);
             setStuck(true);
           }}
         />
@@ -206,8 +192,6 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
 }
 
 const REVIEW_NOTE = 'A photo taken without the face check is reviewed by hand, so verification may take longer.';
-
-const DETECTOR_OPTIONS = { performanceMode: 'accurate', minFaceSize: 0.2 } as const;
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#000' },

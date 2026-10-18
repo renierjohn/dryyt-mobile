@@ -1,18 +1,11 @@
-import { faceProblem, type DetectedFace } from '../face-check';
+import { faceProblem, type FaceBounds } from '../face-check';
 
 const view = { width: 400, height: 800 };
-/** A centered, front-facing face half the view wide. */
-const good: DetectedFace = {
-  bounds: { x: 100, y: 275, width: 200, height: 250 },
-  yawAngle: 0,
-  pitchAngle: 0,
-  rollAngle: 0,
-  leftEyeOpenProbability: 0.9,
-  rightEyeOpenProbability: 0.9,
-};
+/** A centered face half the view wide. */
+const good: FaceBounds = { x: 100, y: 275, width: 200, height: 250 };
 
 describe('faceProblem', () => {
-  it('accepts one centered, front-facing face', () => {
+  it('accepts one centered face', () => {
     expect(faceProblem([good], view)).toBeNull();
   });
 
@@ -22,20 +15,9 @@ describe('faceProblem', () => {
   });
 
   it('checks size and position', () => {
-    expect(faceProblem([{ ...good, bounds: { x: 170, y: 370, width: 60, height: 75 } }], view)).toBe('Move closer');
-    expect(faceProblem([{ ...good, bounds: { x: 0, y: 200, width: 360, height: 400 } }], view)).toBe('Move back a little');
-    expect(faceProblem([{ ...good, bounds: { ...good.bounds, x: 0 } }], view)).toBe('Center your face in the frame');
-    expect(faceProblem([{ ...good, bounds: { ...good.bounds, y: 50 } }], view)).toBe('Center your face in the frame');
-  });
-
-  it('rejects a turned or tilted head', () => {
-    for (const angle of ['yawAngle', 'pitchAngle', 'rollAngle'] as const) {
-      expect(faceProblem([{ ...good, [angle]: -20 }], view)).toBe('Look straight at the camera');
-    }
-  });
-
-  it('rejects closed eyes, but not when the detector gave no estimate', () => {
-    expect(faceProblem([{ ...good, leftEyeOpenProbability: 0.1 }], view)).toBe('Keep your eyes open');
-    expect(faceProblem([{ ...good, leftEyeOpenProbability: undefined, rightEyeOpenProbability: undefined }], view)).toBeNull();
+    expect(faceProblem([{ x: 170, y: 370, width: 60, height: 75 }], view)).toBe('Move closer');
+    expect(faceProblem([{ x: 0, y: 200, width: 360, height: 400 }], view)).toBe('Move back a little');
+    expect(faceProblem([{ ...good, x: 0 }], view)).toBe('Center your face in the frame');
+    expect(faceProblem([{ ...good, y: 50 }], view)).toBe('Center your face in the frame');
   });
 });

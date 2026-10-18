@@ -6,7 +6,7 @@
 export const PUSH_STYLES = {
   default: { channelId: 'default', sound: 'default' },
   newDropoff: { channelId: 'new-dropoff', sound: 'dryyt.wav' },
-  ownerOrder: { channelId: 'owner-order', sound: 'dryytorder.wav' },
+  ownerOrder: { channelId: 'owner-order-v2', sound: 'dryytorder.wav' },
 } as const;
 export type PushStyle = keyof typeof PUSH_STYLES;
 

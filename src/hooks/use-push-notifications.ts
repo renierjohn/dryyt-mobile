@@ -56,7 +56,9 @@ async function register(ask: boolean) {
           importance: Notifications.AndroidImportance.MAX,
           sound: 'dryyt.wav',
         }),
-        Notifications.setNotificationChannelAsync('owner-order', {
+        // v1 was created on some phones before dryytorder.wav was bundled, which left it silent.
+        Notifications.deleteNotificationChannelAsync('owner-order'),
+        Notifications.setNotificationChannelAsync('owner-order-v2', {
           name: 'New orders',
           importance: Notifications.AndroidImportance.MAX,
           sound: 'dryytorder.wav',

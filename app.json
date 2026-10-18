@@ -59,7 +59,7 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#208AEF",
-          "sounds": ["./assets/audio/dryyt.wav", "./assets/audio/dryyt-order.wav"]
+          "sounds": ["./assets/audio/dryyt.wav", "./assets/audio/dryytorder.wav"]
         }
       ],
       "expo-audio",

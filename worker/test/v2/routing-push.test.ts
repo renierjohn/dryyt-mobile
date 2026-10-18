@@ -50,7 +50,7 @@ describe('pushMessages', () => {
   it("sends owners' new orders and drop offs on their own channel with the order chime", () => {
     expect(pushMessages(['ExponentPushToken[abc]'], 'Hi', 'Body', undefined, 'ownerOrder')[0]).toMatchObject({
       channelId: 'owner-order',
-      sound: 'dryyt-order.wav',
+      sound: 'dryytorder.wav',
     });
   });
 });

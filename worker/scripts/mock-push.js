@@ -11,9 +11,9 @@ const PRESETS = {
   // Same channel and Dryyt chime as the worker's real new drop off push (PUSH_STYLES.newDropoff).
   'new-dropoff': { title: 'New drop off nearby', body: 'Fresh Fold Laundry: open Dryyt to accept.', channelId: 'new-dropoff', sound: 'dryyt.wav' },
   // Owner pushes use the order chime (PUSH_STYLES.ownerOrder).
-  arrived: { title: 'New drop off', body: "Mock Customer's laundry has arrived.", channelId: 'owner-order', sound: 'dryyt-order.wav' },
-  waiting: { title: 'Drop off waiting', body: 'A laundry drop off is waiting for your confirmation.', channelId: 'owner-order', sound: 'dryyt-order.wav' },
-  order: { title: 'New order', body: 'A customer sent a proof of payment. Check Orders.', channelId: 'owner-order', sound: 'dryyt-order.wav' },
+  arrived: { title: 'New drop off', body: "Mock Customer's laundry has arrived.", channelId: 'owner-order', sound: 'dryytorder.wav' },
+  waiting: { title: 'Drop off waiting', body: 'A laundry drop off is waiting for your confirmation.', channelId: 'owner-order', sound: 'dryytorder.wav' },
+  order: { title: 'New order', body: 'A customer sent a proof of payment. Check Orders.', channelId: 'owner-order', sound: 'dryytorder.wav' },
   received: { title: 'Laundry received', body: 'The shop confirmed your drop off. Check your summary.' },
   cancelled: { title: 'Drop off cancelled', body: 'Your driver cancelled the trip.' },
 };

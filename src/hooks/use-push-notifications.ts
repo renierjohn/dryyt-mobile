@@ -59,7 +59,7 @@ async function register(ask: boolean) {
         Notifications.setNotificationChannelAsync('owner-order', {
           name: 'New orders',
           importance: Notifications.AndroidImportance.MAX,
-          sound: 'dryyt-order.wav',
+          sound: 'dryytorder.wav',
         }),
       ]),
     );

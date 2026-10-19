@@ -6,6 +6,7 @@ import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
 import { getMenuItem, listMenu, menuImageKey, menuImageUrl } from '../lib/menu';
 import { getOrder, listOrders } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
+import { pickupChanged } from '../lib/pickup-live';
 import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
 import { pushToUsers } from '../lib/push';
@@ -307,6 +308,7 @@ owner.post('/orders/:id/confirm-payment', async (c) => {
     .bind(order.id)
     .run();
   if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
+  pickupChanged(c, order.id, { board: false });
   c.executionCtx.waitUntil(
     pushToUsers(db, [order.customer_id], 'Payment confirmed', `${order.store_name} confirmed your payment. Place your order now.`, { order_id: order.id }),
   );

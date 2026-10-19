@@ -4,6 +4,12 @@ export const CONFIRM_TIMEOUT_MS = 60_000;
 export const REJECT_COOLDOWN_MS = 5 * 60_000;
 export const NO_LOCATION_WARN_MS = 2 * 60_000;
 export const OWNER_REMINDER_MS = 30 * 60_000;
+/** Food pickup: the owner is reminded to review the proof of payment this often without Done Pay… */
+export const PAYMENT_REMINDER_MS = 60_000;
+/** …up to this many times. */
+export const PAYMENT_REMINDERS = 10;
+/** Food pickup: still no Done Pay one interval after the last reminder → the payment is accepted for the owner. */
+export const PAYMENT_AUTO_CONFIRM_MS = (PAYMENT_REMINDERS + 1) * PAYMENT_REMINDER_MS;
 /** Drivers without a location for this long are hidden from customers. */
 export const DRIVER_STALE_MS = 30_000;
 /** Location messages faster than this are dropped. */

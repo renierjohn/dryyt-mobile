@@ -1,7 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -18,6 +19,7 @@ import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useOrder, useOrderQuote, usePlaceOrder, useRoadRoute, useStore, useUploadPaymentPhoto } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useCurrentLocation } from '@/hooks/use-location';
+import { useSocket } from '@/hooks/use-socket';
 import { discountedPrice, peso } from '@/lib/format';
 import type { LatLng } from '@/lib/types';
 
@@ -80,6 +82,7 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
         lng: at.lng,
         payment_ref: paymentRef.trim(),
         payment_photo_key: proof?.key,
+        quote_token: quote.data?.token,
       },
       { onSuccess: (order) => cart.setOrderId(order.id) },
     );
@@ -181,12 +184,23 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
   );
 }
 
-/** After the proof is sent: polls the order until the store taps Done Pay, then Place order sends it to drivers. */
+/**
+ * After the proof is sent: waits on the order's socket for Done Pay (by the store, or automatically after 10 min),
+ * then Place order sends it to drivers. Polls only as a fallback.
+ */
 function AwaitingPayment({ orderId }: { orderId: number }) {
   const cart = useCart();
-  const order = useOrder(orderId);
+  const qc = useQueryClient();
+  const live = useRef(false);
+  const order = useOrder(orderId, () => live.current);
   const place = usePlaceOrder();
   const status = order.data?.status;
+  const { connected } = useSocket(status === 'awaiting_payment' || status === 'payment_confirmed' ? `order-${orderId}` : null, (msg) => {
+    if (msg.t === 'order') qc.setQueryData(['order', orderId], msg.order);
+  });
+  useEffect(() => {
+    live.current = connected;
+  });
   const done = () => {
     cart.clear();
     router.replace({ pathname: '/customer/order/[id]', params: { id: String(orderId) } });

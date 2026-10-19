@@ -1,5 +1,5 @@
 import { env, SELF } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api, placeOrder, registerUser } from './helpers';
 
@@ -63,7 +63,7 @@ describe('POST /orders', () => {
     const pinned = { ...foodOrder, customer_address: undefined, notes: undefined, lat: 14.56, lng: 121.03 };
 
     const quote = await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
-    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, delivery_fee: 8000 } } });
+    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, delivery_fee: 8000, token: expect.any(String) } } });
 
     const res = await placeOrder({ token: customer, body: pinned });
     expect(res.status).toBe(201);
@@ -77,6 +77,38 @@ describe('POST /orders', () => {
       store_lng: 121.0244,
       notes: '',
     });
+  });
+
+  it('reuses the quote for the same store and pin instead of pricing the road again', async () => {
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id IN (1, 2)').run();
+    const pin = { lat: 14.56, lng: 121.03 };
+    const pinned = { ...foodOrder, customer_address: undefined, ...pin };
+    const token = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.token as string;
+    // A new rate after the quote: only an order priced again picks it up.
+    await env.DB.prepare("UPDATE rates SET base_fee = 9000 WHERE group_id = 'default'").run();
+    const repriced = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.delivery_fee as number;
+    expect(repriced).not.toBe(8000);
+
+    const fee = async (body: Record<string, unknown>) => (await placeOrder({ token: customer, body })).body.order.delivery_fee;
+    expect(await fee({ ...pinned, quote_token: token })).toBe(8000);
+    expect(await fee({ ...pinned, quote_token: token, lat: 14.561 })).not.toBe(8000); // another pin
+    expect(await fee({ ...pinned, quote_token: token, store_id: 2, items: [{ menu_item_id: 5, qty: 1 }] })).toBe(repriced); // another store
+    expect(await fee({ ...pinned, quote_token: `${token}x` })).toBe(repriced); // tampered
+    expect(await fee({ ...pinned, quote_token: customer })).toBe(repriced); // a session token is no quote
+  });
+
+  it('ignores an expired quote', async () => {
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 1').run();
+    const pin = { lat: 14.56, lng: 121.03 };
+    const token = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.token as string;
+    await env.DB.prepare("UPDATE rates SET base_fee = 9000 WHERE group_id = 'default'").run();
+    vi.useFakeTimers({ now: Date.now() + 16 * 60_000, toFake: ['Date'] });
+    try {
+      const res = await placeOrder({ token: customer, body: { ...foodOrder, customer_address: undefined, ...pin, quote_token: token } });
+      expect(res.body.order.delivery_fee).not.toBe(8000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("can't quote a store without a map location", async () => {

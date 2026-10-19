@@ -8,7 +8,10 @@
     "scheme": "dryytmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.dryyt.mobile"
+      "bundleIdentifier": "com.dryyt.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,14 +22,22 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.dryyt.mobile",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-       [
+      [
         "./withCustomGradle.js",
         {
           "version": "9.3.1"
@@ -59,7 +70,10 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#208AEF",
-          "sounds": ["./assets/audio/dryyt.wav", "./assets/audio/dryytorder.wav"]
+          "sounds": [
+            "./assets/audio/dryyt.wav",
+            "./assets/audio/dryytorder.wav"
+          ]
         }
       ],
       "expo-audio",

@@ -53,6 +53,8 @@ export type NewOrder = {
   /** Food is paid upfront: a reference number, a photo key from useUploadPaymentPhoto, or both. */
   payment_ref?: string;
   payment_photo_key?: string;
+  /** From useOrderQuote for the same store and pin, so the server doesn't price the road again. */
+  quote_token?: string;
 };
 
 /** Proof of payment photo, uploaded before the order is created; resolves to its key. */
@@ -76,7 +78,7 @@ export function usePlaceOrder() {
   });
 }
 
-export type DeliveryQuote = { road_km: number; delivery_fee: number };
+export type DeliveryQuote = { road_km: number; delivery_fee: number; token: string };
 
 /** Delivery fee from a pin to the store, priced like a drop off. */
 export const useOrderQuote = () =>

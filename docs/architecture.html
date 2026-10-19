@@ -135,6 +135,8 @@
       <ol>
         <li><a href="#ws-dispatch">Dispatch DO</a></li>
         <li><a href="#ws-trip">Trip DO</a></li>
+        <li><a href="#ws-pickups">PickupBoard DO</a></li>
+        <li><a href="#ws-order">OrderRoom DO</a></li>
       </ol>
     </li>
     <li><a href="#poll">Polling</a></li>
@@ -148,6 +150,15 @@
         <li><a href="#sc-driver-cancel">Driver cancel</a></li>
         <li><a href="#sc-reject">Customer rejects driver</a></li>
         <li><a href="#sc-edge">Edge cases &amp; races</a></li>
+      </ol>
+    </li>
+    <li><a href="#pickup-scenarios">Pickup scenarios</a>
+      <ol>
+        <li><a href="#psc-payment">Food payment</a></li>
+        <li><a href="#psc-accept">Drivers and the job board</a></li>
+        <li><a href="#psc-cancel">Cancel and release</a></li>
+        <li><a href="#psc-live">Live updates and fallbacks</a></li>
+        <li><a href="#psc-edge">Edge cases &amp; races</a></li>
       </ol>
     </li>
   </ol>
@@ -194,7 +205,7 @@
   <rect class="box db" x="840" y="150" width="230" height="150" rx="10"/>
   <text class="label" x="955" y="185" text-anchor="middle">D1 (SQLite)</text>
   <text class="sub" x="955" y="208" text-anchor="middle">users · stores · drivers</text>
-  <text class="sub" x="955" y="226" text-anchor="middle">orders · order_items · menu_items</text>
+  <text class="sub" x="955" y="226" text-anchor="middle">orders · order_items · store_menu_items</text>
   <text class="sub" x="955" y="244" text-anchor="middle">transactions · owner_transactions</text>
   <text class="sub" x="955" y="262" text-anchor="middle">payouts · rates · driver_blocks</text>
   <text class="sub" x="955" y="280" text-anchor="middle">ws_tickets · driver_data</text>
@@ -426,60 +437,81 @@
 
 <div class="note">Throughout, screens also poll <code>GET /dropoffs/:id</code> (customer, owner) and <code>GET /drivers/me</code> (driver: <code>online</code>, <code>busy</code>, current <code>job</code>) — 5 s, or 30 s while a socket is live. The driver's online switch is also saved on the phone (secure store, per user) so it shows instantly on start; <code>/drivers/me</code> overrides it. On the customer screen any socket message other than <code>drivers</code>/<code>loc</code>/<code>stale</code> triggers an immediate refetch.</div>
 
-<div class="note"><span class="p push">PUSH</span> in the app (<code>usePushNotifications(role)</code>, mounted by the customer, driver and owner tab layouts): registers the token (needs a dev/release build with <code>google-services.json</code> and the FCM V1 key in EAS; not Expo Go), shows pushes while the app is open too, refreshes the affected queries on arrival (<code>['dropoff', id]</code>; driver <code>['driver']</code>; owner <code>['owner']</code>; never <code>/history</code>), and on tap opens driver → Available tab, customer → <code>/customer/dropoff/[id]</code>, owner → <code>/owner/dropoff/[id]</code>. Every push carries <code>{ transaction_id }</code>. "New drop off nearby" uses Android channel <code>new-dropoff</code> and sound <code>dryyt.wav</code> (bundled via <code>app.json</code> <code>expo-notifications.sounds</code>), so it plays the Dryyt chime even with the app closed. Owner pushes ("New order", "New drop off", "Drop off waiting") use channel <code>owner-order</code> and sound <code>dryytorder.wav</code> the same way; every other push uses channel <code>default</code> and the system sound (<code>PUSH_STYLES</code> in <code>worker/src/lib/push.ts</code>). Notification icon: <code>assets/images/notification-icon.png</code>, tinted <code>#208AEF</code>. Drivers on a live dispatch socket get no "new drop off" push, so push and socket never double up.</div>
+<div class="note"><span class="p push">PUSH</span> in the app (<code>usePushNotifications(role)</code>, mounted by the customer, driver and owner tab layouts): registers the token (needs a dev/release build with <code>google-services.json</code> and the FCM V1 key in EAS; not Expo Go), shows pushes while the app is open too, refreshes the affected queries on arrival (<code>['dropoff', id]</code> or <code>['order', id]</code>; driver <code>['driver']</code>; owner <code>['owner']</code>; never <code>/history</code>), and on tap opens driver → Available tab, customer → <code>/customer/dropoff/[id]</code> (order: <code>/customer/order/[id]</code>), owner → <code>/owner/dropoff/[id]</code> (order: Orders tab). Every push carries <code>{ transaction_id }</code> (drop off) or <code>{ order_id }</code> (pickup order). "New drop off nearby" uses Android channel <code>new-dropoff</code> and sound <code>dryyt.wav</code> (bundled via <code>app.json</code> <code>expo-notifications.sounds</code>), so it plays the Dryyt chime even with the app closed. Owner pushes ("New order", "New drop off", "Drop off waiting") use channel <code>owner-order-v2</code> and sound <code>dryytorder.wav</code> the same way; every other push uses channel <code>default</code> and the system sound (<code>PUSH_STYLES</code> in <code>worker/src/lib/push.ts</code>). The app deletes the old <code>owner-order</code> channel: it was created on some phones before <code>dryytorder.wav</code> was bundled, which left it silent, and an Android channel's sound can't change once created. Notification icon: <code>assets/images/notification-icon.png</code>, tinted <code>#208AEF</code>. Drivers on a live dispatch socket get no "new drop off" push, so push and socket never double up.</div>
 
 <!-- ================================================================ -->
-<h2 id="pickup">Workflow: Pickup <span class="p https">polling only</span> <span class="p alarm">switched off</span></h2>
-<div class="note warn"><b>Switched off</b> while Drop off ships first. Worker: <code>PICKUP_ENABLED</code> = <code>"false"</code> in <code>wrangler.jsonc</code> → every <code>/orders</code> and <code>/jobs</code> route returns 403 "Pickup is not available yet", and <code>/history</code> lists drop offs only. App: <code>PICKUP_ENABLED = false</code> in <code>src/constants/features.ts</code> → Pickup card hidden, Pickup screens behind <code>Stack.Protected</code>, <code>useOrder</code> / <code>useAvailableJobs</code> / <code>useActiveJob</code> never fetch, driver tabs show drop offs only. Turn both on together. The tests run with Pickup on (<code>vitest.shared.ts</code>), plus <code>pickup-off.test.ts</code> for the switch.</div>
-<p class="lead">Store → customer (food/beverages or laundry). Flat fee <code>DELIVERY_FEE</code>, text addresses, job board. Table <code>orders</code>. Routes in <code>orders.ts</code>, <code>jobs.ts</code>.</p>
+<h2 id="pickup">Workflow: Pickup <span class="p wss">WSS</span> <span class="p push">PUSH</span></h2>
+<div class="note">Feature switch: <code>PICKUP_ENABLED</code> in <code>worker/wrangler.jsonc</code> and <code>src/constants/features.ts</code>, both on. Off → every <code>/orders</code>, <code>/jobs</code> and <code>/menu</code> route returns 403 "Pickup is not available yet", <code>/history</code> lists drop offs only, and the app hides the Pickup card and screens (<code>Stack.Protected</code>) and never fetches <code>useOrder</code> / <code>useAvailableJobs</code> / <code>useActiveJob</code>. Turn both on or off together. The tests run with Pickup on (<code>vitest.shared.ts</code>), plus <code>pickup-off.test.ts</code> for the switch.</div>
+<p class="lead">Store → customer (food/beverages or laundry). Food is paid upfront to the store's payment QR and confirmed by the owner before drivers see it; laundry is cash on delivery. Delivery fee: road distance × the store group's rate for a pinned spot (split into the driver's share and <code>service_fee</code>), or the flat <code>DELIVERY_FEE</code> for a typed address. Live through two DOs in <code>do/pickups.ts</code>: <code>PickupBoard</code> ("all", the job board) and <code>OrderRoom</code> ("order-&lt;id&gt;", from Send proof of payment until delivered or cancelled; also runs the Done Pay reminder and auto-accept alarms); every route tells them after D1 commits (<code>pickupChanged</code> in <code>lib/pickup-live.ts</code>). Tables <code>orders</code>, <code>order_items</code>. Routes in <code>orders.ts</code>, <code>jobs.ts</code>, <code>owner.ts</code>.</p>
 
 <figure>
-<svg viewBox="0 0 900 120" role="img" aria-label="Pickup status state machine">
+<svg viewBox="0 0 900 175" role="img" aria-label="Pickup status state machine">
   <defs>
     <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>
   </defs>
-  <rect class="state" x="20" y="30" width="110" height="36" rx="18"/><text class="stext" x="75" y="53" text-anchor="middle">pending</text>
-  <rect class="state" x="230" y="30" width="110" height="36" rx="18"/><text class="stext" x="285" y="53" text-anchor="middle">accepted</text>
-  <rect class="state" x="440" y="30" width="110" height="36" rx="18"/><text class="stext" x="495" y="53" text-anchor="middle">picked_up</text>
-  <rect class="state ok" x="650" y="30" width="110" height="36" rx="18"/><text class="stext" x="705" y="53" text-anchor="middle">delivered</text>
-  <rect class="state bad" x="20" y="80" width="110" height="32" rx="16"/><text class="stext" x="75" y="101" text-anchor="middle">cancelled</text>
-  <path class="arrow" d="M130 42 L230 42" marker-end="url(#pa)"/><text class="alabel" x="180" y="24" text-anchor="middle">accept</text>
-  <path class="arrow" d="M230 56 L130 56" marker-end="url(#pa)"/><text class="alabel" x="180" y="74" text-anchor="middle">release</text>
-  <path class="arrow" d="M340 48 L440 48" marker-end="url(#pa)"/><text class="alabel" x="390" y="30" text-anchor="middle">status</text>
-  <path class="arrow" d="M550 48 L650 48" marker-end="url(#pa)"/><text class="alabel" x="600" y="30" text-anchor="middle">status</text>
-  <path class="arrow" d="M140 70 L140 90 L130 90" marker-end="url(#pa)"/><text class="alabel" x="148" y="100">cancel</text>
+  <text class="alabel" x="20" y="20">food: new order</text>
+  <rect class="state" x="20" y="30" width="160" height="36" rx="18"/><text class="stext" x="100" y="53" text-anchor="middle">awaiting_payment</text>
+  <rect class="state" x="260" y="30" width="170" height="36" rx="18"/><text class="stext" x="345" y="53" text-anchor="middle">payment_confirmed</text>
+  <rect class="state bad" x="700" y="32" width="110" height="32" rx="16"/><text class="stext" x="755" y="53" text-anchor="middle">cancelled</text>
+  <rect class="state" x="20" y="110" width="110" height="36" rx="18"/><text class="stext" x="75" y="133" text-anchor="middle">pending</text>
+  <rect class="state" x="230" y="110" width="110" height="36" rx="18"/><text class="stext" x="285" y="133" text-anchor="middle">accepted</text>
+  <rect class="state" x="440" y="110" width="110" height="36" rx="18"/><text class="stext" x="495" y="133" text-anchor="middle">picked_up</text>
+  <rect class="state ok" x="650" y="110" width="110" height="36" rx="18"/><text class="stext" x="705" y="133" text-anchor="middle">delivered</text>
+  <text class="alabel" x="20" y="166">laundry: new order</text>
+  <path class="arrow" d="M180 48 L260 48" marker-end="url(#pa)"/><text class="alabel" x="220" y="40" text-anchor="middle">Done Pay</text>
+  <path class="arrow" d="M345 66 L345 88 L75 88 L75 110" marker-end="url(#pa)"/><text class="alabel" x="210" y="82" text-anchor="middle">place</text>
+  <path class="arrow" d="M430 48 L700 48" marker-end="url(#pa)"/><text class="alabel" x="565" y="40" text-anchor="middle">cancel (from any of the first three)</text>
+  <path class="arrow" d="M130 122 L230 122" marker-end="url(#pa)"/><text class="alabel" x="180" y="114" text-anchor="middle">accept</text>
+  <path class="arrow" d="M230 136 L130 136" marker-end="url(#pa)"/><text class="alabel" x="180" y="154" text-anchor="middle">release</text>
+  <path class="arrow" d="M340 128 L440 128" marker-end="url(#pa)"/><text class="alabel" x="390" y="120" text-anchor="middle">status</text>
+  <path class="arrow" d="M550 128 L650 128" marker-end="url(#pa)"/><text class="alabel" x="600" y="120" text-anchor="middle">status</text>
 </svg>
-<figcaption><code>orders.status</code>. <code>orders.type</code> is always <code>pickup</code> (v1 drop off removed in migration 0004).</figcaption>
+<figcaption><code>orders.status</code> (migration 0014). <code>orders.type</code> is always <code>pickup</code> (v1 drop off removed in migration 0004).</figcaption>
 </figure>
 
 <table>
   <tr><th>#</th><th>Actor</th><th>Step</th><th>Protocol · route</th><th>Tables</th><th>Status after</th></tr>
   <tr><td class="n">1</td><td>Customer</td><td>Browse stores and menu</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /stores?type=</code></span><span><span class="p https">HTTPS</span> <code>GET /stores/:id</code></span></td>
-    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>menu_items</span></td><td>—</td></tr>
-  <tr><td class="n">2</td><td>Customer</td><td>Place order (items priced server-side; laundry has none)</td>
-    <td><span class="p https">HTTPS</span> <code>POST /orders</code></td>
-    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>menu_items</span><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>order_items</span></td><td><code>pending</code></td></tr>
-  <tr><td class="n">3</td><td>Driver</td><td>See the job board (customer phone hidden)</td>
-    <td><span class="p https">HTTPS</span> <code>GET /jobs/available</code> (poll 5 s)</td>
-    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
-  <tr><td class="n">4</td><td>Driver</td><td>Accept (one active job across Pickup + Drop off)</td>
-    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/accept</code></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>store_menu_items</span></td><td>—</td></tr>
+  <tr><td class="n">2</td><td>Customer</td><td>Delivery fee for a pinned spot: road km × the store group's <code>rates</code>, same as a drop off (typed address only → flat <code>DELIVERY_FEE</code>). Returns a signed <code>token</code> (15 min) for that store and pin</td>
+    <td><span class="p https">HTTPS</span> <code>POST /orders/quote</code></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>rates</span></td><td>—</td></tr>
+  <tr><td class="n">3</td><td>Customer</td><td>Food: pay to the store's payment QR, upload a photo of the payment (optional if a reference number is given)</td>
+    <td><span class="p https">HTTPS</span> <code>POST /orders/payment-photo</code> → <span class="p r2">R2</span> put <code>payments/&lt;user&gt;/…</code></td>
+    <td>—</td><td>—</td></tr>
+  <tr><td class="n">4</td><td>Customer</td><td>Create the order. Items priced server-side (discounts applied). Food needs items and a reference number or photo; laundry has no items (cash on delivery). With the step 2 <code>quote_token</code> for the same store and pin, the quoted fee is reused (no routing call); otherwise priced again. Fees, R2 photo check and item prices run in parallel. Food: owner pushed; the customer joins the order room and <code>OrderRoom.awaitPayment</code> starts the payment alarms (owner reminded every 1 min, 10 times; auto-accept at 11 min). Laundry: straight to the board.</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /orders</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.awaitPayment</code> (food)</span><span><span class="p push">PUSH</span> owner "New order" (food, channel <code>owner-order-v2</code>)</span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code> (laundry)</span></td>
+    <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>store_menu_items</span><span class="t r"><b>R</b>rates</span><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>order_items</span></td><td>food <code>awaiting_payment</code><br>laundry <code>pending</code></td></tr>
+  <tr><td class="n">5</td><td>Owner</td><td>See orders and the payment proof (Orders tab)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /owner/orders</code> (10 per page)</span><span><span class="p https">HTTPS</span> <code>GET /owner/orders/:id/payment-photo</code> → <span class="p r2">R2</span> get</span></td>
+    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span><span class="t r"><b>R</b>stores</span></td><td>—</td></tr>
+  <tr><td class="n">6</td><td>Owner</td><td>Done Pay: the owner saw the payment; customer pushed and told over the order room. No Done Pay → owner pushed "Review Payment Now" every 1 min, up to 10 times; 1 min after the last (11 min) the room accepts the payment itself (customer "Payment confirmed", owner "Payment accepted automatically").</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /owner/orders/:id/confirm-payment</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span><span><span class="p alarm">ALARM</span> owner reminder every 1 min ×10, auto-accept at 11 min</span><span><span class="p push">PUSH</span> customer "Payment confirmed"</span></td>
+    <td><span class="t w"><b>W</b>orders</span></td><td><code>payment_confirmed</code></td></tr>
+  <tr><td class="n">7</td><td>Customer</td><td>Place order: releases it to drivers (the customer is already in the order room)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /orders/:id/place</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
+    <td><span class="t w"><b>W</b>orders</span></td><td><code>pending</code></td></tr>
+  <tr><td class="n">8</td><td>Driver</td><td>Go Online for Pickup and join the live board: pending jobs on connect and on every change (customer phone hidden; new-job sound)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /drivers/me/pickup-online</code></span><span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span><span><span class="p wss">WSS</span> <code>/ws/pickups</code> → <code>jobs</code></span></td>
+    <td><span class="t w"><b>W</b>drivers.pickup_online</span><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
+  <tr><td class="n">9</td><td>Driver</td><td>Accept (one active job across Pickup + Drop off); the driver joins the order room</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /jobs/:id/accept</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
     <td><span class="t w"><b>W</b>drivers.busy=1</span><span class="t w"><b>W</b>orders.driver_id</span></td><td><code>accepted</code></td></tr>
-  <tr><td class="n">5</td><td>Driver</td><td>Track own job</td>
-    <td><span class="p https">HTTPS</span> <code>GET /jobs/active</code> (poll 5 s)</td>
-    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
-  <tr><td class="n">6</td><td>Driver</td><td>Picked up at store → delivered to customer</td>
-    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/status</code></td>
-    <td><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>drivers.busy=0</span> (on delivered)</td><td><code>picked_up</code> → <code>delivered</code></td></tr>
-  <tr><td class="n">7</td><td>Customer</td><td>Track order</td>
-    <td><span class="p https">HTTPS</span> <code>GET /orders/:id</code> (poll 5 s)</td>
-    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span></td><td>—</td></tr>
+  <tr><td class="n">10</td><td>Driver</td><td>Picked up at store → delivered to customer. While <code>picked_up</code> the driver sends <code>loc</code> (≤ 1 per 2 s): relayed to the customer's map and kept in the room; saved on the order at most every 30 s (for <code>GET /orders/:id</code> after a reload). Delivered frees the driver, counts the items into <code>popularity</code>, and closes the room.</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /jobs/:id/status</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span><span><span class="p wss">WSS</span> <code>loc</code> driver → customer</span></td>
+    <td><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>store_menu_items.popularity</span> (on delivered)</td><td><code>picked_up</code> → <code>delivered</code></td></tr>
+  <tr><td class="n">11</td><td>Customer</td><td>Track the order; see the driver's face and license while <code>accepted</code> / <code>picked_up</code></td>
+    <td class="stack"><span><span class="p wss">WSS</span> <code>/ws/order/:id</code></span><span><span class="p https">HTTPS</span> <code>GET /orders/:id</code> (fallback poll)</span><span><span class="p https">HTTPS</span> <code>GET /orders/:id/driver-photo/face|id</code> → <span class="p r2">R2</span> get</span></td>
+    <td><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>order_items</span><span class="t r"><b>R</b>driver_data</span></td><td>—</td></tr>
+  <tr><td class="n">12</td><td>Owner</td><td>Pay the driver their share of a delivered pickup (<code>delivery_fee − service_fee</code>), outside the app, then mark it paid (Payouts tab)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /owner/pickup-payouts</code></span><span><span class="p https">HTTPS</span> <code>POST /owner/orders/:id/driver-paid</code></span></td>
+    <td><span class="t w"><b>W</b>orders.driver_paid_at</span></td><td>—</td></tr>
   <tr class="branch"><td class="n">R</td><td>Driver</td><td>Release an accepted job back to the board</td>
-    <td><span class="p https">HTTPS</span> <code>POST /jobs/:id/release</code></td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /jobs/:id/release</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
     <td><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>orders</span></td><td><code>pending</code></td></tr>
-  <tr class="branch"><td class="n">C</td><td>Customer</td><td>Cancel while still pending</td>
-    <td><span class="p https">HTTPS</span> <code>POST /orders/:id/cancel</code></td>
+  <tr class="branch"><td class="n">C</td><td>Customer</td><td>Cancel before a driver accepts (from <code>awaiting_payment</code>, <code>payment_confirmed</code>, <code>pending</code>)</td>
+    <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /orders/:id/cancel</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
     <td><span class="t w"><b>W</b>orders</span></td><td><code>cancelled</code></td></tr>
 </table>
 
@@ -506,9 +538,14 @@
   <tr><th>Route / source</th><th>users</th><th>drivers</th><th>orders</th><th>order_items</th><th>transactions</th><th>owner_tx</th><th>payouts</th><th>driver_blocks</th><th>ws_tickets</th><th>driver_data</th><th>R2</th></tr>
   <tr><td><code>POST /auth/register</code></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST|DELETE /me/push-token</code></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-  <tr><td><code>POST /orders</code></td><td></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /orders/payment-photo</code></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>put</td></tr>
+  <tr><td><code>POST /orders</code></td><td></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td>head</td></tr>
+  <tr><td><code>POST /orders/:id/place</code></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /orders/:id/cancel</code></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /jobs/:id/accept|release|status</code></td><td></td><td>W</td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /drivers/me/pickup-online</code></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>POST /owner/orders/:id/confirm-payment|driver-paid</code></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><td>OrderRoom DO: driver <code>loc</code></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /drivers/me/online</code></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /dropoffs</code></td><td></td><td></td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td><code>POST /dropoffs/:id/cancel|driver-cancel|reject-driver</code></td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
@@ -526,7 +563,7 @@
   <tr><td>Dispatch DO: alarm (expire / release)</td><td></td><td>W</td><td></td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
   <tr><td>Dispatch DO: driver disconnect</td><td></td><td>W</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 </table>
-<p class="lead" style="margin-top:8px">Read-only: <code>stores</code>, <code>menu_items</code>, <code>rates</code> (edited by admin via SQL).</p>
+<p class="lead" style="margin-top:8px">Read-only: <code>stores</code>, <code>store_menu_items</code>, <code>rates</code> (edited by admin via SQL).</p>
 
 <!-- ================================================================ -->
 <h2 id="tables">Tables</h2>
@@ -536,15 +573,15 @@
   <tr><th>Table</th><th>Purpose</th></tr>
   <tr><td><code>users</code></td><td>All accounts. <code>role</code> ∈ customer | driver | owner. <code>push_token</code> = Expo push token of the phone the user last signed in on; never shared between accounts, cleared on sign out.</td></tr>
   <tr><td><code>stores</code></td><td>Shops (<code>type</code> food | laundry). <code>owner_id</code> → owner user, <code>lat/lng</code> for routing, <code>group_id</code> → pricing in <code>rates</code>.</td></tr>
-  <tr><td><code>menu_items</code></td><td>Items/prices per store (Pickup).</td></tr>
-  <tr><td><code>drivers</code></td><td>Live driver state, 1:1 with driver user: <code>online</code>, <code>busy</code>, last <code>lat/lng</code>, <code>group_id</code>.</td></tr>
+  <tr><td><code>store_menu_items</code></td><td>Items/prices per store (Pickup): <code>discount_percent</code>, <code>image_url</code>, <code>popularity</code> (items delivered).</td></tr>
+  <tr><td><code>drivers</code></td><td>Live driver state, 1:1 with driver user: <code>online</code> (drop offs), <code>pickup_online</code> (pickup board), <code>busy</code>, last <code>lat/lng</code>, <code>group_id</code>.</td></tr>
   <tr><td><code>driver_data</code></td><td>Driver profile, 1:1 with a driver user (triggers reject non-drivers): <code>photo_face</code>, <code>photo_id</code> (R2 keys), <code>notes</code> (license plate), <code>status</code> 0|1 (1 = verified, set by developer script only; locks photos and plate), <code>earnings</code> (centavos, += <code>delivery_fee</code> on owner confirm). Migrations 0006, 0007.</td></tr>
 </table>
 
 <h3 id="tables-pickup">Pickup</h3>
 <table>
   <tr><th>Table</th><th>Purpose</th></tr>
-  <tr><td><code>orders</code></td><td>Pickup order with flat fee: <code>items_total</code>, <code>delivery_fee</code>. Unique index: one active job per driver.</td></tr>
+  <tr><td><code>orders</code></td><td>Pickup order. <code>items_total</code>; <code>delivery_fee</code> = what the customer pays for delivery, <code>service_fee</code> = the app's cut (0 for flat-fee orders; the driver's share is the difference). <code>payment_ref</code>, <code>payment_photo_key</code> (R2 <code>payments/…</code>, food). <code>customer_lat/lng</code> (pinned spot), <code>driver_lat/lng</code>, <code>driver_loc_at</code> (last location while <code>picked_up</code>). <code>driver_paid_at</code> (owner paid the driver). Migrations 0014–0018. Unique index: one active job per driver.</td></tr>
   <tr><td><code>order_items</code></td><td>Line items, <code>name</code>/<code>price</code> snapshotted at order time.</td></tr>
 </table>
 
@@ -569,7 +606,7 @@
 
 <!-- ================================================================ -->
 <h2 id="ws">WebSocket events</h2>
-<p class="lead">Ticket via <code>POST /ws/ticket</code>, then <code>/ws/dispatch</code> or <code>/ws/trip/:room</code>. Reconnect backoff 1 → 2 → 5 → 10 s. The dispatch socket closes while the app is in the background (so Dispatch pushes the driver instead) and reopens immediately on return; trip sockets stay open. Drivers resend their latest location on every (re)connect, so requests / the customer's map don't wait for the next GPS fix.</p>
+<p class="lead">Ticket via <code>POST /ws/ticket</code>, then <code>/ws/dispatch</code>, <code>/ws/trip/:room</code>, <code>/ws/pickups</code> or <code>/ws/order/:id</code>. Reconnect backoff 1 → 2 → 5 → 10 s. The dispatch and pickups sockets close while the app is in the background (so Dispatch pushes the driver instead) and reopen immediately on return; trip and order sockets stay open. Drivers resend their latest location on every (re)connect, so requests / the customer's map don't wait for the next GPS fix.</p>
 
 <h3 id="ws-dispatch">Dispatch DO</h3>
 <table>
@@ -593,6 +630,20 @@
   <tr><td><code>status</code></td><td>After commit: <code>en_route_shop</code>, <code>dropped_off</code>, <code>cancelled</code>.</td></tr>
 </table>
 
+<h3 id="ws-pickups">PickupBoard DO</h3>
+<table>
+  <tr><th>Event</th><th>When</th></tr>
+  <tr><td>→ driver <code>jobs</code></td><td>On connect, and after a job is placed, accepted, released or cancelled. Only drivers with <code>pickup_online = 1</code> may join.</td></tr>
+</table>
+
+<h3 id="ws-order">OrderRoom DO</h3>
+<table>
+  <tr><th>Event</th><th>When</th></tr>
+  <tr><td>→ customer, driver <code>order</code></td><td>After commit: accepted, picked up, released, delivered, cancelled. Delivered / cancelled closes every socket and clears the room.</td></tr>
+  <tr><td>driver → <code>loc</code></td><td>≤ 1 per 2 s, only while <code>picked_up</code>; saved to <code>orders.driver_lat/lng</code> and forwarded to the customer.</td></tr>
+  <tr><td>→ customer <code>loc</code> on connect</td><td>Last known location.</td></tr>
+</table>
+
 <!-- ================================================================ -->
 <h2 id="poll">Polling</h2>
 <p class="lead">React Query <code>refetchInterval</code>; only while the screen is focused and the app is foregrounded. <code>useHistory</code> is the exception: it doesn't poll.</p>
@@ -600,15 +651,15 @@
   <tr><th>Hook</th><th>Endpoint</th><th>Interval</th><th>Screens</th></tr>
   <tr><td><code>useDropoff</code></td><td><code>/dropoffs/:id</code></td><td>30 s live / 5 s</td><td>Customer drop off; owner drop off (5 s)</td></tr>
   <tr><td><code>useDriverMe</code></td><td><code>/drivers/me</code></td><td>30 s on trip / 5 s</td><td>Driver home, active</td></tr>
-  <tr><td><code>useActiveJob</code></td><td><code>/jobs/active</code></td><td>5 s, off during trip</td><td>Driver</td></tr>
-  <tr><td><code>useAvailableJobs</code></td><td><code>/jobs/available</code></td><td>5 s</td><td>Driver home</td></tr>
-  <tr><td><code>useOrder</code></td><td><code>/orders/:id</code></td><td>5 s</td><td>Customer order</td></tr>
+  <tr><td><code>useActiveJob</code></td><td><code>/jobs/active</code></td><td>30 s live / 5 s, off during a drop off</td><td>Driver active</td></tr>
+  <tr><td><code>useAvailableJobs</code></td><td><code>/jobs/available</code></td><td>30 s live / 5 s, only while online for pickup</td><td>Driver home</td></tr>
+  <tr><td><code>useOrder</code></td><td><code>/orders/:id</code></td><td>30 s live / 5 s</td><td>Customer order</td></tr>
   <tr><td><code>useHistory</code></td><td><code>/history</code></td><td>No polling. On focus / pull-to-refresh, at most once per 60 s (<code>HISTORY_MIN_GAP_MS</code>); dev builds show a countdown. Mutations only mark it stale.</td><td>Customer orders, driver history (+ earnings)</td></tr>
   <tr><td><code>useDriverVerification</code></td><td><code>/drivers/me/verification</code></td><td>On mount only</td><td>Profile (driver)</td></tr>
   <tr><td><code>useOwnerDropoffs</code></td><td><code>/owner/transactions</code></td><td>5 s</td><td>Owner home</td></tr>
   <tr><td><code>usePayouts</code></td><td><code>/owner/payouts</code></td><td>5 s</td><td>Owner payouts</td></tr>
 </table>
-<div class="note warn">Pickup and all owner screens are polling-only. Best socket candidate: owner drop offs. Hot-path indexes (migration 0005): <code>transactions(driver_id, status)</code>, <code>orders(driver_id, status)</code>, <code>stores(owner_id)</code>, <code>transactions(store_id, status, updated_at)</code>, <code>payouts(payer_store_id, status, id)</code>.</div>
+<div class="note warn">Owner screens have no socket. Best socket candidate: owner drop offs. Hot-path indexes (migration 0005): <code>transactions(driver_id, status)</code>, <code>orders(driver_id, status)</code>, <code>stores(owner_id)</code>, <code>transactions(store_id, status, updated_at)</code>, <code>payouts(payer_store_id, status, id)</code>.</div>
 
 <!-- ================================================================ -->
 <h2 id="denorm"><code>shop_lat</code> / <code>shop_lng</code> on transactions</h2>
@@ -778,7 +829,87 @@
   <tr><td>Driver verified while a photo upload is in flight</td><td>Guarded <code>UPDATE … WHERE status = 0</code> matches 0 rows → new R2 object deleted, 409.</td></tr>
 </table>
 
-<footer>Generated 2026-10-14 from the local codebase. Local file only.</footer>
+<!-- ================================================================ -->
+<h2 id="pickup-scenarios">Pickup scenarios</h2>
+<p class="lead">What happens in each branch of the Pickup flow. Pickup's only alarms are on a food order waiting for Done Pay (owner reminder every 1 min ×10, auto-accept at 11 min); every other state waits until someone acts. Every status change is a guarded <code>UPDATE … WHERE status = …</code>, so a race leaves exactly one winner and the loser gets a 409.</p>
+
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Used for</th></tr>
+  <tr><td><code>DELIVERY_FEE</code> (<code>wrangler.jsonc</code>)</td><td>5000 (₱50)</td><td>Flat delivery fee for a typed address (no pin); <code>service_fee</code> 0</td></tr>
+  <tr><td><code>LOCATION_MIN_INTERVAL_MS</code></td><td>2 s</td><td>Driver <code>loc</code> on the order room: faster messages are dropped</td></tr>
+  <tr><td><code>POLL_MS</code> / <code>LIVE_POLL_MS</code> (app)</td><td>5 s / 30 s</td><td><code>useOrder</code>, <code>useAvailableJobs</code>, <code>useActiveJob</code>: fallback polling without / with a live socket</td></tr>
+  <tr><td><code>ROUTING_TIMEOUT_MS</code> / <code>ROAD_FACTOR</code></td><td>5 s / 1.3</td><td>Pinned-spot quote and create, same routing fallback as Drop off</td></tr>
+  <tr><td><code>QUOTE_TTL_SECONDS</code></td><td>15 min</td><td>How long a <code>/orders/quote</code> token lets <code>POST /orders</code> skip pricing the road again</td></tr>
+  <tr><td><code>ORDER_LOC_SAVE_MS</code></td><td>30 s</td><td>Driver loc saved on the order at most this often (every fix is still relayed)</td></tr>
+  <tr><td><code>PAYMENT_REMINDER_MS</code> / <code>PAYMENT_REMINDERS</code></td><td>1 min / 10</td><td>No Done Pay yet → owner pushed "Review Payment Now" every minute, up to 10 times</td></tr>
+  <tr><td><code>PAYMENT_AUTO_CONFIRM_MS</code></td><td>11 min</td><td>Still no Done Pay → the order room accepts the payment (<code>payment_confirmed</code>); customer and owner pushed</td></tr>
+</table>
+
+<!-- ----------------------------------------------- -->
+<h3 id="psc-payment">Food payment</h3>
+<table>
+  <tr><th>Case</th><th>Handling</th></tr>
+  <tr><td>Customer sends neither a reference number nor a photo</td><td><code>POST /orders</code> → 400 "Add a reference number or a photo of your payment". Either one is enough.</td></tr>
+  <tr><td>Photo key not uploaded, or another customer's</td><td>Key must start with <code>payments/&lt;customer id&gt;/</code> and exist in R2 (<code>head</code>) → else 400 "upload the photo first".</td></tr>
+  <tr><td>Owner app closed when the order arrives</td><td><span class="p push">PUSH</span> "New order" (channel <code>owner-order-v2</code>, <code>dryytorder.wav</code>). Tapping opens the Orders tab. With the app open, the push refreshes <code>['owner']</code>, so the Orders tab reloads if it's focused.</td></tr>
+  <tr><td>Store has no owner (<code>owner_id</code> null)</td><td>No owner pushes and nobody can tap Done Pay; the 11 min auto-accept still moves it to <code>payment_confirmed</code> (customer pushed) unless the customer cancels first.</td></tr>
+  <tr><td>Owner never confirms</td><td><span class="p alarm">ALARM</span> every 1 min pushes the owner "Review Payment Now" (channel <code>owner-order-v2</code>), up to 10 times. At 11 min a guarded <code>UPDATE … WHERE status = 'awaiting_payment'</code> accepts the payment: customer pushed "Payment confirmed" and told over the socket, owner pushed "Payment accepted automatically" (so the store still prepares it). Not auto-cancelled. The customer can cancel at any time before a driver accepts; Done Pay, cancel or the auto-accept stops the alarms.</td></tr>
+  <tr><td>Payment wrong or missing</td><td>The owner has no reject action; they leave it unconfirmed and the customer cancels. Refunds happen outside the app.</td></tr>
+  <tr><td>Customer taps Place order before Done Pay</td><td><code>POST /orders/:id/place</code> guarded on <code>payment_confirmed</code> → 409 "The store has not confirmed your payment yet".</td></tr>
+  <tr><td>Customer app closed when the owner confirms</td><td><span class="p push">PUSH</span> "Payment confirmed"; tapping opens <code>/customer/order/[id]</code>. With the app open, the push refreshes <code>['order', id]</code>. From Send proof of payment the customer screen is on the order room socket, so Done Pay arrives live; polling drops to the 30 s fallback.</td></tr>
+  <tr><td>Customer confirmed but never places</td><td>Stays <code>payment_confirmed</code>; drivers never see it. Cancel is still allowed.</td></tr>
+  <tr><td>Laundry order</td><td>Skips payment: created as <code>pending</code> and goes straight to the board. Cash on delivery; menu items rejected (400).</td></tr>
+</table>
+
+<!-- ----------------------------------------------- -->
+<h3 id="psc-accept">Drivers and the job board</h3>
+<table>
+  <tr><th>Case</th><th>Handling</th></tr>
+  <tr><td>Two drivers accept the same job</td><td>Accept sets <code>drivers.busy = 1</code>, then <code>UPDATE orders … WHERE status = 'pending'</code>. The loser matches 0 rows, is freed (<code>busy = 0</code>) and gets 409 "Job is no longer available". The board then sends everyone the new list.</td></tr>
+  <tr><td>Driver already on a job (Pickup or Drop off)</td><td><code>UPDATE drivers SET busy = 1 WHERE busy = 0</code> changes 0 rows → 409 "Finish your active job first". Unique index <code>orders_one_active_job</code> is the backstop. The app hides drop off requests while on a pickup.</td></tr>
+  <tr><td>Driver not Online for Pickup</td><td>Can't join <code>/ws/pickups</code> (403). The app doesn't fetch <code>/jobs/available</code> either. The REST routes themselves don't check <code>pickup_online</code>.</td></tr>
+  <tr><td>Driver app in the background when a job is placed</td><td>The pickups socket closes in the background and <b>no push is sent</b> for new pickup jobs (only drop offs push drivers). On return the socket reopens and sends the current list; <code>useNewJobSound</code> plays for jobs not seen before.</td></tr>
+  <tr><td>Shop has blocked the driver</td><td><code>driver_blocks</code> applies to drop offs only; a blocked driver still sees and can accept that shop's pickups.</td></tr>
+  <tr><td>Customer's phone number</td><td>Hidden on the board and on <code>GET /orders/:id</code> for drivers who don't hold the order (<code>hidePhone</code>); shown once they accept.</td></tr>
+</table>
+
+<!-- ----------------------------------------------- -->
+<h3 id="psc-cancel">Cancel and release</h3>
+<table>
+  <tr><th>From</th><th>Who</th><th>Handling</th></tr>
+  <tr><td><code>awaiting_payment</code>, <code>payment_confirmed</code>, <code>pending</code></td><td>Customer</td><td><code>POST /orders/:id/cancel</code> → <code>cancelled</code>; board refreshed, order room closed. Any refund of a food payment is outside the app.</td></tr>
+  <tr><td><code>accepted</code>, <code>picked_up</code></td><td>Customer</td><td>409 "Order can no longer be cancelled".</td></tr>
+  <tr><td><code>accepted</code></td><td>Driver</td><td><code>POST /jobs/:id/release</code>: one batch frees the driver and puts the order back to <code>pending</code> (<code>driver_id</code> cleared). Board refreshed; the customer's room gets <code>order</code>.</td></tr>
+  <tr><td><code>picked_up</code></td><td>Driver</td><td>409 "Only jobs not yet picked up can be released". There is no driver cancel once the food is collected.</td></tr>
+</table>
+
+<!-- ----------------------------------------------- -->
+<h3 id="psc-live">Live updates and fallbacks</h3>
+<table>
+  <tr><th>Case</th><th>Handling</th></tr>
+  <tr><td>A DO call fails after D1 committed</td><td><code>pickupChanged</code> runs in <code>waitUntil</code> and only logs "pickup live update failed"; the request still succeeds. Screens catch up on the 30 s fallback poll.</td></tr>
+  <tr><td>Socket drops</td><td>Reconnect backoff 1 → 2 → 5 → 10 s; polling falls back to 5 s while disconnected. The board resends the full list on connect; the order room resends the last driver <code>loc</code> to the customer.</td></tr>
+  <tr><td>Driver sends <code>loc</code> while only <code>accepted</code></td><td>Saved only <code>WHERE status = 'picked_up'</code>; 0 rows → not stored, not relayed. The customer's map shows the driver only after pickup.</td></tr>
+  <tr><td>Customer reloads during delivery</td><td><code>orders.driver_lat/lng</code> puts the driver back on the map before the next <code>loc</code>.</td></tr>
+  <tr><td>Delivered or cancelled</td><td>The room sends the final <code>order</code>, closes every socket and clears its storage.</td></tr>
+  <tr><td>Customer app closed while the driver accepts / picks up / delivers</td><td>No push for these; the customer sees the change on the next open.</td></tr>
+</table>
+
+<!-- ----------------------------------------------- -->
+<h3 id="psc-edge">Edge cases &amp; races</h3>
+<table>
+  <tr><th>Case</th><th>Handling</th></tr>
+  <tr><td>Owner taps Done Pay as the customer cancels</td><td>Both guarded on status. Cancel first → Done Pay gets 409 "This order is not waiting for payment". Done Pay first → cancel still works from <code>payment_confirmed</code>. The 11 min auto-accept races the same way: whichever <code>UPDATE</code> lands first wins.</td></tr>
+  <tr><td>Customer cancels as a driver accepts</td><td>Cancel first → accept matches 0 rows, driver freed, 409. Accept first → cancel gets 409 (no longer cancellable).</td></tr>
+  <tr><td>Driver taps Delivered twice</td><td>Each batch statement is guarded on the old status, so the second changes nothing → 409 "Job changed, refresh and try again". <code>busy</code> and <code>popularity</code> change once.</td></tr>
+  <tr><td>Status skipped (e.g. <code>accepted</code> → <code>delivered</code>)</td><td><code>NEXT_STATUS</code> allows only <code>accepted → picked_up → delivered</code> → 409.</td></tr>
+  <tr><td>Pinned spot but the store has no map location</td><td>400 "this store has no map location yet". A typed address still books at the flat fee.</td></tr>
+  <tr><td>Menu price changes after the cart was built</td><td>Items are priced server-side at create (with <code>discount_percent</code>); <code>order_items</code> snapshots name and price. A deleted menu item leaves the line (<code>menu_item_id</code> → NULL).</td></tr>
+  <tr><td>Owner marks the driver paid twice</td><td><code>WHERE driver_paid_at IS NULL</code> → 409 "Driver is already marked paid". Only <code>delivered</code> orders with a driver can be paid out.</td></tr>
+  <tr><td>Pickup switched off with orders in flight</td><td>Every <code>/orders</code>, <code>/jobs</code>, <code>/menu</code> route returns 403; open orders freeze in place until it's switched back on.</td></tr>
+</table>
+
+<footer>Generated 2026-10-18 from the local codebase. Local file only.</footer>
 </main>
 <script>
   // Highlight the section currently in view.

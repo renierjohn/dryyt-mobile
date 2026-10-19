@@ -19,7 +19,9 @@ import { useCancelOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useSocket } from '@/hooks/use-socket';
 import { STATUS_LABEL } from '@/lib/format';
-import type { LatLng } from '@/lib/types';
+import type { LatLng, OrderStatus } from '@/lib/types';
+
+const LIVE_STATUSES: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up'];
 
 export default function OrderScreen() {
   const id = Number(useLocalSearchParams<{ id: string }>().id);
@@ -27,9 +29,9 @@ export default function OrderScreen() {
   const live = useRef(false);
   const order = useOrder(id, () => live.current);
   const [driverAt, setDriverAt] = useState<LatLng | null>(null);
-  // Live from Place order until delivered (or cancelled): the worker pushes each change and the driver's location.
+  // Live from Send proof of payment until delivered (or cancelled): the worker pushes each change and the driver's location.
   const status = order.data?.status;
-  const { connected } = useSocket(status === 'pending' || status === 'accepted' || status === 'picked_up' ? `order-${id}` : null, (msg) => {
+  const { connected } = useSocket(status && LIVE_STATUSES.includes(status) ? `order-${id}` : null, (msg) => {
     if (msg.t === 'order') qc.setQueryData(['order', id], msg.order);
     else if (msg.t === 'loc') setDriverAt({ lat: msg.lat, lng: msg.lng });
   });

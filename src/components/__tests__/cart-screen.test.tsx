@@ -7,7 +7,7 @@ import { CartProvider, useCart } from '@/hooks/use-cart';
 jest.mock('expo-router', () => ({ router: { replace: jest.fn(), push: jest.fn() } }));
 const mockCreate = jest.fn();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
-const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; delivery_fee: number } | undefined, variables: undefined as object | undefined };
+const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; delivery_fee: number; token: string } | undefined, variables: undefined as object | undefined };
 jest.mock('@/hooks/queries', () => ({
   useCreateOrder: () => ({ mutate: mockCreate, isPending: false, error: null }),
   useOrderQuote: () => mockQuote,
@@ -18,6 +18,14 @@ jest.mock('@/hooks/queries', () => ({
   usePlaceOrder: () => ({ mutate: mockPlace, isPending: false, error: null }),
 }));
 jest.mock('expo-image-picker', () => ({}));
+const mockSocketRoom = jest.fn();
+jest.mock('@/hooks/use-socket', () => ({
+  useSocket: (room: string | null) => {
+    mockSocketRoom(room);
+    return { connected: room !== null, send: jest.fn() };
+  },
+}));
+jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ setQueryData: jest.fn() }) }));
 const mockPlace = jest.fn();
 let mockOrder: { data?: object; isPending: boolean; error: null; refetch: () => void } = { isPending: true, error: null, refetch: jest.fn() };
 jest.mock('@/hooks/use-location', () => ({ useCurrentLocation: () => ({ loc: { lat: 14.56, lng: 121.03 }, error: null }) }));
@@ -99,7 +107,7 @@ it('fetches no road until the delivery fee is computed for the pin', async () =>
 });
 
 it('shows the computed fee and total for the current pin', async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920 };
+  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -113,7 +121,7 @@ it('shows the computed fee and total for the current pin', async () => {
 });
 
 it("shows the store's payment QR once the fee is computed, and sends the reference number as proof", async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920 };
+  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -131,13 +139,13 @@ it("shows the store's payment QR once the fee is computed, and sends the referen
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
   expect(mockCreate).toHaveBeenCalledWith(
-    { type: 'pickup', store_id: 1, items: [{ menu_item_id: 1, qty: 2 }], lat: 14.56, lng: 121.03, payment_ref: 'GC-123', payment_photo_key: undefined },
+    { type: 'pickup', store_id: 1, items: [{ menu_item_id: 1, qty: 2 }], lat: 14.56, lng: 121.03, payment_ref: 'GC-123', payment_photo_key: undefined, quote_token: 'q-token' },
     expect.anything(),
   );
 });
 
 it('sending the proof switches the cart to waiting for the store', async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920 };
+  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   mockCreate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 42 }));
@@ -151,6 +159,7 @@ it('sending the proof switches the cart to waiting for the store', async () => {
   await fireEvent.press(screen.getByText('Send proof of payment'));
 
   expect(screen.getByText('Waiting for the store to confirm your payment…')).toBeTruthy();
+  expect(mockSocketRoom).toHaveBeenLastCalledWith('order-42');
   expect(screen.getByLabelText('Place order').props.accessibilityState.disabled).toBe(true);
 });
 
@@ -162,6 +171,7 @@ it('enables Place order once the store taps Done Pay', async () => {
     </CartProvider>,
   );
   expect(screen.getByText('Payment confirmed. Place your order to find a driver.')).toBeTruthy();
+  expect(mockSocketRoom).toHaveBeenLastCalledWith('order-42');
   await fireEvent.press(screen.getByText('Place order'));
   expect(mockPlace).toHaveBeenCalledWith(42, expect.anything());
 });
@@ -174,7 +184,7 @@ it('lets the customer move the pin until the fee is computed, then locks it', as
   );
   expect(mockMapProps.mock.lastCall![0].onPress).toEqual(expect.any(Function));
 
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920 };
+  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.5, lng: 121.1 };
   mockQuote.isSuccess = true;
   await rerender(

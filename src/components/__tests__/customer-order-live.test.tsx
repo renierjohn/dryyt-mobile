@@ -36,8 +36,8 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 it.each([
-  ['awaiting_payment', null],
-  ['payment_confirmed', null],
+  ['awaiting_payment', 'order-12'],
+  ['payment_confirmed', 'order-12'],
   ['pending', 'order-12'],
   ['accepted', 'order-12'],
   ['picked_up', 'order-12'],

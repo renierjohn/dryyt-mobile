@@ -6,7 +6,7 @@ export const hidePhone = <T extends OrderRow>(order: T): T => ({ ...order, custo
 
 const ORDER_SELECT = `
   SELECT o.*,
-    s.name AS store_name, s.address AS store_address, s.type AS store_type, s.lat AS store_lat, s.lng AS store_lng,
+    s.name AS store_name, s.address AS store_address, s.type AS store_type, s.lat AS store_lat, s.lng AS store_lng, s.store_logo,
     cu.name AS customer_name, cu.phone AS customer_phone,
     d.name AS driver_name, d.phone AS driver_phone,
     -- The assigned driver's verification, so the customer can check who is coming. Photo keys stay server-side.

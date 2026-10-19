@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Fragment } from 'react';
+import { type ReactElement } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -7,48 +7,92 @@ import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { OrderSummary } from '@/components/order-summary';
+import { Screen } from '@/components/screen';
 import { StatusBadge, type Tone } from '@/components/status-badge';
+import { StoreLogo } from '@/components/store-logo';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useHistory, type HistoryItem } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
-import { dateTime, DROPOFF_STATUS_LABEL, localDay, peso } from '@/lib/format';
+import { dateTime, dayLabel, DROPOFF_STATUS_LABEL, localDay, peso } from '@/lib/format';
 import type { DropoffStatus } from '@/lib/types';
 
-/** Paged orders and drop offs with a "See More" button; `history` comes from useHistory(). */
-export function HistoryList({ history, role, empty }: { history: ReturnType<typeof useHistory>; role: 'customer' | 'driver'; empty: string }) {
+/** Only customers and drivers have a history. */
+type Role = 'customer' | 'driver';
+
+/** The worker lists shop-confirmed drop offs first, then newest; each of those runs is one group. */
+const groupKey = (item: HistoryItem, role: Role) => (pinned(item) ? 'pinned' : localDay(sortedAt(item, role)));
+
+type Props = {
+  /** From useHistory(). */
+  history: ReturnType<typeof useHistory>;
+  role: Role;
+  /** The row above the list. */
+  title: ReactElement;
+  empty: string;
+  /** A group's amount, shown on the right of its title. */
+  amount?: (items: HistoryItem[]) => number;
+};
+
+/** Paged orders and drop offs grouped by day under titles that stick to the top, with a "See More" button. */
+export function HistoryScreen({ history, role, title, empty, amount }: Props) {
   const theme = useTheme();
   const items = history.data?.pages.flatMap((p) => p.items) ?? [];
 
-  return (
-    <>
-      {__DEV__ && <NextLoadCountdown at={history.nextAt} label="/history" />}
-      {history.isPending && <ActivityIndicator />}
-      <ErrorText error={history.error} />
-      {history.isSuccess && items.length === 0 && <ThemedText themeColor="textSecondary">{empty}</ThemedText>}
-      {items.map((item, i) => (
-        <Fragment key={historyKey(item)}>
-          <HistoryCard item={item} role={role} />
-          {/* Line under the shop-confirmed group the worker lists first, and between days after it. */}
-          {i + 1 < items.length && lineBetween(item, items[i + 1], role) && (
-            <View style={[styles.separator, { backgroundColor: theme.border }]} />
+  // Rows are direct children of the scroll view so each group's title can stick to the top until the next one pushes it off.
+  const rows: ReactElement[] = [];
+  const sticky: number[] = [];
+  items.forEach((item, i) => {
+    const key = groupKey(item, role);
+    if (i === 0 || groupKey(items[i - 1], role) !== key) {
+      sticky.push(rows.length);
+      rows.push(
+        <View key={`group-${key}`} testID="history-day" style={[styles.groupTitle, { backgroundColor: theme.background }]}>
+          <ThemedText style={[styles.groupTitleText, styles.grow]}>
+            {key === 'pinned' ? DROPOFF_STATUS_LABEL.owner_confirmed : dayLabel(sortedAt(item, role))}
+          </ThemedText>
+          {amount && (
+            <ThemedText style={[styles.groupTitleText, { color: theme.success }]}>
+              {peso(amount(items.filter((x) => groupKey(x, role) === key)))}
+            </ThemedText>
           )}
-        </Fragment>
-      ))}
+        </View>,
+      );
+    }
+    rows.push(<HistoryCard key={historyKey(item)} item={item} role={role} />);
+  });
+
+  // The fixed rows above the list, null ones dropped so `sticky` indexes line up with the scroll view's children.
+  const top = [
+    title,
+    __DEV__ && <NextLoadCountdown key="countdown" at={history.nextAt} label="/history" />,
+    history.isPending && <ActivityIndicator key="loading" />,
+    <ErrorText key="error" error={history.error} />,
+    history.isSuccess && items.length === 0 && (
+      <ThemedText key="empty" themeColor="textSecondary">
+        {empty}
+      </ThemedText>
+    ),
+  ].filter((row): row is ReactElement => Boolean(row));
+
+  return (
+    <Screen onRefresh={history.refresh} stickyHeaderIndices={sticky.map((i) => i + top.length)}>
+      {top}
+      {rows}
       {history.hasNextPage && (
         <Button title="See More" variant="secondary" loading={history.isFetchingNextPage} onPress={() => history.fetchNextPage()} />
       )}
-    </>
+    </Screen>
   );
 }
 
-/** Dev builds only: seconds until focus or pull-to-refresh may request /history again. */
-export function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer' | 'driver' }) {
+export function HistoryCard({ item, role }: { item: HistoryItem; role: Role }) {
   if (item.kind === 'order') {
     const { order } = item;
+    // Like closed drop offs, a cancelled order has nothing to open.
     return (
-      <Card onPress={role === 'customer' ? () => router.push(`/customer/order/${order.id}`) : undefined}>
-        <OrderSummary order={order} showFees={role === 'driver'} />
+      <Card onPress={role === 'customer' && order.status !== 'cancelled' ? () => router.push(`/customer/order/${order.id}`) : undefined}>
+        <OrderSummary order={order} showFees={role === 'driver'} badge={role === 'customer'} />
       </Card>
     );
   }
@@ -65,13 +109,15 @@ export function HistoryCard({ item, role }: { item: HistoryItem; role: 'customer
         role === 'customer' && !closed ? () => router.push({ pathname: '/customer/dropoff/[id]', params: { id: String(d.id) } }) : undefined
       }>
       <View style={styles.header}>
+        {role === 'customer' && <StoreLogo uri={d.store_logo} testID="dropoff-store-logo" />}
         <ThemedText type="smallBold" style={styles.title}>
           Drop off · {d.store_name}
           {role === 'driver' ? ` · ${d.customer_name}` : ''}
         </ThemedText>
         <StatusBadge label={DROPOFF_STATUS_LABEL[d.status]} tone={BADGE_TONE[d.status] ?? 'muted'} />
       </View>
-      <View style={styles.meta}>
+      {/* Drivers: the date on the left and the amount on the right, like their day titles. */}
+      <View style={[styles.meta, role === 'driver' && styles.metaReversed]}>
         <ThemedText type="smallBold">{amount}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {dateTime(d.created_at)}
@@ -86,25 +132,23 @@ export function historyKey(item: HistoryItem) {
 }
 
 /** The timestamp the worker sorts by: when customers placed it, when drivers finished it. */
-function sortedAt(item: HistoryItem, role: 'customer' | 'driver') {
+export function sortedAt(item: HistoryItem, role: Role) {
   const row = item.kind === 'order' ? item.order : item.dropoff;
   return role === 'customer' ? row.created_at : row.updated_at;
 }
 
-function lineBetween(a: HistoryItem, b: HistoryItem, role: 'customer' | 'driver') {
-  if (pinned(a)) return !pinned(b);
-  return localDay(sortedAt(a, role)) !== localDay(sortedAt(b, role));
-}
-
-const pinned = (item: HistoryItem) => item.kind === 'dropoff' && item.dropoff.status === 'owner_confirmed';
+export const pinned = (item: HistoryItem) => item.kind === 'dropoff' && item.dropoff.status === 'owner_confirmed';
 
 /** Shop confirmed = waiting for payment (listed first by the worker); everything not listed is muted. */
 const BADGE_TONE: Partial<Record<DropoffStatus, Tone>> = { completed: 'success', owner_confirmed: 'warning', cancelled: 'danger' };
 
 const styles = StyleSheet.create({
   faded: { opacity: 0.8 },
-  separator: { height: StyleSheet.hairlineWidth * 2, marginVertical: Spacing.one },
+  groupTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two },
+  groupTitleText: { fontSize: 20, lineHeight: 28, fontWeight: 700 },
+  grow: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
   title: { flex: 1 },
   meta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  metaReversed: { flexDirection: 'row-reverse' },
 });

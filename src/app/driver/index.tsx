@@ -15,10 +15,12 @@ import { Spacing } from '@/constants/theme';
 import { useAcceptJob, useAvailableJobs, useDriverMe, useSavedOnline, useSetOnline, useSetPickupOnline } from '@/hooks/queries';
 import { useNewJobSound } from '@/hooks/use-new-job-sound';
 import { useSocket } from '@/hooks/use-socket';
+import { useTheme } from '@/hooks/use-theme';
 import type { Order } from '@/lib/types';
 
 export default function AvailableJobs() {
   const qc = useQueryClient();
+  const theme = useTheme();
   const me = useDriverMe();
   const setPickupOnline = useSetPickupOnline();
   // The requested value while saving.
@@ -63,6 +65,7 @@ export default function AvailableJobs() {
       )}
       {PICKUP_ENABLED && (
         <>
+          <View testID="pickup-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
           <Card>
             <View style={styles.row}>
               <ThemedText type="smallBold">Online for Pickup</ThemedText>
@@ -84,7 +87,7 @@ export default function AvailableJobs() {
           )}
           {pickupOnline && jobs.data?.map((job) => (
             <Card key={job.id}>
-              <OrderSummary order={job} showFees />
+              <OrderSummary order={job} showFees youEarn />
               <Button
                 title="Accept job"
                 disabled={busy}
@@ -101,4 +104,5 @@ export default function AvailableJobs() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  separator: { height: StyleSheet.hairlineWidth * 2, marginVertical: Spacing.one },
 });

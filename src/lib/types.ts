@@ -63,6 +63,7 @@ export type Order = {
   driver_lng: number | null;
   driver_loc_at: string | null;
   store_name: string;
+  store_logo: string | null;
   store_address: string;
   store_type: StoreType;
   customer_name: string;
@@ -115,6 +116,7 @@ export type Dropoff = {
   created_at: string;
   updated_at: string;
   store_name: string;
+  store_logo: string | null;
   store_address: string;
   customer_name: string;
   customer_phone: string;

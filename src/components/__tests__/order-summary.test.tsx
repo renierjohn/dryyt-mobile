@@ -9,7 +9,7 @@ const order = {
   customer_address: '1 Customer St', notes: '', items_total: 36500, delivery_fee: 5000, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
   customer_lat: null, customer_lng: null, store_lat: null, store_lng: null, driver_lat: null, driver_lng: null, driver_loc_at: null,
   driver_has_face: false, driver_has_id: false, driver_photo_version: '-', driver_notes: '', driver_verified: false,
-  store_name: 'Tea Haven', store_address: '12 Mabini St', store_type: 'food' as const, customer_name: 'Ana',
+  store_name: 'Tea Haven', store_logo: null, store_address: '12 Mabini St', store_type: 'food' as const, customer_name: 'Ana',
   customer_phone: null, driver_name: null, driver_phone: null,
   items: [
     { id: 1, name: 'Wintermelon Milk Tea', price: 12000, qty: 2, image_url: 'https://img.test/tea.jpg' },
@@ -63,4 +63,22 @@ it('shows the store address after a pin icon instead of "From:"', async () => {
   await render(<OrderSummary order={order} />);
   expect(screen.getByText('12 Mabini St')).toBeTruthy();
   expect(screen.queryByText(/From:/)).toBeNull();
+});
+
+it('badge: "#id · Pickup · store" after the store logo, the status as a pill', async () => {
+  await render(<OrderSummary order={{ ...order, store_logo: 'https://img.test/logo.jpg' }} badge />);
+  expect([screen.getByTestId('order-store-logo').props.source].flat()).toEqual([{ uri: 'https://img.test/logo.jpg' }]);
+  expect(screen.getByText('#7 · Pickup · Tea Haven')).toBeTruthy();
+  expect(screen.getByText('Order amount')).toBeTruthy();
+  expect(screen.getByTestId('order-grand-total-separator')).toBeTruthy();
+});
+
+it('badge: a storefront placeholder without a logo', async () => {
+  await render(<OrderSummary order={order} badge />);
+  expect(screen.getByTestId('order-store-logo-placeholder')).toBeTruthy();
+});
+
+it('youEarn: marks the driver\'s share of the delivery fee', async () => {
+  await render(<OrderSummary order={{ ...order, delivery_fee: 7920, service_fee: 720 }} showFees youEarn />);
+  expect(screen.getByText('(You Earn)', { exact: false })).toBeTruthy();
 });

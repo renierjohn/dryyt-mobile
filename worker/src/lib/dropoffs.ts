@@ -21,6 +21,7 @@ export type DropoffRow = {
   created_at: string;
   updated_at: string;
   store_name: string;
+  store_logo: string | null;
   store_address: string;
   store_owner_id: number | null;
   store_group_id: string;
@@ -40,7 +41,7 @@ export type DropoffRow = {
 };
 
 const SELECT = `SELECT t.*,
-    s.name AS store_name, s.address AS store_address, s.owner_id AS store_owner_id, s.group_id AS store_group_id,
+    s.name AS store_name, s.store_logo, s.address AS store_address, s.owner_id AS store_owner_id, s.group_id AS store_group_id,
     cu.name AS customer_name, cu.phone AS customer_phone,
     d.name AS driver_name, d.phone AS driver_phone,
     dd.photo_face AS driver_photo_face, dd.photo_id AS driver_photo_id, ${driverPhotoVersion('dd')} AS driver_photo_version, dd.notes AS driver_notes, dd.status AS driver_status,

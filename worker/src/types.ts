@@ -86,6 +86,7 @@ export type OrderRow = {
   driver_lng: number | null;
   driver_loc_at: string | null;
   store_name: string;
+  store_logo: string | null;
   store_address: string;
   store_type: StoreType;
   customer_name: string;

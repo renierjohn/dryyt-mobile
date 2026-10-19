@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 
 import Orders from '@/app/owner/(tabs)/orders';
 
@@ -48,8 +48,41 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
 });
 
+/** Opens every collapsed card; #4 waits for payment, so it starts open. */
+async function expandAll() {
+  for (const id of [3, 2, 1]) await fireEvent.press(screen.getByLabelText(`Show more of order #${id}`));
+}
+
+it('collapses each card to store, number, status and total, and expands it with Show More', async () => {
+  await render(<Orders />);
+  expect(screen.getAllByText(/^Pickup @ Tea Haven/)).toHaveLength(3);
+  // The order amount, in green, after the store name.
+  expect(screen.getByTestId('order-amount-3')).toHaveTextContent('₱150.00');
+  expect(screen.getByText('#3')).toBeTruthy();
+  expect(screen.getByText('Delivered')).toBeTruthy();
+  // Order amount plus delivery fee.
+  expect(screen.getByText('₱229.20')).toBeTruthy();
+  expect(screen.getAllByText('Show More')).toHaveLength(3);
+
+  await fireEvent.press(screen.getByLabelText('Show more of order #3'));
+  expect(screen.getAllByText('Show Less')).toHaveLength(2);
+  await fireEvent.press(screen.getByLabelText('Show less of order #3'));
+  expect(screen.getAllByText('Show More')).toHaveLength(3);
+});
+
+it('opens orders waiting for payment by default, and lets them collapse', async () => {
+  await render(<Orders />);
+  expect(screen.getByText('Reference no.: GC-123')).toBeTruthy();
+  expect(screen.getByText('Done Pay')).toBeTruthy();
+  expect(screen.getByText('Total Order')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Show less of order #4'));
+  expect(screen.queryByText('Done Pay')).toBeNull();
+  expect(screen.getByText('Waiting for the store to confirm payment')).toBeTruthy();
+});
+
 it('shows the proof of payment and Done Pay only while the order waits for payment', async () => {
   await render(<Orders />);
+  await expandAll();
   expect(screen.getByText('Reference no.: GC-123')).toBeTruthy();
   expect([screen.getByTestId('payment-photo-4').props.source].flat()[0]).toMatchObject({
     uri: 'https://api.test/owner/orders/4/payment-photo',
@@ -68,9 +101,10 @@ it("groups orders by the day they were placed, with the day's order amount (no f
     'Fri, Oct 16, 2026',
   ]);
   expect(screen.getAllByText('orders')).toHaveLength(3);
-  expect(screen.getByText('₱200.00')).toBeTruthy();
-  expect(screen.getByText('₱150.00')).toBeTruthy();
-  expect(screen.getByText('₱50.00')).toBeTruthy();
+  const days = screen.getAllByTestId('order-day');
+  expect(within(days[0]).getByText('₱200.00')).toBeTruthy();
+  expect(within(days[1]).getByText('₱150.00')).toBeTruthy();
+  expect(within(days[2]).getByText('₱50.00')).toBeTruthy();
 });
 
 it("pins each day's title to the top while its orders scroll by", async () => {

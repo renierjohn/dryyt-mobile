@@ -15,17 +15,20 @@ import type { Order, OrderDetail } from '@/lib/types';
  * Customers see one delivery fee that already includes the service fee.
  * `badge`: the customer's order list, "#id · Pickup · store" with the status pill top right like drop off cards.
  * `youEarn`: the driver's job board and history, marking the driver's share of the delivery fee.
+ * `orderTotal`: the owner's view, with the order amount as "Total Order" above the fees.
  */
 export function OrderSummary({
   order,
   showFees = false,
   badge = false,
   youEarn = false,
+  orderTotal = false,
 }: {
   order: Order | OrderDetail;
   showFees?: boolean;
   badge?: boolean;
   youEarn?: boolean;
+  orderTotal?: boolean;
 }) {
   const theme = useTheme();
   const { from, to } = route(order);
@@ -87,6 +90,14 @@ export function OrderSummary({
       <View testID="order-total-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
       {showFees ? (
         <>
+          {orderTotal && (
+            <View style={styles.item}>
+              <ThemedText type="small" style={styles.grow}>
+                Total Order
+              </ThemedText>
+              <ThemedText type="small">{peso(order.items_total)}</ThemedText>
+            </View>
+          )}
           <View style={styles.item}>
             <ThemedText type="small" style={styles.grow}>
               Delivery fee{youEarn && <ThemedText type="small" style={{ color: theme.success }}> (You Earn)</ThemedText>}

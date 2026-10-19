@@ -14,7 +14,7 @@ import { Spacing } from '@/constants/theme';
 import { useConfirmPayment, useOwnerOrders } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
-import { dayLabel, localDay, peso } from '@/lib/format';
+import { dayLabel, localDay, peso, STATUS_LABEL } from '@/lib/format';
 import type { Order } from '@/lib/types';
 
 /** Orders come newest first, so each local day of placing is one run. */
@@ -48,21 +48,7 @@ export default function Orders() {
         </View>,
       );
     }
-    const photo = { uri: apiUrl(`/owner/orders/${o.id}/payment-photo`), headers: authHeaders() };
-    rows.push(
-      <Card key={o.id}>
-        <OrderSummary order={o} showFees />
-        {o.payment_ref ? <ThemedText type="small">Reference no.: {o.payment_ref}</ThemedText> : null}
-        {o.payment_photo_key && (
-          <Pressable accessibilityLabel="View payment photo" onPress={() => setViewing(photo)}>
-            <Image testID={`payment-photo-${o.id}`} source={photo} style={styles.photo} contentFit="contain" />
-          </Pressable>
-        )}
-        {o.status === 'awaiting_payment' && (
-          <Button title="Done Pay" loading={confirm.isPending && confirm.variables === o.id} onPress={() => confirm.mutate(o.id)} />
-        )}
-      </Card>,
-    );
+    rows.push(<OrderCard key={o.id} order={o} onViewPhoto={setViewing} confirm={confirm} />);
   });
 
   // The fixed rows above the list, null ones dropped so `sticky` indexes line up with the scroll view's children.
@@ -92,7 +78,70 @@ export default function Orders() {
   );
 }
 
+/** Collapsed (unless awaiting payment) to store, order amount, number, status and total; "Show More" opens the full summary, proof of payment and Done Pay. */
+function OrderCard({
+  order: o,
+  onViewPhoto,
+  confirm,
+}: {
+  order: Order;
+  onViewPhoto: (photo: ImageSource) => void;
+  confirm: ReturnType<typeof useConfirmPayment>;
+}) {
+  const theme = useTheme();
+  // Orders waiting for the owner to confirm payment start open, so Done Pay is in reach.
+  const [open, setOpen] = useState(o.status === 'awaiting_payment');
+  const photo = { uri: apiUrl(`/owner/orders/${o.id}/payment-photo`), headers: authHeaders() };
+  return (
+    <Card>
+      {open ? (
+        <>
+          <OrderSummary order={o} showFees orderTotal />
+          {o.payment_ref ? <ThemedText type="small">Reference no.: {o.payment_ref}</ThemedText> : null}
+          {o.payment_photo_key && (
+            <Pressable accessibilityLabel="View payment photo" onPress={() => onViewPhoto(photo)}>
+              <Image testID={`payment-photo-${o.id}`} source={photo} style={styles.photo} contentFit="contain" />
+            </Pressable>
+          )}
+          {o.status === 'awaiting_payment' && (
+            <Button title="Done Pay" loading={confirm.isPending && confirm.variables === o.id} onPress={() => confirm.mutate(o.id)} />
+          )}
+        </>
+      ) : (
+        <>
+          <View style={styles.row}>
+            <ThemedText type="smallBold" style={styles.grow}>
+              Pickup @ {o.store_name} <ThemedText type="smallBold" testID={`order-amount-${o.id}`} style={{ color: theme.success }}>
+                {peso(o.items_total)}
+              </ThemedText>
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              #{o.id}
+            </ThemedText>
+          </View>
+          <View style={styles.row}>
+            {/* Green once delivered, red when cancelled, like the full summary. */}
+            <ThemedText
+              type="small"
+              style={[styles.grow, o.status === 'delivered' ? { color: theme.success } : o.status === 'cancelled' ? { color: theme.danger } : undefined]}>
+              {STATUS_LABEL[o.status]}
+            </ThemedText>
+            <ThemedText type="smallBold">{peso(o.items_total + o.delivery_fee)}</ThemedText>
+          </View>
+        </>
+      )}
+      <Pressable accessibilityRole="button" accessibilityLabel={`${open ? 'Show less' : 'Show more'} of order #${o.id}`} onPress={() => setOpen(!open)}>
+        <ThemedText type="smallBold" style={[styles.toggle, { color: theme.primary }]}>
+          {open ? 'Show Less' : 'Show More'}
+        </ThemedText>
+      </Pressable>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  toggle: { textAlign: 'center', paddingTop: Spacing.one },
   groupTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two },
   groupTitleText: { fontSize: 20, lineHeight: 28, fontWeight: 700 },
   grow: { flex: 1 },

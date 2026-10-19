@@ -14,7 +14,7 @@ import type { Order, OrderDetail } from '@/lib/types';
  * `showFees`: the driver's and owner's view, with the delivery fee split into the driver's share and the service fee.
  * Customers see one delivery fee that already includes the service fee.
  * `badge`: the customer's order list, "#id · Pickup · store" with the status pill top right like drop off cards.
- * `youEarn`: the driver's job board, marking the driver's share of the delivery fee.
+ * `youEarn`: the driver's job board and history, marking the driver's share of the delivery fee.
  */
 export function OrderSummary({
   order,

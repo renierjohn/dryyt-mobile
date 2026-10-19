@@ -4,7 +4,7 @@ import JobHistory from '@/app/driver/history';
 
 const dropoff = (id: number, status: string, updated_at: string, delivery_fee: number) => ({
   kind: 'dropoff',
-  dropoff: { id, status, updated_at, created_at: updated_at, delivery_fee, total_delivery_fee: 1, laundry_fee: null, store_name: 'Shop', customer_name: 'Ana' },
+  dropoff: { id, status, updated_at, created_at: updated_at, delivery_fee, service_fee: 450, total_delivery_fee: delivery_fee + 450, laundry_fee: null, store_name: 'Shop', customer_name: 'Ana' },
 });
 jest.mock('@/hooks/queries', () => ({
   useHistory: () => ({
@@ -52,13 +52,13 @@ it("groups jobs by the day they were finished, shop-confirmed ones first, with t
   const titles = screen.getAllByTestId('history-day');
   expect(titles).toHaveLength(3);
   expect(within(titles[0]).getByText('Shop confirmed')).toBeTruthy();
-  expect(screen.getByText('₱50.00')).toBeTruthy();
+  expect(within(titles[0]).getByText('₱50.00')).toBeTruthy();
   expect(screen.getByText('Sun, Oct 18, 2026')).toBeTruthy();
   // The driver's share of the order (fee minus service fee) plus the drop off's delivery fee.
   expect(screen.getByText('₱112.00')).toBeTruthy();
   // Cancelled jobs earn nothing.
-  expect(screen.getByText('Sat, Oct 17, 2026')).toBeTruthy();
-  expect(screen.getByText('₱0.00')).toBeTruthy();
+  expect(within(titles[2]).getByText('Sat, Oct 17, 2026')).toBeTruthy();
+  expect(within(titles[2]).getByText('₱0.00')).toBeTruthy();
   expect(screen.getByLabelText('Earnings ₱500.00')).toBeTruthy();
 });
 
@@ -66,4 +66,15 @@ it("pins each group's title to the top while its jobs scroll by", async () => {
   await render(<JobHistory />);
   // Title, the dev countdown and the error slot sit above the list; then group, job, group, job, job, group, job.
   expect(mockSticky).toHaveBeenLastCalledWith([3, 5, 8]);
+});
+
+it("shows each drop off's delivery fee (the driver's share), service fee and total", async () => {
+  await render(<JobHistory />);
+  expect(screen.getAllByText(/\(You Earn\)/)).toHaveLength(3);
+  expect(screen.getAllByText('Service fee')).toHaveLength(3);
+  expect(screen.getAllByText('₱4.50')).toHaveLength(3);
+  expect(screen.getAllByTestId('dropoff-total-separator')).toHaveLength(3);
+  // Delivery fee plus service fee.
+  expect(screen.getByText('₱54.50')).toBeTruthy();
+  expect(screen.getByText('₱44.50')).toBeTruthy();
 });

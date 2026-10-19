@@ -87,12 +87,13 @@ export function HistoryScreen({ history, role, title, empty, amount }: Props) {
 }
 
 export function HistoryCard({ item, role }: { item: HistoryItem; role: Role }) {
+  const theme = useTheme();
   if (item.kind === 'order') {
     const { order } = item;
     // Like closed drop offs, a cancelled order has nothing to open.
     return (
       <Card onPress={role === 'customer' && order.status !== 'cancelled' ? () => router.push(`/customer/order/${order.id}`) : undefined}>
-        <OrderSummary order={order} showFees={role === 'driver'} badge={role === 'customer'} />
+        <OrderSummary order={order} showFees={role === 'driver'} youEarn={role === 'driver'} badge={role === 'customer'} />
       </Card>
     );
   }
@@ -116,13 +117,37 @@ export function HistoryCard({ item, role }: { item: HistoryItem; role: Role }) {
         </ThemedText>
         <StatusBadge label={DROPOFF_STATUS_LABEL[d.status]} tone={BADGE_TONE[d.status] ?? 'muted'} />
       </View>
-      {/* Drivers: the date on the left and the amount on the right, like their day titles. */}
-      <View style={[styles.meta, role === 'driver' && styles.metaReversed]}>
-        <ThemedText type="smallBold">{amount}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {dateTime(d.created_at)}
-        </ThemedText>
-      </View>
+      {role === 'driver' ? (
+        <>
+          <ThemedText type="small" themeColor="textSecondary">
+            {dateTime(d.created_at)}
+          </ThemedText>
+          {/* Like the driver's order cards: their share, the service fee, then what the customer pays for delivery. */}
+          <View style={[styles.separator, { backgroundColor: theme.border }]} />
+          <View style={styles.meta}>
+            <ThemedText type="small">
+              Delivery fee<ThemedText type="small" style={{ color: theme.success }}> (You Earn)</ThemedText>
+            </ThemedText>
+            <ThemedText type="small">{peso(d.delivery_fee ?? 0)}</ThemedText>
+          </View>
+          <View style={styles.meta}>
+            <ThemedText type="small">Service fee</ThemedText>
+            <ThemedText type="small">{peso(d.service_fee ?? 0)}</ThemedText>
+          </View>
+          <View testID="dropoff-total-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
+          <View style={styles.meta}>
+            <ThemedText type="smallBold">Total Amount</ThemedText>
+            <ThemedText type="smallBold">{peso(d.total_delivery_fee)}</ThemedText>
+          </View>
+        </>
+      ) : (
+        <View style={styles.meta}>
+          <ThemedText type="smallBold">{amount}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {dateTime(d.created_at)}
+          </ThemedText>
+        </View>
+      )}
     </Card>
   );
 }
@@ -150,5 +175,5 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
   title: { flex: 1 },
   meta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaReversed: { flexDirection: 'row-reverse' },
+  separator: { height: StyleSheet.hairlineWidth * 2, marginVertical: Spacing.one },
 });

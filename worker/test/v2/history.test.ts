@@ -89,6 +89,12 @@ describe('history', () => {
     expect(page.items.map(itemId)).toEqual([`dropoff-${flow.id}`, `order-${delivered}`]);
     expect(page.items[0].dropoff).toMatchObject({ status: 'dropped_off', delivery_fee: expect.any(Number) });
 
+    // Earnings: the drop off's delivery fee plus the delivered order's fee minus its service fee; not the accepted one.
+    await env.DB.prepare('UPDATE orders SET service_fee = 500 WHERE driver_id = ?').bind(flow.driver.user.id).run();
+    const fee = (await env.DB.prepare('SELECT delivery_fee FROM transactions WHERE id = ?').bind(flow.id).first<{ delivery_fee: number }>())!;
+    const { body } = await api<{ earnings: number }>('/history', { token: flow.driver.token });
+    expect(body.earnings).toBe(fee.delivery_fee + 5000 - 500);
+
     const stranger = await registerUser('driver');
     expect((await allPages(stranger.token))[0].items).toEqual([]);
   });

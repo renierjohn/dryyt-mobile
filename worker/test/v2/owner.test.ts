@@ -53,10 +53,10 @@ describe('owner', () => {
     expect(await tripKeys(room, true)).toEqual([]);
   });
 
-  it("adds the delivery fee to the driver's earnings once, on confirm", async () => {
+  it("counts the driver's share of a dropped-off drop off in their earnings, once", async () => {
     const { owner, driver, customer, id } = await withOwner();
     const earnings = async () => (await api('/history', { token: driver.token })).body.earnings;
-    expect(await earnings()).toBe(0);
+    expect(await earnings()).toBe(7200);
     await post(`/owner/transactions/${id}/confirm`, owner.token);
     expect(await earnings()).toBe(7200);
     await post(`/owner/transactions/${id}/confirm`, owner.token);

@@ -33,6 +33,14 @@ const ORDERS = {
 /** Drop offs, plus Pickup orders while PICKUP_ENABLED is on. */
 const sources = (role: 'customer' | 'driver', pickup: boolean) => (pickup ? `${DROPOFFS[role]} UNION ALL ${ORDERS[role]}` : DROPOFFS[role]);
 
+/**
+ * The driver's share of every job in their history, like the app's day totals: a drop off's delivery_fee (the service
+ * fee is already split out) and a pickup's delivery_fee - service_fee; cancelled drop offs earn nothing.
+ */
+const EARNINGS = `SELECT
+  (SELECT COALESCE(SUM(delivery_fee), 0) FROM transactions WHERE driver_id = ?1 AND status IN ${DRIVER_DONE} AND status != 'cancelled') +
+  (SELECT COALESCE(SUM(delivery_fee - service_fee), 0) FROM orders WHERE driver_id = ?1 AND status = 'delivered') AS earnings`;
+
 type Entry = { kind: 'order' | 'dropoff'; id: number; at: string; pin: number };
 
 const history = new Hono<AppEnv>();
@@ -72,7 +80,7 @@ history.get('/', async (c) => {
   // Drivers' total earnings ride along on the first page, so the History tab needs no other request.
   const earnings =
     user.role === 'driver' && !before
-      ? ((await db.prepare('SELECT earnings FROM driver_data WHERE user_id = ?').bind(user.id).first<{ earnings: number }>())?.earnings ?? 0)
+      ? ((await db.prepare(EARNINGS).bind(user.id).first<{ earnings: number }>())?.earnings ?? 0)
       : undefined;
 
   const last = page[page.length - 1];

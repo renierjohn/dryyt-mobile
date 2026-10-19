@@ -162,7 +162,7 @@ dropoffs.post('/:id/driver-cancel', requireRole('driver'), async (c) => {
   await afterCommit('driver-cancel trip notify', () => trip.notify({ t: 'status', status: 'cancelled' }));
   await afterCommit('driver-cancel trip stop', () => trip.stop());
   c.executionCtx.waitUntil(
-    pushToUsers(db, [row.customer_id], 'Drop off cancelled', `${row.driver_name ?? 'Your driver'} cancelled the trip.`, { transaction_id: row.id }),
+    pushToUsers(c.env, [row.customer_id], 'Drop off cancelled', `${row.driver_name ?? 'Your driver'} cancelled the trip.`, { transaction_id: row.id }),
   );
   return respond(c, row.id);
 });
@@ -268,7 +268,7 @@ dropoffs.post('/:id/drop', requireRole('driver'), async (c) => {
   await afterCommit('drop trip finish', () => trip.finish());
   if (row.store_owner_id) {
     c.executionCtx.waitUntil(
-      pushToUsers(db, [row.store_owner_id], 'New drop off', `${row.customer_name}'s laundry has arrived.`, { transaction_id: row.id }, 'ownerOrder'),
+      pushToUsers(c.env, [row.store_owner_id], 'New drop off', `${row.customer_name}'s laundry has arrived.`, { transaction_id: row.id }, 'ownerOrder'),
     );
   }
   return respond(c, row.id);

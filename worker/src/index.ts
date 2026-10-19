@@ -8,6 +8,7 @@ import { requireAuth } from './lib/auth';
 import { fail, parseBody } from './lib/http';
 import { menuImageKey } from './lib/menu';
 import { photoResponse } from './lib/photos';
+import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
 import auth from './routes/auth';
 import drivers from './routes/drivers';
@@ -19,7 +20,7 @@ import orders from './routes/orders';
 import owner from './routes/owner';
 import stores from './routes/stores';
 import ws from './routes/ws';
-import type { AppEnv, User } from './types';
+import type { AppEnv, Bindings, User } from './types';
 
 const app = new Hono<AppEnv>();
 
@@ -64,10 +65,6 @@ app.get('/me', requireAuth, async (c) => {
 });
 
 const pushTokenSchema = z.object({ token: z.string().startsWith('ExponentPushToken[').max(200) });
-
-/** Enough of a push token to tell devices apart in logs without exposing it. */
-const maskToken = (token: unknown) =>
-  typeof token === 'string' && token.length > 12 ? `${token.slice(0, 22)}…${token.slice(-4)}` : JSON.stringify(token ?? null);
 
 app.post('/me/push-token', requireAuth, async (c) => {
   const user = c.get('user');
@@ -123,7 +120,13 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong' }, 500);
 });
 
-export default app;
+export { app };
+export default {
+  fetch: app.fetch,
+  scheduled(_controller, env, ctx) {
+    ctx.waitUntil(checkPushReceipts(env));
+  },
+} satisfies ExportedHandler<Bindings>;
 export { Dispatch } from './do/dispatch';
 export { Trip } from './do/trip';
 export { OrderRoom, PickupBoard } from './do/pickups';

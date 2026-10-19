@@ -7,8 +7,11 @@ type Options = { include?: string[]; exclude?: string[]; isolatedStorage: boolea
 /**
  * Fake outbound services for tests: OSRM answers 3.2 km (500 when the start longitude is 0, no route when it is 1,
  * 403 without a User-Agent like the real server); OpenRouteService answers 2.85 km (500 when the start longitude is 0);
- * Expo push accepts all.
+ * Expo push accepts all, except: `ExponentPushToken[gone]` gets a DeviceNotRegistered ticket, `ExponentPushToken[bad]`
+ * a MessageTooBig ticket, and a batch with `ExponentPushToken[flaky]` answers 503 on every other request. Receipts:
+ * ids starting `gone-` are DeviceNotRegistered, `pending-` have none yet, the rest are ok.
  */
+let flakyPushRequests = 0;
 async function outboundService(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.hostname === 'router.project-osrm.org') {
@@ -23,7 +26,25 @@ async function outboundService(request: Request): Promise<Response> {
     if (coordinates[0][0] === 0) return Response.json({ error: 'down' }, { status: 500 });
     return Response.json({ routes: [{ summary: { distance: 2850, duration: 211 } }] });
   }
-  if (url.hostname === 'exp.host') return Response.json({ data: [] });
+  if (url.hostname === 'exp.host' && url.pathname.endsWith('/getReceipts')) {
+    const { ids } = (await request.json()) as { ids: string[] };
+    const receipts = ids
+      .filter((id) => !id.startsWith('pending-'))
+      .map((id) => [id, id.startsWith('gone-') ? { status: 'error', message: 'gone', details: { error: 'DeviceNotRegistered' } } : { status: 'ok' }]);
+    return Response.json({ data: Object.fromEntries(receipts) });
+  }
+  if (url.hostname === 'exp.host') {
+    const messages = (await request.json()) as { to: string }[];
+    if (messages.some((m) => m.to === 'ExponentPushToken[flaky]') && flakyPushRequests++ % 2 === 0) {
+      return new Response('Unavailable', { status: 503 });
+    }
+    const error = (code: string) => ({ status: 'error', message: code, details: { error: code } });
+    return Response.json({
+      data: messages.map((m, i) =>
+        m.to === 'ExponentPushToken[gone]' ? error('DeviceNotRegistered') : m.to === 'ExponentPushToken[bad]' ? error('MessageTooBig') : { status: 'ok', id: `ticket-${crypto.randomUUID()}` },
+      ),
+    });
+  }
   return new Response('Blocked in tests', { status: 599 });
 }
 

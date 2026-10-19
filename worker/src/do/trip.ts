@@ -61,9 +61,14 @@ export class Trip extends DurableObject<Bindings> {
     await this.setTimers({ presenceAt: watch ? now + HEARTBEAT_MS : undefined });
   }
 
+  /**
+   * Trip over (cancelled, or the shop confirmed or was reminded): closes the room and wipes its storage, so a
+   * finished trip keeps no data (nor the driver's last location) once it is no longer needed.
+   */
   async stop() {
-    await this.ctx.storage.put('tracking', false);
-    await this.setTimers({ staleAt: undefined, ownerAt: undefined, presenceAt: undefined });
+    for (const ws of this.ctx.getWebSockets()) this.close(ws);
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
   }
 
   /** Socket upgrade. routes/ws.ts has already checked the ticket and membership. */
@@ -156,8 +161,10 @@ export class Trip extends DurableObject<Bindings> {
       await this.checkPresence(now);
     }
     if (timers.ownerAt !== undefined && timers.ownerAt <= now) {
-      await this.setTimers({ ownerAt: undefined });
       await this.remindOwner();
+      // The reminder is the last thing a finished trip does.
+      await this.stop();
+      return;
     }
   }
 
@@ -171,7 +178,7 @@ export class Trip extends DurableObject<Bindings> {
       .first<{ owner_id: number | null }>();
     if (row?.owner_id) {
       await pushToUsers(
-        this.env.DB,
+        this.env,
         [row.owner_id],
         'Drop off waiting',
         'A laundry drop off is waiting for your confirmation.',

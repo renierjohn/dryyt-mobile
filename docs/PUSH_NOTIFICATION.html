@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt — Push Notifications</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec; --warn: #9a5b13; --warn-soft: #f6ecdf;
+    --push: #a3461f; --push-soft: #f8e7df; --https: #2f5f9e; --https-soft: #e4ecf7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b; --warn: #e2a65c; --warn-soft: #2f2619;
+      --push: #eb9a76; --push-soft: #33231b; --https: #8db4ea; --https-soft: #1c2738;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 19px; margin: 40px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+  p, li { max-width: 72ch; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 16px 0; }
+  .ok { border-left-color: var(--accent); background: var(--accent-soft); }
+  figure { margin: 20px 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--fg); font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  svg .small { fill: var(--muted); font-size: 11.5px; }
+  svg .box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
+  svg .push { fill: var(--push-soft); stroke: var(--push); stroke-width: 1.5; }
+  svg .db { fill: var(--https-soft); stroke: var(--https); stroke-width: 1.5; }
+  svg .line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  svg .dead { stroke: var(--push); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  svg .arrow { fill: var(--muted); }
+  svg .arrowdead { fill: var(--push); }
+  ol.steps li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Push notifications</h1>
+<p class="sub">How the worker sends pushes and confirms they were delivered, the limits, and how to set up <code>EXPO_ACCESS_TOKEN</code>. Updated 2026-10-19.</p>
+
+<h2>Summary</h2>
+<ul>
+  <li>Pushes go through Expo's push service (<code>exp.host</code>), which passes them on to FCM (Android) and APNs (iOS).</li>
+  <li>Before this update the worker sent pushes and never read Expo's reply, so it couldn't tell whether they went through.</li>
+  <li>Now the worker reads each <b>ticket</b> (Expo's immediate per-message answer), retries when Expo is busy or down, and saves accepted tickets.</li>
+  <li>A cron job runs every 15 minutes and fetches each ticket's <b>receipt</b>, which says whether FCM/APNs accepted the push. When a phone is reported as no longer registered, its token is cleared.</li>
+  <li>When the <code>EXPO_ACCESS_TOKEN</code> secret is set, every request to Expo includes it, so Enhanced Security for Push Notifications can be turned on.</li>
+  <li>Sending stays best effort: a push failure never fails the API request or Durable Object action that triggered it.</li>
+</ul>
+
+<h2>Flow</h2>
+<figure>
+  <svg viewBox="0 0 800 300" role="img" aria-label="Push flow: worker sends to Expo, saves tickets, cron reads receipts and clears dead tokens">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrow"/></marker>
+      <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowdead"/></marker>
+    </defs>
+    <rect x="10" y="30" width="170" height="64" rx="8" class="box"/>
+    <text x="95" y="57" text-anchor="middle">pushToUsers</text>
+    <text x="95" y="77" text-anchor="middle" class="small">route or Durable Object</text>
+
+    <rect x="310" y="30" width="180" height="64" rx="8" class="push"/>
+    <text x="400" y="57" text-anchor="middle">Expo /push/send</text>
+    <text x="400" y="77" text-anchor="middle" class="small">≤100 per request · retry 1s, 3s</text>
+
+    <rect x="620" y="30" width="170" height="64" rx="8" class="box"/>
+    <text x="705" y="57" text-anchor="middle">FCM / APNs</text>
+    <text x="705" y="77" text-anchor="middle" class="small">phone</text>
+
+    <rect x="10" y="200" width="170" height="64" rx="8" class="db"/>
+    <text x="95" y="227" text-anchor="middle">users.push_token</text>
+    <text x="95" y="247" text-anchor="middle" class="small">D1</text>
+
+    <rect x="310" y="200" width="180" height="64" rx="8" class="db"/>
+    <text x="400" y="227" text-anchor="middle">push_tickets</text>
+    <text x="400" y="247" text-anchor="middle" class="small">D1 · kept ≤ 1 day</text>
+
+    <rect x="620" y="200" width="170" height="64" rx="8" class="push"/>
+    <text x="705" y="227" text-anchor="middle">Cron */15 min</text>
+    <text x="705" y="247" text-anchor="middle" class="small">Expo /push/getReceipts</text>
+
+    <path d="M180,62 L306,62" class="line" marker-end="url(#a)"/>
+    <path d="M490,62 L616,62" class="line" marker-end="url(#a)"/>
+    <path d="M370,94 L370,196" class="line" marker-end="url(#a)"/>
+    <text x="378" y="150" class="small">ok ticket → save</text>
+    <path d="M330,94 C300,150 200,170 150,196" class="dead" marker-end="url(#d)"/>
+    <text x="196" y="138" class="small">DeviceNotRegistered → clear</text>
+    <path d="M490,232 L616,232" class="line" marker-end="url(#a)"/>
+    <text x="500" y="222" class="small">tickets ≥ 15 min old</text>
+    <path d="M705,264 C705,295 120,295 95,268" class="dead" marker-end="url(#d)"/>
+    <text x="400" y="290" text-anchor="middle" class="small">receipt says DeviceNotRegistered → clear token</text>
+  </svg>
+  <figcaption>Dashed lines: a dead token is cleared, either right away from the ticket or later from the receipt.</figcaption>
+</figure>
+
+<h2>What changed</h2>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>worker/src/lib/push.ts</code></td><td>
+    <code>postExpo</code>: one helper for both Expo endpoints. It sends the bearer token when set, retries 429/5xx/network errors after 1s and 3s, and logs other 4xx errors as <code>[push] rejected</code>.<br>
+    <code>sendPush</code> now returns <code>{ dead, tickets }</code>.<br>
+    <code>pushToUsers(env, …)</code> takes the worker env instead of the D1 handle. It clears dead tokens and saves tickets.<br>
+    <code>checkPushReceipts(env)</code> is the cron step. It reads up to 1000 tickets that are at least 15 minutes old, clears tokens reported as unregistered, deletes the tickets it checked, and drops any ticket older than a day.<br>
+    <code>maskToken</code> moved here from <code>index.ts</code>.</td></tr>
+  <tr><td><code>worker/migrations/0019_push_tickets.sql</code></td><td>New table <code>push_tickets (id, token, created_at)</code> with an index on <code>created_at</code>.</td></tr>
+  <tr><td><code>worker/src/index.ts</code></td><td>The default export is now <code>{ fetch, scheduled }</code>, and <code>scheduled</code> runs <code>checkPushReceipts</code>. The Hono app is also a named export, <code>app</code>.</td></tr>
+  <tr><td><code>worker/wrangler.jsonc</code></td><td><code>triggers.crons: ["*/15 * * * *"]</code></td></tr>
+  <tr><td><code>worker/src/types.ts</code></td><td><code>EXPO_ACCESS_TOKEN?: string</code> on <code>Bindings</code>.</td></tr>
+  <tr><td>Routes and Durable Objects</td><td>All 10 <code>pushToUsers</code> callers pass <code>c.env</code> / <code>this.env</code>.</td></tr>
+  <tr><td>Tests</td><td>The fake Expo service in <code>vitest.shared.ts</code> returns tickets and receipts. New tests cover dead tokens, the 503 retry, saving tickets, and the receipt check. Results: 78 + 110 passing.</td></tr>
+  <tr><td><code>README.md</code></td><td>Added the <code>EXPO_ACCESS_TOKEN</code> secret step and switched <code>npx</code> to <code>bunx</code>.</td></tr>
+</table>
+
+<h2>Limits</h2>
+<table>
+  <tr><th>Layer</th><th>Limit</th><th>Effect on Dryyt</th></tr>
+  <tr><td>Expo push service</td><td>~600 notifications/sec per project; 100 per send request; 1000 ids per receipt request</td><td>Only a concern when broadcasting to thousands of drivers at once</td></tr>
+  <tr><td>FCM / APNs</td><td>No practical cap at this scale</td><td>—</td></tr>
+  <tr><td>Worker subrequests</td><td>50 per invocation on Free, 1000 on Paid</td><td>A broadcast to N drivers uses about ⌈N/90⌉ token lookups + ⌈N/100⌉ sends + a ticket insert. The Free plan handles roughly 2,000 drivers per broadcast.</td></tr>
+  <tr><td>Users</td><td>No limit</td><td>One <code>push_token</code> per user. The most recent phone to register is the one that gets pushes.</td></tr>
+</table>
+<p>Only "New drop off nearby" (<code>do/dispatch.ts</code>) goes to many users. Every other push goes to one user.</p>
+
+<h2>Reliability: what's still out of our control</h2>
+<ul>
+  <li>Android battery savers (Xiaomi, Oppo, Vivo, Huawei) can delay or drop notifications.</li>
+  <li>iOS Focus/Do Not Disturb, and users who deny notification permission.</li>
+  <li>Push only wakes the app up. The live dispatch socket and polling remain the source of truth. Drivers connected to the socket don't get the "new drop off" push at all.</li>
+</ul>
+
+<h2>EXPO_ACCESS_TOKEN</h2>
+<p>Without it, anyone who has a user's <code>ExponentPushToken[…]</code> can send that phone a notification that looks like it came from Dryyt. With <b>Enhanced Security for Push Notifications</b> turned on, Expo rejects any push that doesn't carry your access token. It has no effect on speed or delivery. It's optional: when the secret isn't set, the worker sends exactly as before.</p>
+<ol class="steps">
+  <li>Signed in to expo.dev, open <a href="https://expo.dev/settings/access-tokens">expo.dev/settings/access-tokens</a> and click <b>Create token</b>. If the project belongs to an organization, switch to it, open <b>Settings → Access tokens</b>, and preferably create a <b>robot user</b> token there.</li>
+  <li>Copy the token. It's shown only once.</li>
+  <li>From <code>worker/</code>:
+<pre><code>bunx wrangler secret put EXPO_ACCESS_TOKEN
+bun run db:migrate:remote
+bun run deploy</code></pre></li>
+  <li>After the deploy, enable <b>Enhanced Security for Push Notifications</b> in the Expo project's settings.</li>
+</ol>
+<div class="note"><b>Order matters.</b> Turning on enhanced security before the deployed worker sends the token makes Expo reject every push, which shows up in the logs as <code>[push] rejected</code> with status 401. Run the migration before deploying, too. Until the <code>push_tickets</code> table exists, saving tickets fails, and the error is only logged.</div>
+
+<h2>Log lines to watch</h2>
+<table>
+  <tr><th>Log</th><th>Meaning</th></tr>
+  <tr><td><code>[push] retryable</code></td><td>Expo returned 429/5xx or the network failed. The request will be retried.</td></tr>
+  <tr><td><code>[push] gave up</code></td><td>Still failing after 2 retries. That batch was not sent.</td></tr>
+  <tr><td><code>[push] rejected</code></td><td>Expo returned another 4xx error, such as 401 from a bad or missing access token.</td></tr>
+  <tr><td><code>[push] delivery error</code></td><td>A ticket or receipt error other than an unregistered phone, such as <code>MessageTooBig</code> or <code>InvalidCredentials</code> (FCM/APNs keys).</td></tr>
+  <tr><td><code>[push] forgot unregistered tokens</code></td><td>Tokens were cleared because the app is gone from those phones.</td></tr>
+</table>
+</main>
+</body>
+</html>

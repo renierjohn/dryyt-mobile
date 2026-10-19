@@ -188,7 +188,7 @@ orders.post('/', requireRole('customer'), async (c) => {
     // The room reminds the owner and accepts the payment if they never tap Done Pay; the customer waits on its socket.
     c.executionCtx.waitUntil(orderRoom(c.env, id).awaitPayment(id).catch((err) => console.error('pickup payment timers failed', err)));
     if (store.owner_id !== null) {
-      c.executionCtx.waitUntil(pushToUsers(db, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }, 'ownerOrder'));
+      c.executionCtx.waitUntil(pushToUsers(c.env, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }, 'ownerOrder'));
     }
   }
   return c.json({ order: await getOrder(db, id) }, 201);

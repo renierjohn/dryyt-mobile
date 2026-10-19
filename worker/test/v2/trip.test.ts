@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Dispatch } from '../../src/do/dispatch';
 import type { Trip } from '../../src/do/trip';
 import { api, registerUser } from '../helpers';
-import { acceptedDropoff, HOME } from './helpers';
+import { acceptedDropoff, HOME, tripKeys } from './helpers';
 import { closeAll, openSocket } from './socket';
 
 afterEach(closeAll);
@@ -67,6 +67,7 @@ describe('trip', () => {
     expect(res.body.dropoff.status).toBe('cancelled');
     expect(await driverTrip.next('status')).toEqual({ t: 'status', status: 'cancelled' });
     expect(await busyOf(driver.user.id)).toBe(0);
+    expect(await tripKeys(room)).toEqual([]);
     expect((await post(`/dropoffs/${id}/driver-cancel`, driver.token)).status).toBe(409);
   });
 

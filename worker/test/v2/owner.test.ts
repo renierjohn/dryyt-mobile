@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { api, registerUser } from '../helpers';
-import { droppedOffDropoff, makeShop } from './helpers';
+import { droppedOffDropoff, makeShop, tripKeys } from './helpers';
 import { closeAll } from './socket';
 
 afterEach(closeAll);
@@ -44,6 +44,13 @@ describe('owner', () => {
       expect.objectContaining({ payee_type: 'developer', payee_id: null, amount: 800, status: 'pending' }),
       expect.objectContaining({ payee_type: 'driver', payee_id: driver.user.id, amount: 7200, status: 'pending' }),
     ]);
+  });
+
+  it('wipes the trip room on confirm', async () => {
+    const { owner, id, room } = await withOwner();
+    expect(await tripKeys(room)).not.toEqual([]);
+    await post(`/owner/transactions/${id}/confirm`, owner.token);
+    expect(await tripKeys(room, true)).toEqual([]);
   });
 
   it("adds the delivery fee to the driver's earnings once, on confirm", async () => {

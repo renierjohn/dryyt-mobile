@@ -404,7 +404,7 @@
     <td><span class="t w"><b>W</b>owner_transactions</span><span class="t w"><b>W</b>drivers.busy=0</span><span class="t w"><b>W</b>transactions.laundry_fee</span></td>
     <td><code>dropped_off</code></td></tr>
   <tr class="branch"><td class="n">10a</td><td>Trip DO</td><td>Owner hasn't confirmed in 30 min</td>
-    <td><span class="p alarm">ALARM</span> → <span class="p push">PUSH</span> owner</td>
+    <td><span class="p alarm">ALARM</span> → <span class="p push">PUSH</span> owner, then the room is cleared</td>
     <td><span class="t r"><b>R</b>owner_transactions</span><span class="t r"><b>R</b>stores</span></td><td>—</td></tr>
 
   <tr><td class="n">11</td><td>Owner</td><td>See incoming drop offs, view photo</td>
@@ -628,6 +628,7 @@
   <tr><td>→ driver <code>customer {online}</code></td><td>Customer joins, or 5 min after they were last connected / heartbeated (a dropped connection keeps counting as online meanwhile).</td></tr>
   <tr><td>→ customer <code>stale</code></td><td>Alarm: no location 2 min.</td></tr>
   <tr><td><code>status</code></td><td>After commit: <code>en_route_shop</code>, <code>dropped_off</code>, <code>cancelled</code>.</td></tr>
+  <tr><td>Room cleared</td><td>Cancelled, owner confirmed, or the owner reminder fired: closes every socket and deletes its storage (including the last location).</td></tr>
 </table>
 
 <h3 id="ws-pickups">PickupBoard DO</h3>

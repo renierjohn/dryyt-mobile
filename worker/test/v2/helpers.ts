@@ -1,4 +1,4 @@
-import { env, SELF } from 'cloudflare:test';
+import { env, runInDurableObject, SELF } from 'cloudflare:test';
 
 import { api, registerUser } from '../helpers';
 import { openSocket } from './socket';
@@ -62,4 +62,15 @@ export async function droppedOffDropoff({ ownerId }: { ownerId?: number } = {}) 
   const { key } = (await uploadProof(flow.id, flow.driver.token)).body;
   await api(`/dropoffs/${flow.id}/drop`, { token: flow.driver.token, body: { weight_kg: 6.5, laundry_fee: 25000, notes: 'Two bags', proof_photo_key: key } });
   return { ...flow, room };
+}
+
+/** Keys left in a trip room's storage; polls briefly, since a route may wipe the room after it responds (waitUntil). */
+export async function tripKeys(room: string, settle = false) {
+  const stub = env.TRIP.get(env.TRIP.idFromName(room));
+  const read = () => runInDurableObject(stub, async (_i, state) => [...(await state.storage.list()).keys()]);
+  for (let i = 0; settle && i < 50; i++) {
+    if ((await read()).length === 0) break;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  return read();
 }

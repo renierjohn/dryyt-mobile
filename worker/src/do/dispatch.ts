@@ -413,7 +413,7 @@ export class Dispatch extends DurableObject<Bindings> {
       .filter((d) => this.ctx.getWebSockets(`u:${d.user_id}`).length === 0 && !this.excluded(r, d.user_id))
       .filter((d) => d.lat === null || d.lng === null || haversineKm({ lat: d.lat, lng: d.lng }, r.customer) <= MAX_KM)
       .map((d) => d.user_id);
-    await pushToUsers(this.env.DB, ids, 'New drop off nearby', `${r.storeName}: open Dryyt to accept.`, { transaction_id: r.id }, 'newDropoff');
+    await pushToUsers(this.env, ids, 'New drop off nearby', `${r.storeName}: open Dryyt to accept.`, { transaction_id: r.id }, 'newDropoff');
   }
 
   // ---- Plumbing ----

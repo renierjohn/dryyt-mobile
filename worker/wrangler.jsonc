@@ -5,6 +5,10 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	// Checks Expo push receipts (lib/push.ts checkPushReceipts).
+	"triggers": {
+		"crons": ["*/15 * * * *"]
+	},
 	"vars": {
 		"DELIVERY_FEE": "5000",
 		// Pickup (food/laundry from a store to the customer): "true" serves /orders, /jobs and /menu; "false" refuses them with 403.

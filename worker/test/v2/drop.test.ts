@@ -1,9 +1,9 @@
-import { env, runInDurableObject, SELF } from 'cloudflare:test';
+import { env, runDurableObjectAlarm, runInDurableObject, SELF } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Trip } from '../../src/do/trip';
 import { api, registerUser } from '../helpers';
-import { acceptedDropoff, droppedOffDropoff, JPEG, uploadProof } from './helpers';
+import { acceptedDropoff, droppedOffDropoff, JPEG, tripKeys, uploadProof } from './helpers';
 import { closeAll, openSocket } from './socket';
 
 afterEach(closeAll);
@@ -63,6 +63,17 @@ describe('drop off at the shop', () => {
     expect(timers?.ownerAt).toEqual(expect.any(Number));
 
     expect((await api(`/dropoffs/${flow.id}/drop`, { token: flow.driver.token, body: { weight_kg: 1, laundry_fee: 1, proof_photo_key: key } })).status).toBe(409);
+  });
+
+  it('wipes the trip room once the owner reminder has fired', async () => {
+    const { room } = await droppedOffDropoff();
+    const stub = env.TRIP.get(env.TRIP.idFromName(room));
+    expect(await tripKeys(room)).toContain('transactionId');
+    await runInDurableObject(stub, async (_i: Trip, state) => {
+      await state.storage.put('timers', { ownerAt: 0 });
+    });
+    await runDurableObjectAlarm(stub);
+    expect(await tripKeys(room)).toEqual([]);
   });
 
   it('a failed drop leaves the drop off retryable', async () => {

@@ -1,7 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
-import app from '../../src/index';
+import { app } from '../../src/index';
 import { api, placeOrder, registerUser } from '../helpers';
 
 /** The worker with PICKUP_ENABLED off, as in wrangler.jsonc (the test pool turns it on for the Pickup suites). */

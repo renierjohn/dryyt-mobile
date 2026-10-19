@@ -10,6 +10,7 @@ import { pickupChanged } from '../lib/pickup-live';
 import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
 import { pushToUsers } from '../lib/push';
+import { tripFor } from '../lib/rooms';
 import type { AppEnv } from '../types';
 
 const storeSchema = z.object({
@@ -310,7 +311,7 @@ owner.post('/orders/:id/confirm-payment', async (c) => {
   if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
   pickupChanged(c, order.id, { board: false });
   c.executionCtx.waitUntil(
-    pushToUsers(db, [order.customer_id], 'Payment confirmed', `${order.store_name} confirmed your payment. Place your order now.`, { order_id: order.id }),
+    pushToUsers(c.env, [order.customer_id], 'Payment confirmed', `${order.store_name} confirmed your payment. Place your order now.`, { order_id: order.id }),
   );
   return c.json({ order: await getOrder(db, order.id) });
 });
@@ -345,8 +346,10 @@ owner.post('/transactions/:id/confirm', async (c) => {
       .bind(id),
   ]);
   if (results[4].meta.changes === 0) fail(409, 'Only a dropped-off laundry can be confirmed');
+  // The trip room only waits to remind the owner now; wipe it.
+  c.executionCtx.waitUntil(tripFor(c.env, row.room_id).stop().catch((err) => console.error('confirm trip stop failed', err)));
   c.executionCtx.waitUntil(
-    pushToUsers(db, [row.customer_id], 'Laundry received', 'The shop confirmed your drop off. Check your summary.', { transaction_id: id }),
+    pushToUsers(c.env, [row.customer_id], 'Laundry received', 'The shop confirmed your drop off. Check your summary.', { transaction_id: id }),
   );
   return c.json({ dropoff: viewFor((await getDropoff(db, id))!, c.get('user')) });
 });

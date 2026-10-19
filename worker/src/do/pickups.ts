@@ -168,7 +168,7 @@ export class OrderRoom extends DurableObject<Bindings> {
       .first<{ owner_id: number | null }>();
     if (!row?.owner_id) return;
     await pushToUsers(
-      this.env.DB,
+      this.env,
       [row.owner_id],
       'Review Payment Now',
       'A customer is waiting for you to review their payment. Check Orders and tap Done Pay.',
@@ -189,10 +189,10 @@ export class OrderRoom extends DurableObject<Bindings> {
     if (!order) return;
     const owner = await this.env.DB.prepare('SELECT owner_id FROM stores WHERE id = ?').bind(order.store_id).first<{ owner_id: number | null }>();
     await Promise.all([
-      pushToUsers(this.env.DB, [order.customer_id], 'Payment confirmed', `${order.store_name} accepted your payment. Place your order now.`, { order_id: orderId }),
+      pushToUsers(this.env, [order.customer_id], 'Payment confirmed', `${order.store_name} accepted your payment. Place your order now.`, { order_id: orderId }),
       owner?.owner_id
         ? pushToUsers(
-            this.env.DB,
+            this.env,
             [owner.owner_id],
             'Payment accepted automatically',
             'An order was accepted after 10 reminders without Done Pay. Check the payment in Orders.',

@@ -39,7 +39,7 @@ export async function placeOrder<T = any>(opts: Omit<Options, 'method'> & { body
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const order = (res.body as any)?.order;
   if (res.status === 201 && order.status === 'awaiting_payment') {
-    await env.DB.prepare("UPDATE orders SET status = 'pending' WHERE id = ?").bind(order.id).run();
+    await env.DB.prepare("UPDATE transactions_pickup SET status = 'pending' WHERE id = ?").bind(order.id).run();
     order.status = 'pending';
   }
   return res;

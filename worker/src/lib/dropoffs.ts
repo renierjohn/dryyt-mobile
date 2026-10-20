@@ -46,7 +46,7 @@ const SELECT = `SELECT t.*,
     d.name AS driver_name, d.phone AS driver_phone,
     dd.photo_face AS driver_photo_face, dd.photo_id AS driver_photo_id, ${driverPhotoVersion('dd')} AS driver_photo_version, dd.notes AS driver_notes, dd.status AS driver_status,
     ot.weight_kg, ot.notes AS drop_notes, ot.proof_photo_key, ot.status AS owner_status
-  FROM transactions t
+  FROM transactions_dropoff t
   JOIN stores s ON s.id = t.store_id
   JOIN users cu ON cu.id = t.customer_id
   LEFT JOIN users d ON d.id = t.driver_id

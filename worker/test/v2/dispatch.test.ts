@@ -27,7 +27,7 @@ async function onlineDriver(group: string, at: { lat: number; lng: number }) {
 }
 
 const status = async (id: number) =>
-  (await env.DB.prepare('SELECT status, driver_id FROM transactions WHERE id = ?').bind(id).first()) as { status: string; driver_id: number | null };
+  (await env.DB.prepare('SELECT status, driver_id FROM transactions_dropoff WHERE id = ?').bind(id).first()) as { status: string; driver_id: number | null };
 
 describe('dispatch', () => {
   it('rejects an upgrade without a valid ticket', async () => {
@@ -141,7 +141,7 @@ describe('dispatch', () => {
     const { group, customer, id, stub } = await searching();
     const customerSock = await openSocket(customer.token, 'dispatch');
     const a = await onlineDriver(group, near);
-    await env.DB.prepare("UPDATE transactions SET status = 'driver_accepted', driver_id = ? WHERE id = ?").bind(a.driver.user.id, id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'driver_accepted', driver_id = ? WHERE id = ?").bind(a.driver.user.id, id).run();
     await env.DB.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ?').bind(a.driver.user.id).run();
     await runInDurableObject(stub, (instance: Dispatch) => {
       for (const r of instance['requests'].values()) r.deadline = 0;
@@ -161,7 +161,7 @@ describe('dispatch', () => {
     const customerSock = await openSocket(customer.token, 'dispatch');
     const a = await onlineDriver(group, near);
     // Accept won in D1, then the DO lost it before storing the hold: memory still says searching.
-    await env.DB.prepare("UPDATE transactions SET status = 'driver_accepted', driver_id = ? WHERE id = ?").bind(a.driver.user.id, id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'driver_accepted', driver_id = ? WHERE id = ?").bind(a.driver.user.id, id).run();
     await env.DB.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ?').bind(a.driver.user.id).run();
     await runInDurableObject(stub, (instance: Dispatch) => {
       for (const r of instance['requests'].values()) r.deadline = 0;
@@ -191,7 +191,7 @@ describe('dispatch', () => {
   it('expiry drops a request that was cancelled elsewhere', async () => {
     const { customer, id, stub } = await searching();
     const customerSock = await openSocket(customer.token, 'dispatch');
-    await env.DB.prepare("UPDATE transactions SET status = 'cancelled' WHERE id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'cancelled' WHERE id = ?").bind(id).run();
     await runInDurableObject(stub, (instance: Dispatch) => {
       for (const r of instance['requests'].values()) r.deadline = 0;
     });

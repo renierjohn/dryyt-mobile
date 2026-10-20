@@ -37,8 +37,8 @@ describe('drivers', () => {
     const { driver, id } = await acceptedDropoff();
     const other = await acceptedDropoff();
     // Lower id is active, higher id is already dropped off; both belong to this driver.
-    await env.DB.prepare("UPDATE transactions SET status = 'en_route_pickup' WHERE id = ?").bind(id).run();
-    await env.DB.prepare("UPDATE transactions SET status = 'dropped_off', driver_id = ? WHERE id = ?").bind(driver.user.id, other.id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'en_route_pickup' WHERE id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'dropped_off', driver_id = ? WHERE id = ?").bind(driver.user.id, other.id).run();
     const { body } = await api('/drivers/me', { token: driver.token });
     expect(body.job).toMatchObject({ id, status: 'en_route_pickup' });
   });

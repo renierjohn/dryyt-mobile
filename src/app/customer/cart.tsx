@@ -56,7 +56,7 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
   const at = locked ?? pin ?? here.loc;
   const center = at ?? shop;
   const quoted = locked !== null;
-  const fee = quote.data?.delivery_fee ?? null;
+  const fee = quote.data?.total_delivery_fee ?? null;
   // The road is drawn only once Compute Delivery Fee is pressed, for the pin being priced.
   const route = useRoadRoute(quoted ? at : null, shop);
 

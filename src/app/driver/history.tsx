@@ -6,9 +6,9 @@ import { Brand, Spacing } from '@/constants/theme';
 import { useHistory, type HistoryItem } from '@/hooks/queries';
 import { peso } from '@/lib/format';
 
-/** The driver's share: the delivery fee minus the service fee; nothing for cancelled jobs. */
+/** The driver's share (delivery_fee; the service fee is split out); nothing for cancelled jobs. */
 function earned(item: HistoryItem) {
-  if (item.kind === 'order') return item.order.status === 'cancelled' ? 0 : item.order.delivery_fee - item.order.service_fee;
+  if (item.kind === 'order') return item.order.status === 'cancelled' ? 0 : item.order.delivery_fee;
   return item.dropoff.status === 'cancelled' ? 0 : (item.dropoff.delivery_fee ?? 0);
 }
 

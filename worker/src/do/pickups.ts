@@ -124,7 +124,7 @@ export class OrderRoom extends DurableObject<Bindings> {
     // Saved on the order too (throttled), so the map has the driver's spot after a reload.
     const savedAt = (await this.ctx.storage.get<number>('locSavedAt')) ?? 0;
     if (now - savedAt >= ORDER_LOC_SAVE_MS) {
-      await this.env.DB.prepare("UPDATE orders SET driver_lat = ?, driver_lng = ?, driver_loc_at = datetime('now') WHERE id = ?")
+      await this.env.DB.prepare("UPDATE transactions_pickup SET driver_lat = ?, driver_lng = ?, driver_loc_at = datetime('now') WHERE id = ?")
         .bind(loc.lat, loc.lng, await this.ctx.storage.get<number>('orderId'))
         .run();
       await this.ctx.storage.put('locSavedAt', now);
@@ -162,7 +162,7 @@ export class OrderRoom extends DurableObject<Bindings> {
   /** Still awaiting_payment (the owner hasn't tapped Done Pay or the customer cancelled): nudge the owner. */
   private async remindOwner(orderId: number) {
     const row = await this.env.DB.prepare(
-      "SELECT s.owner_id FROM orders o JOIN stores s ON s.id = o.store_id WHERE o.id = ? AND o.status = 'awaiting_payment'",
+      "SELECT s.owner_id FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ? AND o.status = 'awaiting_payment'",
     )
       .bind(orderId)
       .first<{ owner_id: number | null }>();
@@ -180,7 +180,7 @@ export class OrderRoom extends DurableObject<Bindings> {
   /** No Done Pay in time: accept the payment as the owner would, guarded so a tap or cancel that won keeps its result. */
   private async autoConfirm(orderId: number) {
     const { meta } = await this.env.DB.prepare(
-      "UPDATE orders SET status = 'payment_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'",
+      "UPDATE transactions_pickup SET status = 'payment_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'",
     )
       .bind(orderId)
       .run();
@@ -208,7 +208,7 @@ export class OrderRoom extends DurableObject<Bindings> {
   private async status() {
     const cached = await this.ctx.storage.get<string>('status');
     if (cached) return cached;
-    const row = await this.env.DB.prepare('SELECT status FROM orders WHERE id = ?')
+    const row = await this.env.DB.prepare('SELECT status FROM transactions_pickup WHERE id = ?')
       .bind(await this.ctx.storage.get<number>('orderId'))
       .first<{ status: string }>();
     if (row) await this.ctx.storage.put('status', row.status);

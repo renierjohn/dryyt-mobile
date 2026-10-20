@@ -13,7 +13,7 @@ const ORDER_SELECT = `
     dd.photo_face IS NOT NULL AS driver_has_face, dd.photo_id IS NOT NULL AS driver_has_id,
     ${driverPhotoVersion('dd')} AS driver_photo_version,
     COALESCE(dd.notes, '') AS driver_notes, COALESCE(dd.status, 0) = 1 AS driver_verified
-  FROM orders o
+  FROM transactions_pickup o
   JOIN stores s ON s.id = o.store_id
   JOIN users cu ON cu.id = o.customer_id
   LEFT JOIN users d ON d.id = o.driver_id

@@ -7,7 +7,7 @@ import { CartProvider, useCart } from '@/hooks/use-cart';
 jest.mock('expo-router', () => ({ router: { replace: jest.fn(), push: jest.fn() } }));
 const mockCreate = jest.fn();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
-const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; delivery_fee: number; token: string } | undefined, variables: undefined as object | undefined };
+const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; total_delivery_fee: number; token: string } | undefined, variables: undefined as object | undefined };
 jest.mock('@/hooks/queries', () => ({
   useCreateOrder: () => ({ mutate: mockCreate, isPending: false, error: null }),
   useOrderQuote: () => mockQuote,
@@ -46,7 +46,7 @@ const item = { id: 1, name: 'Milk Tea', price: 10000, image_url: 'https://img.te
 
 const waitingOrder = {
   id: 42, type: 'pickup', store_id: 1, store_type: 'food', store_name: 'Tea Haven', store_address: '12 Mabini St', customer_address: 'Pinned location',
-  notes: '', items: [], items_total: 20000, delivery_fee: 7920, payment_ref: 'GC-123', payment_photo_key: null,
+  notes: '', items: [], items_total: 20000, delivery_fee: 7920, total_delivery_fee: 7920, payment_ref: 'GC-123', payment_photo_key: null,
 };
 
 function Harness({ orderId }: { orderId?: number }) {
@@ -107,7 +107,7 @@ it('fetches no road until the delivery fee is computed for the pin', async () =>
 });
 
 it('shows the computed fee and total for the current pin', async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -121,7 +121,7 @@ it('shows the computed fee and total for the current pin', async () => {
 });
 
 it("shows the store's payment QR once the fee is computed, and sends the reference number as proof", async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -145,7 +145,7 @@ it("shows the store's payment QR once the fee is computed, and sends the referen
 });
 
 it('sending the proof switches the cart to waiting for the store', async () => {
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   mockCreate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 42 }));
@@ -184,7 +184,7 @@ it('lets the customer move the pin until the fee is computed, then locks it', as
   );
   expect(mockMapProps.mock.lastCall![0].onPress).toEqual(expect.any(Function));
 
-  mockQuote.data = { road_km: 3.2, delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
   mockQuote.variables = { store_id: 1, lat: 14.5, lng: 121.1 };
   mockQuote.isSuccess = true;
   await rerender(

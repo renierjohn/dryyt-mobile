@@ -3,12 +3,14 @@ import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
 import { listDropoffs, viewFor } from '../lib/dropoffs';
+import { isVehicleCategory } from '../lib/fees';
 import { fail, parseBody } from '../lib/http';
 import { driverPhotoVersion, photoResponse, readPhoto } from '../lib/photos';
 import type { AppEnv } from '../types';
 
 const onlineSchema = z.object({ online: z.boolean() });
 const notesSchema = z.object({ notes: z.string().trim().max(200) });
+const vehicleSchema = z.object({ vehicle_type: z.number().int().refine(isVehicleCategory, 'Unknown vehicle type') });
 
 /** URL kind → driver_data column. */
 const PHOTO_COLUMNS = { face: 'photo_face', id: 'photo_id' } as const;
@@ -19,6 +21,7 @@ type DriverData = {
   notes: string;
   status: number;
   face_check: 'passed' | 'skipped' | null;
+  vehicle_type: number | null;
 };
 
 function photoColumn(kind: string) {
@@ -28,7 +31,7 @@ function photoColumn(kind: string) {
 
 const loadData = (db: D1Database, userId: number) =>
   db
-    .prepare(`SELECT photo_face, photo_id, ${driverPhotoVersion('dd')} AS photo_version, notes, status, face_check FROM driver_data dd WHERE user_id = ?`)
+    .prepare(`SELECT photo_face, photo_id, ${driverPhotoVersion('dd')} AS photo_version, notes, status, face_check, vehicle_type FROM driver_data dd WHERE user_id = ?`)
     .bind(userId)
     .first<DriverData>();
 
@@ -41,6 +44,8 @@ const verificationView = (d: DriverData | null) => ({
   /** 'skipped': the face photo was taken without the live face check and waits for a closer look. */
   face_check: d?.photo_face ? (d.face_check ?? null) : null,
   notes: d?.notes ?? '',
+  /** rates.category code (VEHICLE_CATEGORIES); null until picked. */
+  vehicle_type: d?.vehicle_type ?? null,
   verified: d?.status === 1,
 });
 
@@ -61,7 +66,7 @@ drivers.get('/me', async (c) => {
   );
   // The pickup order they're on (accepted or picked up), so the Available screen needn't poll /jobs/active.
   const pickup = await db
-    .prepare("SELECT id FROM orders WHERE driver_id = ? AND status IN ('accepted', 'picked_up')")
+    .prepare("SELECT id FROM transactions_pickup WHERE driver_id = ? AND status IN ('accepted', 'picked_up')")
     .bind(user.id)
     .first<{ id: number }>();
   return c.json({
@@ -91,7 +96,7 @@ drivers.get('/me/verification', async (c) => c.json({ verification: verification
 
 const LOCKED = 'Your details are verified and can no longer be changed';
 
-// Verified details are locked; a developer unverifies (bun run driver:verify --off) to allow changes.
+// Verified details are locked; an admin unverifies (cpanel Drivers tab, or bun run driver:verify --off) to allow changes.
 drivers.post('/me/verification', async (c) => {
   const { notes } = await parseBody(c, notesSchema);
   const userId = c.get('user').id;
@@ -100,6 +105,20 @@ drivers.post('/me/verification', async (c) => {
      ON CONFLICT (user_id) DO UPDATE SET notes = excluded.notes, updated_at = datetime('now') WHERE status = 0`,
   )
     .bind(userId, notes)
+    .run();
+  if (meta.changes === 0) fail(409, LOCKED);
+  return c.json({ verification: verificationView(await loadData(c.env.DB, userId)) });
+});
+
+/** The driver's vehicle; locked once verified, like the rest. */
+drivers.post('/me/vehicle', async (c) => {
+  const { vehicle_type } = await parseBody(c, vehicleSchema);
+  const userId = c.get('user').id;
+  const { meta } = await c.env.DB.prepare(
+    `INSERT INTO driver_data (user_id, vehicle_type) VALUES (?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET vehicle_type = excluded.vehicle_type, updated_at = datetime('now') WHERE status = 0`,
+  )
+    .bind(userId, vehicle_type)
     .run();
   if (meta.changes === 0) fail(409, LOCKED);
   return c.json({ verification: verificationView(await loadData(c.env.DB, userId)) });

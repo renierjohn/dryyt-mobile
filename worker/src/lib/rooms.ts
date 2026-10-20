@@ -11,7 +11,7 @@ export async function dispatchAccess(db: D1Database, user: AuthUser): Promise<{ 
   if (user.role === 'customer') {
     const t = await db
       .prepare(
-        `SELECT t.id, s.group_id FROM transactions t JOIN stores s ON s.id = t.store_id
+        `SELECT t.id, s.group_id FROM transactions_dropoff t JOIN stores s ON s.id = t.store_id
          WHERE t.customer_id = ? AND t.status IN ('searching', 'driver_accepted')`,
       )
       .bind(user.id)
@@ -26,7 +26,7 @@ export async function tripAccess(db: D1Database, user: AuthUser, roomId: string)
   const column = user.role === 'customer' ? 'customer_id' : user.role === 'driver' ? 'driver_id' : null;
   if (!column) return null;
   const t = await db
-    .prepare(`SELECT id FROM transactions WHERE room_id = ? AND ${column} = ? AND status IN ('en_route_pickup', 'en_route_shop')`)
+    .prepare(`SELECT id FROM transactions_dropoff WHERE room_id = ? AND ${column} = ? AND status IN ('en_route_pickup', 'en_route_shop')`)
     .bind(roomId, user.id)
     .first<{ id: number }>();
   return t ? { transactionId: t.id } : null;

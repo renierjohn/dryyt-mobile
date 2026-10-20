@@ -102,7 +102,7 @@ export function OrderSummary({
             <ThemedText type="small" style={styles.grow}>
               Delivery fee{youEarn && <ThemedText type="small" style={{ color: theme.success }}> (You Earn)</ThemedText>}
             </ThemedText>
-            <ThemedText type="small">{peso(order.delivery_fee - order.service_fee)}</ThemedText>
+            <ThemedText type="small">{peso(order.delivery_fee)}</ThemedText>
           </View>
           <View style={styles.item}>
             <ThemedText type="small" style={styles.grow}>
@@ -123,7 +123,7 @@ export function OrderSummary({
             <ThemedText type="small" style={styles.grow}>
               Delivery fee
             </ThemedText>
-            <ThemedText type="small">{peso(order.delivery_fee)}</ThemedText>
+            <ThemedText type="small">{peso(order.total_delivery_fee)}</ThemedText>
           </View>
         </>
       )}
@@ -132,7 +132,7 @@ export function OrderSummary({
         <ThemedText type="smallBold" style={styles.grow}>
           Total Amount
         </ThemedText>
-        <ThemedText type="smallBold">{peso(order.items_total + order.delivery_fee)}</ThemedText>
+        <ThemedText type="smallBold">{peso(order.items_total + order.total_delivery_fee)}</ThemedText>
       </View>
     </View>
   );

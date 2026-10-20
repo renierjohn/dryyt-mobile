@@ -1,3 +1,6 @@
 JWT_SECRET=change-me-to-a-long-random-string
 # Optional: OpenRouteService key, the road distance fallback when OSRM fails.
 ORS_API_KEY=
+# Cpanel sign-in Turnstile: the widget's secret (the widget must list localhost), and the local hostname to accept.
+TURNSTILE_SECRET=
+TURNSTILE_HOSTNAMES=localhost

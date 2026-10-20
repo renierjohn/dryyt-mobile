@@ -6,7 +6,7 @@ const mockSetPickup = jest.fn();
 const mockSocketRoom = jest.fn();
 let mockPickupOnline = false;
 let mockPickupJob: number | null = null;
-const job = { id: 3, status: 'pending', store_name: 'Burger Barn', customer_address: '1 Customer St', store_type: 'food', items: [], items_total: 20000, delivery_fee: 8000, service_fee: 800, notes: '' };
+const job = { id: 3, status: 'pending', store_name: 'Burger Barn', customer_address: '1 Customer St', store_type: 'food', items: [], items_total: 20000, delivery_fee: 7200, service_fee: 800, total_delivery_fee: 8000, notes: '' };
 
 jest.mock('@/constants/features', () => ({ PICKUP_ENABLED: true }));
 jest.mock('@/hooks/queries', () => ({

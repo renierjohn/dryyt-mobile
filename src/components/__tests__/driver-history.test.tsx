@@ -13,7 +13,7 @@ jest.mock('@/hooks/queries', () => ({
         {
           items: [
             dropoff(9, 'owner_confirmed', '2026-10-18 04:00:00', 5000),
-            { kind: 'order', order: { id: 8, status: 'delivered', updated_at: '2026-10-18 04:00:00', delivery_fee: 7920, service_fee: 720 } },
+            { kind: 'order', order: { id: 8, status: 'delivered', updated_at: '2026-10-18 04:00:00', delivery_fee: 7200, service_fee: 720, total_delivery_fee: 7920 } },
             dropoff(7, 'completed', '2026-10-18 03:00:00', 4000),
             dropoff(6, 'cancelled', '2026-10-17 04:00:00', 9999),
           ],

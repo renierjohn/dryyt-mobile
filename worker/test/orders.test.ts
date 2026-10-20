@@ -35,8 +35,10 @@ describe('POST /orders', () => {
       store_name: 'Tea Haven',
       store_type: 'food',
       items_total: 2 * 12000 + 12500,
+      road_km: null,
       delivery_fee: 5000,
       service_fee: 0,
+      total_delivery_fee: 5000,
       driver_id: null,
       notes: 'less ice',
     });
@@ -63,13 +65,15 @@ describe('POST /orders', () => {
     const pinned = { ...foodOrder, customer_address: undefined, notes: undefined, lat: 14.56, lng: 121.03 };
 
     const quote = await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
-    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, delivery_fee: 8000, token: expect.any(String) } } });
+    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, total_delivery_fee: 8000, token: expect.any(String) } } });
 
     const res = await placeOrder({ token: customer, body: pinned });
     expect(res.status).toBe(201);
     expect(res.body.order).toMatchObject({
-      delivery_fee: 8000,
+      road_km: 3.2,
+      delivery_fee: 7200,
       service_fee: 800,
+      total_delivery_fee: 8000,
       customer_address: 'Pinned location 14.56000, 121.03000',
       customer_lat: 14.56,
       customer_lng: 121.03,
@@ -86,10 +90,10 @@ describe('POST /orders', () => {
     const token = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.token as string;
     // A new rate after the quote: only an order priced again picks it up.
     await env.DB.prepare("UPDATE rates SET base_fee = 9000 WHERE group_id = 'default'").run();
-    const repriced = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.delivery_fee as number;
+    const repriced = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.total_delivery_fee as number;
     expect(repriced).not.toBe(8000);
 
-    const fee = async (body: Record<string, unknown>) => (await placeOrder({ token: customer, body })).body.order.delivery_fee;
+    const fee = async (body: Record<string, unknown>) => (await placeOrder({ token: customer, body })).body.order.total_delivery_fee;
     expect(await fee({ ...pinned, quote_token: token })).toBe(8000);
     expect(await fee({ ...pinned, quote_token: token, lat: 14.561 })).not.toBe(8000); // another pin
     expect(await fee({ ...pinned, quote_token: token, store_id: 2, items: [{ menu_item_id: 5, qty: 1 }] })).toBe(repriced); // another store
@@ -105,7 +109,7 @@ describe('POST /orders', () => {
     vi.useFakeTimers({ now: Date.now() + 16 * 60_000, toFake: ['Date'] });
     try {
       const res = await placeOrder({ token: customer, body: { ...foodOrder, customer_address: undefined, ...pin, quote_token: token } });
-      expect(res.body.order.delivery_fee).not.toBe(8000);
+      expect(res.body.order.total_delivery_fee).not.toBe(8000);
     } finally {
       vi.useRealTimers();
     }

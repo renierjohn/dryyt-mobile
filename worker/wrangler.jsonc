@@ -1,6 +1,14 @@
 {
 	"name": "dryyt-worker",
 	"main": "src/index.ts",
+	// Landing page (web/, built with `bun run web:build`). Only exact file paths are served from here; everything else goes to the API.
+	"assets": { "directory": "./web/dist", "not_found_handling": "none" },
+	// Landing page, legal pages and cpanel on the main domain; the API stays on *.workers.dev too.
+	"routes": [
+		{ "pattern": "dryyt.com", "custom_domain": true },
+		{ "pattern": "www.dryyt.com", "custom_domain": true }
+	],
+	"workers_dev": true,
 	"compatibility_date": "2025-09-01",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -17,7 +25,9 @@
 		// Identifies the app (not the user) to the routing server; public OSRM drops requests without one.
 		"OSRM_USER_AGENT": "dryyt-worker/1.0 (+https://dryyt.com)",
 		// Fallback when OSRM fails; needs the ORS_API_KEY secret (.dev.vars locally, `wrangler secret put` deployed).
-		"ORS_URL": "https://api.openrouteservice.org"
+		"ORS_URL": "https://api.openrouteservice.org",
+		// Frontend hostnames the cpanel Turnstile check accepts; TURNSTILE_SECRET is a secret (`wrangler secret put`).
+		"TURNSTILE_HOSTNAMES": "dryyt.com,www.dryyt.com"
 	},
 	"durable_objects": {
 		"bindings": [

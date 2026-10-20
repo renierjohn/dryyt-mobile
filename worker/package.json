@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --ip 0.0.0.0 --port 9999",
-    "deploy": "wrangler deploy",
+    "web:dev": "bun run --cwd web dev",
+    "web:build": "bun run --cwd web build",
+    "deploy": "bun run web:build && wrangler deploy",
     "test": "vitest run && vitest run -c vitest.v2.config.ts",
     "test:v2": "vitest run -c vitest.v2.config.ts",
     "typecheck": "tsc --noEmit",
@@ -13,6 +15,7 @@
     "shop:set": "node scripts/set-shop.js",
     "user:set": "node scripts/set-user.js",
     "driver:verify": "node scripts/verify-driver.js",
+    "admin:set": "node scripts/set-admin.js",
     "mock:customer": "node scripts/mock-customer.js",
     "mock:driver": "node scripts/mock-driver.js",
     "mock:standby": "node scripts/mock-driver-standby.js",

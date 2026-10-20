@@ -10,7 +10,7 @@ jest.mock('@/hooks/queries', () => ({
   useOrder: () => ({
     data: {
       id: 12, status: mockStatus, store_type: 'food', store_name: 'Burger Barn', store_address: '1 St', customer_address: 'Here',
-      items: [], items_total: 20000, delivery_fee: 8000, service_fee: 800, notes: '', driver_name: null,
+      items: [], items_total: 20000, delivery_fee: 7200, service_fee: 800, total_delivery_fee: 8000, notes: '', driver_name: null,
     },
     isPending: false,
     isError: false,

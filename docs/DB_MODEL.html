@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt DB Model</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+    --r: #2f5f9e; --r-soft: #e4ecf7; --w: #a3461f; --w-soft: #f8e7df; --rw: #7a3f98; --rw-soft: #f0e6f5;
+    --cust: #2f5f9e; --drv: #2f6f62; --own: #a3461f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+      --r: #8db4ea; --r-soft: #1c2738; --w: #e89a78; --w-soft: #33221a; --rw: #c9a0e0; --rw-soft: #2a2032;
+      --cust: #8db4ea; --drv: #7cc4b3; --own: #e89a78;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); max-width: 1440px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc ol ol { margin: 2px 0 8px 10px; border-left: 1px solid var(--line); }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc ol ol a { font: 12px ui-monospace, Menlo, monospace; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h2, .group { scroll-margin-top: 16px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 40px 0 6px; }
+  h3 { font-size: 1rem; margin: 0; font-family: ui-monospace, Menlo, monospace; }
+  .lede, .muted { color: var(--muted); }
+  .group { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 26px 0 10px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; scroll-margin-top: 16px; }
+  .card p { margin: 6px 0 10px; color: var(--muted); font-size: 0.9rem; }
+  .cols { list-style: none; margin: 0; padding: 0; font-size: 0.84rem; }
+  .cols li { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); }
+  .cols code { font: 12px ui-monospace, Menlo, monospace; overflow-wrap: anywhere; }
+  .cols span { color: var(--muted); overflow-wrap: anywhere; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 16px; font-size: 0.88rem; }
+  .b { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .b.r { background: var(--r-soft); color: var(--r); }
+  .b.w { background: var(--w-soft); color: var(--w); }
+  .b.rw { background: var(--rw-soft); color: var(--rw); }
+  .matrix { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
+  .matrix .head { padding: 12px 14px; font-weight: 800; border-bottom: 2px solid var(--line); position: sticky; top: 0; background: var(--card); z-index: 1; }
+  .matrix .head small { display: block; font-weight: 500; color: var(--muted); }
+  .head.cust { color: var(--cust); } .head.drv { color: var(--drv); } .head.own { color: var(--own); }
+  .matrix .tname { grid-column: 1 / -1; padding: 8px 14px; background: var(--code); font: 600 13px ui-monospace, Menlo, monospace; border-top: 1px solid var(--line); }
+  .matrix .tname a { color: inherit; text-decoration: none; }
+  .matrix .cell { padding: 10px 14px; font-size: 0.86rem; border-left: 1px solid var(--line); }
+  .matrix .cell.first { border-left: 0; }
+  .matrix .cell div + div { margin-top: 6px; }
+  .matrix .none { color: var(--muted); }
+  .scale { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0 0; font-size: 0.85rem; }
+  .scale b { font-size: 1.05rem; color: var(--accent); }
+  .scale span { color: var(--muted); font-size: 0.78rem; flex-basis: 100%; }
+  .assume { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 16px; }
+  .assume div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .assume span { display: block; color: var(--muted); font-size: 0.78rem; }
+  .scale-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+  .scale-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .scale-table th, .scale-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  .scale-table th { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .scale-table tfoot td { border-bottom: 0; }
+  .scale-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .scale-table a { color: var(--fg); text-decoration: none; }
+  .scale-table .bar-h { min-width: 140px; }
+  .bar { height: 8px; border-radius: 999px; background: var(--code); overflow: hidden; min-width: 120px; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+  .grow { font-size: 0.7rem; font-weight: 700; color: var(--w); background: var(--w-soft); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+  .note { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); font-size: 0.9rem; }
+  @media (max-width: 1100px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 20px 16px; }
+    aside.toc > ol { columns: 2; }
+    main { padding: 24px 16px 48px; }
+  }
+  @media (max-width: 640px) {
+    .cards { grid-template-columns: 1fr; }
+    .matrix { grid-template-columns: 1fr; }
+    .matrix .head { display: none; }
+    .matrix .cell { border-left: 0; border-top: 1px dashed var(--line); }
+    .matrix .cell::before { content: attr(data-role); display: block; font-weight: 800; font-size: 0.78rem; margin-bottom: 4px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+<div class="title">Contents</div>
+<ol>
+<li><a class="sec" href="#tables">Tables</a><ol>
+<li><a href="#g-accounts">Accounts</a><ol>
+<li><a href="#t-users">users</a></li>
+<li><a href="#t-drivers">drivers</a></li>
+<li><a href="#t-driver_data">driver_data</a></li>
+</ol></li>
+<li><a href="#g-stores">Stores</a><ol>
+<li><a href="#t-stores">stores</a></li>
+<li><a href="#t-store_menu_items">store_menu_items</a></li>
+<li><a href="#t-driver_blocks">driver_blocks</a></li>
+</ol></li>
+<li><a href="#g-pricing">Pricing</a><ol>
+<li><a href="#t-rates">rates</a></li>
+</ol></li>
+<li><a href="#g-pickup">Pickup</a><ol>
+<li><a href="#t-transactions_pickup">transactions_pickup</a></li>
+<li><a href="#t-order_items">order_items</a></li>
+</ol></li>
+<li><a href="#g-drop-off">Drop off</a><ol>
+<li><a href="#t-transactions_dropoff">transactions_dropoff</a></li>
+<li><a href="#t-owner_transactions">owner_transactions</a></li>
+</ol></li>
+<li><a href="#g-money">Money</a><ol>
+<li><a href="#t-payouts">payouts</a></li>
+<li><a href="#t-app_fee">app_fee</a></li>
+</ol></li>
+<li><a href="#g-system">System</a><ol>
+<li><a href="#t-ws_tickets">ws_tickets</a></li>
+<li><a href="#t-push_tickets">push_tickets</a></li>
+</ol></li>
+</ol></li>
+<li><a class="sec" href="#scale">Expected rows</a></li>
+<li><a class="sec" href="#roles">Role references</a></li>
+<li><a class="sec" href="#admin">Admin (cpanel)</a></li>
+</ol>
+</aside>
+<main>
+<h1>Dryyt DB Model</h1>
+<p class="lede">The worker's D1 database after migration 0028: 15 tables, what each holds, and which tables each app role reads and writes. Amounts are centavos; times are UTC unless noted.</p>
+
+<h2 id="tables">Tables</h2>
+<div class="group" id="g-accounts">Accounts</div>
+<div class="cards">
+<article class="card" id="t-users"><h3>users</h3><div class="scale" title="customers + drivers + owners"><b>~106k</b> rows<span>customers + drivers + owners</span></div><p>Every account: customers, drivers and shop owners. Admin access is a flag, not a role.</p><ul class="cols"><li><code>id</code><span>INTEGER PK</span></li><li><code>email</code><span>TEXT unique</span></li><li><code>password_hash</code><span>TEXT</span></li><li><code>name / phone</code><span>TEXT</span></li><li><code>role</code><span>customer · driver · owner</span></li><li><code>push_token</code><span>TEXT, Expo push</span></li><li><code>maxstore</code><span>INTEGER, stores an owner may run (default 1)</span></li><li><code>is_admin</code><span>0/1, cpanel access</span></li><li><code>blocked</code><span>0/1, 1 = can&#x27;t sign in</span></li><li><code>created_at</code><span>TEXT UTC</span></li></ul></article>
+<article class="card" id="t-drivers"><h3>drivers</h3><div class="scale" title="one per driver"><b>~5,000</b> rows<span>one per driver</span></div><p>A driver&#x27;s live state: online for drop offs / pickups, busy, last location.</p><ul class="cols"><li><code>user_id</code><span>PK → users</span></li><li><code>online / pickup_online</code><span>0/1</span></li><li><code>busy</code><span>0/1, on a job</span></li><li><code>group_id</code><span>area they serve</span></li><li><code>lat / lng</code><span>last fix</span></li><li><code>updated_at</code><span>TEXT UTC</span></li></ul></article>
+<article class="card" id="t-driver_data"><h3>driver_data</h3><div class="scale" title="one per driver"><b>~5,000</b> rows<span>one per driver</span></div><p>Driver verification and earnings. Photo keys point into the PROOFS R2 bucket.</p><ul class="cols"><li><code>user_id</code><span>unique → users (drivers only, by trigger)</span></li><li><code>photo_face / photo_id</code><span>R2 keys</span></li><li><code>face_check</code><span>passed · skipped</span></li><li><code>notes</code><span>license plate</span></li><li><code>vehicle_type</code><span>1 bicycle · 2 motorcycle · 3 tricycle · 4 car</span></li><li><code>status</code><span>0/1 verified (locks details)</span></li><li><code>earnings</code><span>centavos, running total</span></li></ul></article>
+</div>
+<div class="group" id="g-stores">Stores</div>
+<div class="cards">
+<article class="card" id="t-stores"><h3>stores</h3><div class="scale" title="1,000 owners × 2"><b>~2,000</b> rows<span>1,000 owners × 2</span></div><p>Food and laundry shops, with map pin, branding, area and the app&#x27;s fee for the store.</p><ul class="cols"><li><code>id</code><span>INTEGER PK</span></li><li><code>name / address</code><span>TEXT</span></li><li><code>type</code><span>food · laundry</span></li><li><code>owner_id</code><span>→ users</span></li><li><code>group_id</code><span>area → rates.group_id</span></li><li><code>lat / lng</code><span>map pin</span></li><li><code>store_logo</code><span>URL</span></li><li><code>store_payment_gateway</code><span>JSON, up to 3 payment QR codes</span></li><li><code>fee_type</code><span>1 flat · 2 percentage</span></li><li><code>fee_flat</code><span>centavos</span></li><li><code>fee_percentage</code><span>% of sales</span></li></ul></article>
+<article class="card" id="t-store_menu_items"><h3>store_menu_items</h3><div class="scale" title="1,200 food stores × 40 items"><b>~48k</b> rows<span>1,200 food stores × 40 items</span></div><p>A store&#x27;s menu (food) with pricing, ordering and popularity.</p><ul class="cols"><li><code>store_id</code><span>→ stores</span></li><li><code>name / category</code><span>TEXT</span></li><li><code>price</code><span>centavos</span></li><li><code>discount_percent</code><span>0–100</span></li><li><code>image_url</code><span>URL</span></li><li><code>best_seller</code><span>0/1</span></li><li><code>sort_order</code><span>INTEGER</span></li><li><code>popularity</code><span>qty delivered</span></li></ul></article>
+<article class="card" id="t-driver_blocks"><h3>driver_blocks</h3><div class="scale" title="≈ 2 per store"><b>~4,000</b> rows<span>≈ 2 per store</span></div><p>Drivers a shop won&#x27;t take drop offs from.</p><ul class="cols"><li><code>store_id</code><span>→ stores</span></li><li><code>driver_id</code><span>→ users</span></li><li><code>created_at</code><span>TEXT UTC</span></li></ul></article>
+</div>
+<div class="group" id="g-pricing">Pricing</div>
+<div class="cards">
+<article class="card" id="t-rates"><h3>rates</h3><div class="scale" title="20 areas × 2 services × 4 vehicles"><b>~160</b> rows<span>20 areas × 2 services × 4 vehicles</span></div><p>Delivery pricing per area, service and vehicle. Bookings price with the motorcycle rate.</p><ul class="cols"><li><code>group_id</code><span>area</span></li><li><code>type</code><span>pickup · dropoff</span></li><li><code>category</code><span>vehicle code, default 2</span></li><li><code>base_fee / rate_per_km</code><span>centavos</span></li><li><code>commission_pct</code><span>service fee %</span></li><li><code>unique</code><span>(group_id, type, category)</span></li></ul></article>
+</div>
+<div class="group" id="g-pickup">Pickup</div>
+<div class="cards">
+<article class="card" id="t-transactions_pickup"><h3>transactions_pickup</h3><div class="scale" title="10,000 a day × 365"><b>~3.6M</b> rows / year<span>10,000 a day × 365</span></div><p>Pickup orders (food or laundry): customer → store → driver delivers.</p><ul class="cols"><li><code>id</code><span>INTEGER PK (was orders)</span></li><li><code>type</code><span>pickup</span></li><li><code>customer_id / driver_id / store_id</code><span>→ users / stores</span></li><li><code>status</code><span>awaiting_payment → payment_confirmed → pending → accepted → picked_up → delivered · cancelled</span></li><li><code>items_total</code><span>centavos</span></li><li><code>road_km</code><span>REAL, null for typed address</span></li><li><code>delivery_fee</code><span>driver&#x27;s share</span></li><li><code>service_fee</code><span>app&#x27;s cut</span></li><li><code>total_delivery_fee</code><span>customer pays</span></li><li><code>payment_ref / payment_photo_key</code><span>proof of payment</span></li><li><code>customer_lat/lng · driver_lat/lng</code><span>map pins</span></li><li><code>driver_paid_at</code><span>owner paid driver</span></li></ul></article>
+<article class="card" id="t-order_items"><h3>order_items</h3><div class="scale" title="≈ 2.5 lines per order"><b>~9.1M</b> rows / year<span>≈ 2.5 lines per order</span></div><p>Lines of a pickup order, with name and price copied at order time.</p><ul class="cols"><li><code>order_id</code><span>→ transactions_pickup</span></li><li><code>menu_item_id</code><span>→ store_menu_items (null once deleted)</span></li><li><code>name / price / qty</code><span>as ordered</span></li></ul></article>
+</div>
+<div class="group" id="g-drop-off">Drop off</div>
+<div class="cards">
+<article class="card" id="t-transactions_dropoff"><h3>transactions_dropoff</h3><div class="scale" title="3,000 a day × 365"><b>~1.1M</b> rows / year<span>3,000 a day × 365</span></div><p>Real-time laundry drop offs: customer → driver → shop.</p><ul class="cols"><li><code>id</code><span>INTEGER PK (was transactions)</span></li><li><code>room_id</code><span>live room</span></li><li><code>customer_id / driver_id / store_id</code><span>→ users / stores</span></li><li><code>status</code><span>searching → driver_accepted → en_route_pickup → en_route_shop → dropped_off → owner_confirmed → completed · payment_pending · cancelled · expired</span></li><li><code>customer_lat/lng/address · shop_lat/lng</code><span>trip</span></li><li><code>road_km</code><span>REAL</span></li><li><code>delivery_fee / service_fee / total_delivery_fee</code><span>centavos</span></li><li><code>laundry_fee</code><span>from the shop</span></li></ul></article>
+<article class="card" id="t-owner_transactions"><h3>owner_transactions</h3><div class="scale" title="≈ 90% of drop offs reach the shop"><b>~985k</b> rows / year<span>≈ 90% of drop offs reach the shop</span></div><p>What the driver hands over at the shop, for the owner to confirm.</p><ul class="cols"><li><code>transaction_id</code><span>unique → transactions_dropoff</span></li><li><code>store_id</code><span>→ stores</span></li><li><code>weight_kg</code><span>REAL</span></li><li><code>laundry_fee</code><span>centavos</span></li><li><code>proof_photo_key</code><span>R2 key</span></li><li><code>notes</code><span>TEXT</span></li><li><code>status</code><span>pending · ok</span></li></ul></article>
+</div>
+<div class="group" id="g-money">Money</div>
+<div class="cards">
+<article class="card" id="t-payouts"><h3>payouts</h3><div class="scale" title="2 per confirmed drop off (driver + app)"><b>~2M</b> rows / year<span>2 per confirmed drop off (driver + app)</span></div><p>What a shop owes per confirmed drop off: the driver&#x27;s share and the app&#x27;s service fee.</p><ul class="cols"><li><code>transaction_id</code><span>→ transactions_dropoff</span></li><li><code>payer_store_id</code><span>→ stores</span></li><li><code>payee_type</code><span>driver · developer</span></li><li><code>payee_id</code><span>→ users</span></li><li><code>amount</code><span>centavos</span></li><li><code>status</code><span>pending · paid</span></li><li><code>paid_at</code><span>TEXT</span></li></ul></article>
+<article class="card" id="t-app_fee"><h3>app_fee</h3><div class="scale" title="1,000 owners × 12 months × 1.5"><b>~18k</b> rows / year<span>1,000 owners × 12 months × 1.5</span></div><p>Subscription payments owners make to the app, recorded from the cpanel.</p><ul class="cols"><li><code>user_id</code><span>→ users (owner)</span></li><li><code>amount</code><span>centavos</span></li><li><code>type</code><span>pickup · dropoff</span></li><li><code>payment_type</code><span>cash, gcash, …</span></li><li><code>date_paid / next_due_date</code><span>YYYY-MM-DD</span></li></ul></article>
+</div>
+<div class="group" id="g-system">System</div>
+<div class="cards">
+<article class="card" id="t-ws_tickets"><h3>ws_tickets</h3><div class="scale" title="live only: deleted when used or expired"><b>~500</b> rows<span>live only: deleted when used or expired</span></div><p>Short-lived tickets that open a live WebSocket room.</p><ul class="cols"><li><code>token</code><span>PK</span></li><li><code>user_id</code><span>→ users</span></li><li><code>role / room</code><span>TEXT</span></li><li><code>expires_at</code><span>epoch</span></li></ul></article>
+<article class="card" id="t-push_tickets"><h3>push_tickets</h3><div class="scale" title="deleted after the receipt check (every 15 min), at most 1 day"><b>~20k</b> rows<span>deleted after the receipt check (every 15 min), at most 1 day</span></div><p>Expo push tickets waiting for their receipts.</p><ul class="cols"><li><code>id</code><span>PK</span></li><li><code>token</code><span>push token</span></li><li><code>created_at</code><span>TEXT UTC</span></li></ul></article>
+</div>
+<h2 id="scale">Expected rows at large scale</h2>
+<p class="muted">A rough plan for one year of a busy region. Sizes count data plus indexes per row, so treat them as order-of-magnitude. D1 caps one database at 10 GB.</p>
+<div class="assume"><div><span>Customers</span><b>100,000</b></div><div><span>Drivers</span><b>5,000</b></div><div><span>Shop owners</span><b>1,000 (2 stores each)</b></div><div><span>Areas</span><b>20</b></div><div><span>Pickup orders</span><b>10,000 a day</b></div><div><span>Drop offs</span><b>3,000 a day</b></div><div><span>Horizon</span><b>1 year</b></div></div>
+<div class="scale-wrap"><table class="scale-table"><thead><tr><th>Table</th><th class="num">Rows</th><th>How</th><th class="num">≈ Size</th><th class="bar-h">Share of 10 GB</th></tr></thead><tbody>
+<tr><td><a href="#t-transactions_pickup"><code>transactions_pickup</code></a> <span class="grow">grows</span></td><td class="num">3.6M</td><td class="muted">10,000 a day × 365</td><td class="num">1.36 GB</td><td><div class="bar"><i style="width:13.60%"></i></div></td></tr>
+<tr><td><a href="#t-order_items"><code>order_items</code></a> <span class="grow">grows</span></td><td class="num">9.1M</td><td class="muted">≈ 2.5 lines per order</td><td class="num">783 MB</td><td><div class="bar"><i style="width:7.65%"></i></div></td></tr>
+<tr><td><a href="#t-transactions_dropoff"><code>transactions_dropoff</code></a> <span class="grow">grows</span></td><td class="num">1.1M</td><td class="muted">3,000 a day × 365</td><td class="num">418 MB</td><td><div class="bar"><i style="width:4.08%"></i></div></td></tr>
+<tr><td><a href="#t-payouts"><code>payouts</code></a> <span class="grow">grows</span></td><td class="num">2M</td><td class="muted">2 per confirmed drop off (driver + app)</td><td class="num">225 MB</td><td><div class="bar"><i style="width:2.20%"></i></div></td></tr>
+<tr><td><a href="#t-owner_transactions"><code>owner_transactions</code></a> <span class="grow">grows</span></td><td class="num">985k</td><td class="muted">≈ 90% of drop offs reach the shop</td><td class="num">188 MB</td><td><div class="bar"><i style="width:1.83%"></i></div></td></tr>
+<tr><td><a href="#t-users"><code>users</code></a></td><td class="num">106k</td><td class="muted">customers + drivers + owners</td><td class="num">25 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-store_menu_items"><code>store_menu_items</code></a></td><td class="num">48k</td><td class="muted">1,200 food stores × 40 items</td><td class="num">9 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-push_tickets"><code>push_tickets</code></a></td><td class="num">20k</td><td class="muted">deleted after the receipt check (every 15 min), at most 1 day</td><td class="num">2 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-app_fee"><code>app_fee</code></a> <span class="grow">grows</span></td><td class="num">18k</td><td class="muted">1,000 owners × 12 months × 1.5</td><td class="num">2 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-driver_data"><code>driver_data</code></a></td><td class="num">5,000</td><td class="muted">one per driver</td><td class="num">1 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-stores"><code>stores</code></a></td><td class="num">2,000</td><td class="muted">1,000 owners × 2</td><td class="num">1 MB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-drivers"><code>drivers</code></a></td><td class="num">5,000</td><td class="muted">one per driver</td><td class="num">391 KB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-driver_blocks"><code>driver_blocks</code></a></td><td class="num">4,000</td><td class="muted">≈ 2 per store</td><td class="num">156 KB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-ws_tickets"><code>ws_tickets</code></a></td><td class="num">500</td><td class="muted">live only: deleted when used or expired</td><td class="num">73 KB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+<tr><td><a href="#t-rates"><code>rates</code></a></td><td class="num">160</td><td class="muted">20 areas × 2 services × 4 vehicles</td><td class="num">9 KB</td><td><div class="bar"><i style="width:0.30%"></i></div></td></tr>
+</tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>17M</b></td><td></td><td class="num"><b>2.98 GB</b></td><td><div class="bar"><i style="width:29.8%"></i></div></td></tr></tfoot></table></div>
+<p class="note">At this pace the database grows by about <b>2.98 GB a year</b>, almost all from pickup orders, their lines and drop offs. That reaches D1's 10 GB cap in roughly <b>3 years</b>. Before then, archive finished transactions older than a year (e.g. to R2 or Basin) or split them into a second database.</p>
+<h2 id="roles">Role references</h2>
+<p class="muted">What each app role's API calls touch, table by table, to compare side by side. Rows follow the table order above.</p>
+<div class="legend"><span class="b r">read</span><span class="b w">write</span><span class="b rw">read · write</span><span class="muted">— no access</span></div>
+<div class="matrix">
+<div class="head cust">Customer<small>orders, drop offs, history</small></div>
+<div class="head drv">Driver<small>jobs, drop offs, verification</small></div>
+<div class="head own">Owner<small>shops, menu, confirmations, payouts</small></div>
+<div class="tname"><a href="#t-users">users</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b rw">read · write</span> own account: register, sign in, push token</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> own account</div><div><span class="b r">read</span> customer name and phone on their job</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> own account</div><div><span class="b r">read</span> maxstore; customer and driver names on orders</div></div>
+<div class="tname"><a href="#t-drivers">drivers</a></div>
+<div class="cell first" data-role="Customer"><div class="none">—</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> online, pickup online, busy, live location</div></div>
+<div class="cell" data-role="Owner"><div class="none">—</div></div>
+<div class="tname"><a href="#t-driver_data">driver_data</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b r">read</span> assigned driver&#x27;s photos, plate, verified badge</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> own photos, plate, vehicle type (locked once verified)</div></div>
+<div class="cell" data-role="Owner"><div><span class="b w">write</span> driver earnings, added on confirm</div></div>
+<div class="tname"><a href="#t-stores">stores</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b r">read</span> browse shops, pins, payment QR</div></div>
+<div class="cell" data-role="Driver"><div><span class="b r">read</span> shop name and pin on the job</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> own shops, within maxstore</div></div>
+<div class="tname"><a href="#t-store_menu_items">store_menu_items</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b r">read</span> menu, popular items</div></div>
+<div class="cell" data-role="Driver"><div><span class="b w">write</span> popularity, on delivered</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> own menu, order and discounts</div></div>
+<div class="tname"><a href="#t-driver_blocks">driver_blocks</a></div>
+<div class="cell first" data-role="Customer"><div class="none">—</div></div>
+<div class="cell" data-role="Driver"><div><span class="b r">read</span> shops that blocked them get no requests</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> block / unblock drivers</div></div>
+<div class="tname"><a href="#t-rates">rates</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b r">read</span> delivery quote, drop off price</div></div>
+<div class="cell" data-role="Driver"><div class="none">—</div></div>
+<div class="cell" data-role="Owner"><div class="none">—</div></div>
+<div class="tname"><a href="#t-transactions_pickup">transactions_pickup</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b rw">read · write</span> place, pay proof, place to drivers, cancel, own list</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> job board, accept, status, live location</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> Done Pay, mark driver paid, own stores&#x27; orders</div></div>
+<div class="tname"><a href="#t-order_items">order_items</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b rw">read · write</span> lines written with the order</div></div>
+<div class="cell" data-role="Driver"><div><span class="b r">read</span> lines on the job</div></div>
+<div class="cell" data-role="Owner"><div><span class="b r">read</span> lines on the order</div></div>
+<div class="tname"><a href="#t-transactions_dropoff">transactions_dropoff</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b rw">read · write</span> book, cancel, track own</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> requests, accept, en route, drop with laundry fee</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> confirm, set back to payment pending</div></div>
+<div class="tname"><a href="#t-owner_transactions">owner_transactions</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b r">read</span> weight and laundry fee on own drop off</div></div>
+<div class="cell" data-role="Driver"><div><span class="b w">write</span> weight, fee, proof photo at the shop</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> review and confirm</div></div>
+<div class="tname"><a href="#t-payouts">payouts</a></div>
+<div class="cell first" data-role="Customer"><div class="none">—</div></div>
+<div class="cell" data-role="Driver"><div class="none">—</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> created on confirm, mark paid</div></div>
+<div class="tname"><a href="#t-app_fee">app_fee</a></div>
+<div class="cell first" data-role="Customer"><div class="none">—</div></div>
+<div class="cell" data-role="Driver"><div class="none">—</div></div>
+<div class="cell" data-role="Owner"><div class="none">—</div></div>
+<div class="tname"><a href="#t-ws_tickets">ws_tickets</a></div>
+<div class="cell first" data-role="Customer"><div><span class="b rw">read · write</span> live room tickets</div></div>
+<div class="cell" data-role="Driver"><div><span class="b rw">read · write</span> live room tickets</div></div>
+<div class="cell" data-role="Owner"><div><span class="b rw">read · write</span> live room tickets</div></div>
+<div class="tname"><a href="#t-push_tickets">push_tickets</a></div>
+<div class="cell first" data-role="Customer"><div class="none">—</div></div>
+<div class="cell" data-role="Driver"><div class="none">—</div></div>
+<div class="cell" data-role="Owner"><div class="none">—</div></div>
+</div>
+<p class="note" id="admin"><b>Admin (cpanel).</b> Cpanel admins (users.is_admin = 1) read every table and write users (blocked, maxstore), driver_data (status, photos), stores (owner, area, pin, fee), rates and app_fee. push_tickets is written by the worker only.</p>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

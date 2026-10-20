@@ -35,7 +35,7 @@ async function main() {
     const { orders } = await must('/owner/orders?limit=50');
     for (const o of orders.filter((x) => x.status === 'awaiting_payment')) {
       const proof = [o.payment_ref && `ref ${o.payment_ref}`, o.payment_photo_key && 'photo'].filter(Boolean).join(' + ');
-      console.log(`[${time()}] #${o.id} at ${o.store_name} from ${o.customer_name}: ${peso(o.items_total + o.delivery_fee)}, proof: ${proof}`);
+      console.log(`[${time()}] #${o.id} at ${o.store_name} from ${o.customer_name}: ${peso(o.items_total + o.total_delivery_fee)}, proof: ${proof}`);
       await must(`/owner/orders/${o.id}/confirm-payment`, {});
       console.log(`[${time()}] Done Pay #${o.id}`);
     }

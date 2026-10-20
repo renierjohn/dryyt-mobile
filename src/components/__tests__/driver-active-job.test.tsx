@@ -7,7 +7,7 @@ const mockAdvance = jest.fn();
 const job = {
   id: 5, status: 'picked_up', store_name: 'Burger Barn', customer_address: 'Pinned location 14.56000, 121.03000', store_type: 'food', customer_name: 'Ana', customer_phone: '0917',
   customer_lat: 14.56, customer_lng: 121.03, store_lat: null, store_lng: null, driver_lat: null, driver_lng: null,
-  items: [], items_total: 20000, delivery_fee: 8000, service_fee: 800, notes: '',
+  items: [], items_total: 20000, delivery_fee: 7200, service_fee: 800, total_delivery_fee: 8000, notes: '',
 };
 let mockFix: { lat: number; lng: number } | null = null;
 

@@ -32,3 +32,10 @@ export const requireRole = (role: Role) =>
     if (c.get('user').role !== role) fail(403, `Only ${role}s can do this`);
     await next();
   });
+
+/** Cpanel access: checked in the database on every request so revoking it (admin:set --off) takes effect at once. */
+export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
+  const row = await c.env.DB.prepare('SELECT is_admin FROM users WHERE id = ?').bind(c.get('user').id).first<{ is_admin: number }>();
+  if (row?.is_admin !== 1) fail(403, 'Invalid email or password');
+  await next();
+});

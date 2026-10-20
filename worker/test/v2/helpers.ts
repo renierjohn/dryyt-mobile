@@ -9,7 +9,11 @@ export const HOME = { lat: 14.5600, lng: 121.0300 };
 /** A laundry shop in its own group (own Dispatch object, own rates) so tests never see each other's drivers. */
 export async function makeShop({ ownerId }: { ownerId?: number } = {}) {
   const group = `g-${crypto.randomUUID().slice(0, 8)}`;
-  await env.DB.prepare('INSERT INTO rates (group_id, base_fee, rate_per_km, commission_pct) VALUES (?, 4000, 1000, 10)').bind(group).run();
+  await env.DB.prepare(
+    "INSERT INTO rates (group_id, type, base_fee, rate_per_km, commission_pct) VALUES (?1, 'dropoff', 4000, 1000, 10), (?1, 'pickup', 4000, 1000, 10)",
+  )
+    .bind(group)
+    .run();
   const store = await env.DB.prepare(
     "INSERT INTO stores (name, type, address, group_id, lat, lng, owner_id) VALUES ('Test Laundry', 'laundry', '1 Shop St, Makati', ?, 14.5547, 121.0244, ?) RETURNING id",
   )

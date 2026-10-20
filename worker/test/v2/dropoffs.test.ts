@@ -16,7 +16,7 @@ describe('drop offs', () => {
     expect(res.body.dropoff).not.toHaveProperty('service_fee');
     expect(res.body.dropoff).not.toHaveProperty('proof_photo_key');
 
-    const row = await env.DB.prepare('SELECT delivery_fee, service_fee FROM transactions WHERE id = ?').bind(res.body.dropoff.id).first();
+    const row = await env.DB.prepare('SELECT delivery_fee, service_fee FROM transactions_dropoff WHERE id = ?').bind(res.body.dropoff.id).first();
     expect(row).toEqual({ delivery_fee: 7200, service_fee: 800 });
   });
 
@@ -25,7 +25,7 @@ describe('drop offs', () => {
     const customer = await registerUser('customer');
     const res = await createDropoff(customer.token, { store_id: storeId, address: undefined });
     expect(res.status).toBe(201);
-    const row = await env.DB.prepare('SELECT customer_address FROM transactions WHERE id = ?').bind(res.body.dropoff.id).first();
+    const row = await env.DB.prepare('SELECT customer_address FROM transactions_dropoff WHERE id = ?').bind(res.body.dropoff.id).first();
     expect(row).toEqual({ customer_address: 'Pinned location 14.56000, 121.03000' });
   });
 

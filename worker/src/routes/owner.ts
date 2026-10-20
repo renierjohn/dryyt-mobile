@@ -158,7 +158,7 @@ owner.delete('/stores/:id', async (c) => {
   if (!store) fail(404, 'Shop not found');
   const used = await db
     .prepare(
-      `SELECT EXISTS (SELECT 1 FROM transactions WHERE store_id = ?1) OR EXISTS (SELECT 1 FROM orders WHERE store_id = ?1)
+      `SELECT EXISTS (SELECT 1 FROM transactions_dropoff WHERE store_id = ?1) OR EXISTS (SELECT 1 FROM transactions_pickup WHERE store_id = ?1)
          OR EXISTS (SELECT 1 FROM payouts WHERE payer_store_id = ?1) AS used`,
     )
     .bind(id)
@@ -305,7 +305,7 @@ owner.post('/orders/:id/confirm-payment', async (c) => {
   const order = await myOrder(c);
   const db = c.env.DB;
   const { meta } = await db
-    .prepare("UPDATE orders SET status = 'payment_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'")
+    .prepare("UPDATE transactions_pickup SET status = 'payment_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_payment'")
     .bind(order.id)
     .run();
   if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
@@ -324,7 +324,7 @@ owner.post('/transactions/:id/confirm', async (c) => {
   if (!row || !storeIds.includes(row.store_id)) fail(404, 'Drop off not found');
   const storeId = row.store_id;
 
-  const stillDroppedOff = "EXISTS (SELECT 1 FROM transactions WHERE id = ? AND status = 'dropped_off')";
+  const stillDroppedOff = "EXISTS (SELECT 1 FROM transactions_dropoff WHERE id = ? AND status = 'dropped_off')";
   const results = await db.batch([
     db
       .prepare(`UPDATE owner_transactions SET status = 'ok', updated_at = datetime('now') WHERE transaction_id = ? AND ${stillDroppedOff}`)
@@ -342,7 +342,7 @@ owner.post('/transactions/:id/confirm', async (c) => {
       )
       .bind(row.driver_id, row.delivery_fee, id),
     db
-      .prepare("UPDATE transactions SET status = 'owner_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'dropped_off'")
+      .prepare("UPDATE transactions_dropoff SET status = 'owner_confirmed', updated_at = datetime('now') WHERE id = ? AND status = 'dropped_off'")
       .bind(id),
   ]);
   if (results[4].meta.changes === 0) fail(409, 'Only a dropped-off laundry can be confirmed');
@@ -392,8 +392,8 @@ owner.post('/payouts/:id/paid', async (c) => {
 });
 
 const PICKUP_PAYOUT_SELECT = `SELECT o.id, o.store_id, s.name AS store_name, o.driver_id, u.name AS driver_name,
-  o.delivery_fee - o.service_fee AS amount, o.driver_paid_at AS paid_at, o.updated_at
-  FROM orders o JOIN stores s ON s.id = o.store_id LEFT JOIN users u ON u.id = o.driver_id`;
+  o.delivery_fee AS amount, o.driver_paid_at AS paid_at, o.updated_at
+  FROM transactions_pickup o JOIN stores s ON s.id = o.store_id LEFT JOIN users u ON u.id = o.driver_id`;
 
 /** Drivers' share of delivered pickups' delivery fees. Not yet paid first, then newest; 10 per page. */
 owner.get('/pickup-payouts', async (c) => {
@@ -422,7 +422,7 @@ owner.post('/orders/:id/driver-paid', async (c) => {
   const db = c.env.DB;
   if (order.status !== 'delivered' || order.driver_id === null) fail(409, 'Only a delivered pickup can be paid out');
   const { meta } = await db
-    .prepare("UPDATE orders SET driver_paid_at = datetime('now') WHERE id = ? AND driver_paid_at IS NULL")
+    .prepare("UPDATE transactions_pickup SET driver_paid_at = datetime('now') WHERE id = ? AND driver_paid_at IS NULL")
     .bind(order.id)
     .run();
   if (meta.changes === 0) fail(409, 'Driver is already marked paid');

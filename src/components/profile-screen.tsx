@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useDriverVerification } from '@/hooks/queries';
 import { useAuth } from '@/hooks/use-auth';
+import { vehicleLabel } from '@/lib/vehicles';
 
 export function ProfileScreen() {
   const { state, signOut } = useAuth();
@@ -32,6 +33,7 @@ export function ProfileScreen() {
       <Card>
         <InfoRow label="Email" value={user.email} />
         <InfoRow label="Phone" value={user.phone} />
+        {driver && <VehicleRow />}
       </Card>
       {driver && <DriverVerification />}
       {user.role === 'owner' && <OwnerStores />}
@@ -49,6 +51,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <ThemedText type="small">{value}</ThemedText>
     </View>
   );
+}
+
+/** Shares the verification query with the card below, so no extra request. */
+function VehicleRow() {
+  const v = useDriverVerification().data;
+  return v ? <InfoRow label="Vehicle" value={vehicleLabel(v.vehicle_type)} /> : null;
 }
 
 /** Shares the verification query with the card below, so no extra request. */

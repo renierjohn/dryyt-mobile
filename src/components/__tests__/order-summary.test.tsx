@@ -6,7 +6,7 @@ jest.mock('../icon', () => ({ Icon: () => null }));
 
 const order = {
   id: 7, type: 'pickup' as const, customer_id: 1, driver_id: null, store_id: 1, status: 'pending' as const,
-  customer_address: '1 Customer St', notes: '', items_total: 36500, delivery_fee: 5000, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
+  customer_address: '1 Customer St', notes: '', items_total: 36500, road_km: null, delivery_fee: 5000, total_delivery_fee: 5000, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
   customer_lat: null, customer_lng: null, store_lat: null, store_lng: null, driver_lat: null, driver_lng: null, driver_loc_at: null,
   driver_has_face: false, driver_has_id: false, driver_photo_version: '-', driver_notes: '', driver_verified: false,
   store_name: 'Tea Haven', store_logo: null, store_address: '12 Mabini St', store_type: 'food' as const, customer_name: 'Ana',
@@ -35,7 +35,7 @@ it('puts the total below a line, after the items', async () => {
 });
 
 it("shows drivers the delivery fee split into their share and the service fee, above the total", async () => {
-  await render(<OrderSummary order={{ ...order, delivery_fee: 7920, service_fee: 720 }} showFees />);
+  await render(<OrderSummary order={{ ...order, delivery_fee: 7200, service_fee: 720, total_delivery_fee: 7920 }} showFees />);
   const json = JSON.stringify(screen.toJSON());
   expect(screen.getByText('₱72.00')).toBeTruthy();
   expect(screen.getByText('₱7.20')).toBeTruthy();
@@ -45,7 +45,7 @@ it("shows drivers the delivery fee split into their share and the service fee, a
 });
 
 it('shows customers one delivery fee that includes the service fee, above the total', async () => {
-  await render(<OrderSummary order={{ ...order, delivery_fee: 7920, service_fee: 720 }} />);
+  await render(<OrderSummary order={{ ...order, delivery_fee: 7200, service_fee: 720, total_delivery_fee: 7920 }} />);
   expect(screen.queryByText('Service fee')).toBeNull();
   expect(screen.getByText('₱79.20')).toBeTruthy();
   const json = JSON.stringify(screen.toJSON());
@@ -79,6 +79,6 @@ it('badge: a storefront placeholder without a logo', async () => {
 });
 
 it('youEarn: marks the driver\'s share of the delivery fee', async () => {
-  await render(<OrderSummary order={{ ...order, delivery_fee: 7920, service_fee: 720 }} showFees youEarn />);
+  await render(<OrderSummary order={{ ...order, delivery_fee: 7200, service_fee: 720, total_delivery_fee: 7920 }} showFees youEarn />);
   expect(screen.getByText('(You Earn)', { exact: false })).toBeTruthy();
 });

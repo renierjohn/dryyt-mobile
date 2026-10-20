@@ -5,7 +5,7 @@ import Orders from '@/app/owner/(tabs)/orders';
 const mockConfirm = jest.fn();
 const order = (id: number, status: string, extra: object = {}) => ({
   id, type: 'pickup', status, store_id: 1, store_type: 'food', store_name: 'Tea Haven', store_address: '12 Mabini St', customer_address: 'Pinned location',
-  notes: '', items: [], items_total: 20000, delivery_fee: 7920, payment_ref: '', payment_photo_key: null,
+  notes: '', items: [], items_total: 20000, delivery_fee: 7920, total_delivery_fee: 7920, payment_ref: '', payment_photo_key: null,
   created_at: '2026-10-17 04:00:00', ...extra,
 });
 jest.mock('@/hooks/queries', () => ({

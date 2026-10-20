@@ -1,5 +1,16 @@
 export type Rate = { base_fee: number; rate_per_km: number; commission_pct: number };
 
+/** rates.type: pickups and drop offs are priced separately. */
+export const RATE_TYPES = ['pickup', 'dropoff'] as const;
+export type RateType = (typeof RATE_TYPES)[number];
+
+/** rates.category: the vehicle a rate is for, by code. Add new codes here; the column has no CHECK. */
+export const VEHICLE_CATEGORIES = { 1: 'Bicycle', 2: 'Motorcycle', 3: 'Tricycle', 4: 'Car (lightweight)' } as const;
+export type VehicleCategory = keyof typeof VEHICLE_CATEGORIES;
+export const isVehicleCategory = (n: number): n is VehicleCategory => n in VEHICLE_CATEGORIES;
+/** Motorcycle: bookings use it until customers can pick a vehicle. */
+export const DEFAULT_CATEGORY: VehicleCategory = 2;
+
 /**
  * Every computed amount is rounded up to a whole peso (centavos always 00). Rounds to whole centavos first,
  * so float noise like 3.2 km × 1000 = 3200.0000000000005 doesn't add a peso.

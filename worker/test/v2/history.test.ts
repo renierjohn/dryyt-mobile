@@ -15,7 +15,7 @@ async function insertOrders(customerId: number, times: string[], driverId: numbe
   const ids: number[] = [];
   for (const at of times) {
     const row = await env.DB.prepare(
-      `INSERT INTO orders (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, created_at, updated_at)
+      `INSERT INTO transactions_pickup (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, created_at, updated_at)
        VALUES ('pickup', ?, ?, 1, ?, '1 Home St', 10000, 5000, ?, ?) RETURNING id`,
     )
       .bind(customerId, driverId, status, at, at)
@@ -66,7 +66,7 @@ describe('history', () => {
     const confirmed: number[] = [];
     for (const at of ['2026-01-01 08:00:00', '2026-01-02 08:00:00']) {
       const row = await env.DB.prepare(
-        `INSERT INTO transactions (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
+        `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
            shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee, created_at, updated_at)
          VALUES (?, ?, ?, 'owner_confirmed', 14.56, 121.03, 'Home', 14.55, 121.02, 1, 5000, 500, 5500, ?, ?) RETURNING id`,
       )
@@ -89,11 +89,11 @@ describe('history', () => {
     expect(page.items.map(itemId)).toEqual([`dropoff-${flow.id}`, `order-${delivered}`]);
     expect(page.items[0].dropoff).toMatchObject({ status: 'dropped_off', delivery_fee: expect.any(Number) });
 
-    // Earnings: the drop off's delivery fee plus the delivered order's fee minus its service fee; not the accepted one.
-    await env.DB.prepare('UPDATE orders SET service_fee = 500 WHERE driver_id = ?').bind(flow.driver.user.id).run();
-    const fee = (await env.DB.prepare('SELECT delivery_fee FROM transactions WHERE id = ?').bind(flow.id).first<{ delivery_fee: number }>())!;
+    // Earnings: the drop off's and the delivered order's delivery_fee (the driver's share); not the accepted one.
+    await env.DB.prepare('UPDATE transactions_pickup SET delivery_fee = 4500, service_fee = 500 WHERE driver_id = ?').bind(flow.driver.user.id).run();
+    const fee = (await env.DB.prepare('SELECT delivery_fee FROM transactions_dropoff WHERE id = ?').bind(flow.id).first<{ delivery_fee: number }>())!;
     const { body } = await api<{ earnings: number }>('/history', { token: flow.driver.token });
-    expect(body.earnings).toBe(fee.delivery_fee + 5000 - 500);
+    expect(body.earnings).toBe(fee.delivery_fee + 4500);
 
     const stranger = await registerUser('driver');
     expect((await allPages(stranger.token))[0].items).toEqual([]);

@@ -10,6 +10,7 @@ import { menuImageKey } from './lib/menu';
 import { photoResponse } from './lib/photos';
 import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
+import admin from './routes/admin';
 import auth from './routes/auth';
 import drivers from './routes/drivers';
 import history from './routes/history';
@@ -55,6 +56,7 @@ app.route('/dropoffs', dropoffs);
 app.route('/owner', owner);
 app.route('/history', history);
 app.route('/ws', ws);
+app.route('/admin', admin);
 
 app.get('/me', requireAuth, async (c) => {
   const user = await c.env.DB.prepare('SELECT id, email, name, phone, role FROM users WHERE id = ?')

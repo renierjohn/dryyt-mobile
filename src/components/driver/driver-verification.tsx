@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -10,8 +10,16 @@ import { FaceCamera, type FaceCheck } from '@/components/driver/face-camera';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
-import { useDriverVerification, useSaveVerificationNotes, useUploadVerificationPhoto, type VerificationPhoto } from '@/hooks/queries';
+import {
+  useDriverVerification,
+  useSaveVehicleType,
+  useSaveVerificationNotes,
+  useUploadVerificationPhoto,
+  type VerificationPhoto,
+} from '@/hooks/queries';
+import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
+import { VEHICLE_TYPES } from '@/lib/vehicles';
 
 /** Green "Verified" pill; shown once a developer has checked the driver's documents. */
 export function VerifiedBadge() {
@@ -29,6 +37,7 @@ export function DriverVerification() {
   const verification = useDriverVerification();
   const upload = useUploadVerificationPhoto();
   const saveNotes = useSaveVerificationNotes();
+  const saveVehicle = useSaveVehicleType();
   const [plate, setPlate] = useState<string | null>(null);
   const [faceCamera, setFaceCamera] = useState(false);
 
@@ -95,6 +104,9 @@ export function DriverVerification() {
         </ThemedText>
       )}
       {photo('id', "Driver's License ID", v.has_id)}
+      {!v.verified && (
+        <VehiclePicker value={v.vehicle_type} saving={saveVehicle.isPending} onSelect={(code) => saveVehicle.mutate(code)} />
+      )}
       {v.verified ? (
         <ThemedText type="small">License Plate: {v.notes || 'not provided'}</ThemedText>
       ) : (
@@ -108,7 +120,7 @@ export function DriverVerification() {
           />
         </>
       )}
-      <ErrorText error={upload.error ?? saveNotes.error} />
+      <ErrorText error={upload.error ?? saveNotes.error ?? saveVehicle.error} />
       <FaceCamera
         visible={faceCamera}
         onClose={() => setFaceCamera(false)}
@@ -121,7 +133,39 @@ export function DriverVerification() {
   );
 }
 
+/** One chip per vehicle type; tapping one saves it straight away. */
+function VehiclePicker({ value, saving, onSelect }: { value: number | null; saving: boolean; onSelect: (code: number) => void }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.photoBlock}>
+      <ThemedText type="small" themeColor="textSecondary">
+        Vehicle type
+      </ThemedText>
+      <View style={styles.chips} accessibilityRole="radiogroup">
+        {VEHICLE_TYPES.map((t) => {
+          const active = t.code === value;
+          return (
+            <Pressable
+              key={t.code}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active, disabled: saving }}
+              disabled={saving || active}
+              onPress={() => onSelect(t.code)}
+              style={({ pressed }) => [styles.chip, { backgroundColor: active ? theme.primary : theme.primarySoft, opacity: pressed || saving ? 0.7 : 1 }]}>
+              <ThemedText type="smallBold" style={{ color: active ? theme.onPrimary : theme.primary }}>
+                {t.label}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  chip: { borderRadius: 999, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   badge: { backgroundColor: Brand.success, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
   badgeText: { color: '#fff' },

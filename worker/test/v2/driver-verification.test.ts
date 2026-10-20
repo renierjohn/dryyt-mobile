@@ -34,7 +34,7 @@ describe('driver verification', () => {
   it('starts empty and unverified', async () => {
     const driver = await registerUser('driver');
     expect((await api('/drivers/me/verification', { token: driver.token })).body).toEqual({
-      verification: { has_face: false, has_id: false, photo_version: '-', face_check: null, notes: '', verified: false },
+      verification: { has_face: false, has_id: false, photo_version: '-', face_check: null, notes: '', vehicle_type: null, verified: false },
     });
   });
 
@@ -49,6 +49,7 @@ describe('driver verification', () => {
       photo_version: verification?.photo_version,
       face_check: 'passed',
       notes: 'ABC 1234',
+      vehicle_type: null,
       verified: false,
     });
 
@@ -77,6 +78,7 @@ describe('driver verification', () => {
     const driver = await registerUser('driver');
     await upload('face', driver.token);
     await api('/drivers/me/verification', { token: driver.token, body: { notes: 'ABC 1234' } });
+    await api('/drivers/me/vehicle', { token: driver.token, body: { vehicle_type: 2 } });
     await verify(driver.user.id);
     expect((await api('/drivers/me/verification', { token: driver.token })).body.verification.verified).toBe(true);
 
@@ -86,12 +88,14 @@ describe('driver verification', () => {
     });
     expect((await upload('face', driver.token)).status).toBe(409);
     expect((await upload('id', driver.token)).status).toBe(409);
+    expect((await api('/drivers/me/vehicle', { token: driver.token, body: { vehicle_type: 4 } })).status).toBe(409);
     expect((await api('/drivers/me/verification', { token: driver.token })).body.verification).toEqual({
       has_face: true,
       has_id: false,
       photo_version: expect.stringMatching(/^[0-9a-f]{8}-$/),
       face_check: 'passed',
       notes: 'ABC 1234',
+      vehicle_type: 2,
       verified: true,
     });
 
@@ -100,6 +104,14 @@ describe('driver verification', () => {
     expect((await api('/drivers/me/verification', { token: driver.token, body: { notes: 'XYZ 9' } })).status).toBe(200);
     expect((await upload('id', driver.token)).status).toBe(201);
     expect(await statusOf(driver.user.id)).toBe(0);
+  });
+
+  it('saves the vehicle type, only a known one', async () => {
+    const driver = await registerUser('driver');
+    expect((await api('/drivers/me/vehicle', { token: driver.token, body: { vehicle_type: 3 } })).body.verification).toMatchObject({ vehicle_type: 3 });
+    expect((await api('/drivers/me/vehicle', { token: driver.token, body: { vehicle_type: 1 } })).body.verification).toMatchObject({ vehicle_type: 1 });
+    expect((await api('/drivers/me/vehicle', { token: driver.token, body: { vehicle_type: 9 } })).status).toBe(400);
+    expect((await api('/drivers/me/vehicle', { token: driver.token, body: {} })).status).toBe(400);
   });
 
   it('cannot be set verified through the API', async () => {
@@ -143,7 +155,7 @@ describe("customer view of the driver's verification", () => {
     const stranger = await registerUser('customer');
     expect((await photo(id, 'face', stranger.token)).status).toBe(404);
 
-    await env.DB.prepare("UPDATE transactions SET status = 'dropped_off' WHERE id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE transactions_dropoff SET status = 'dropped_off' WHERE id = ?").bind(id).run();
     expect((await photo(id, 'face', customer.token)).status).toBe(404);
   });
 });

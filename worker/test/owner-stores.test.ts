@@ -81,7 +81,7 @@ describe('owner stores', () => {
     const id = (await api('/owner/stores', { token, body: { ...shop, type: 'food' } })).body.store.id;
     const customer = await registerUser('customer');
     await env.DB.prepare(
-      "INSERT INTO orders (type, customer_id, store_id, customer_address, items_total, delivery_fee) VALUES ('pickup', ?, ?, 'x', 0, 0)",
+      "INSERT INTO transactions_pickup (type, customer_id, store_id, customer_address, items_total, delivery_fee) VALUES ('pickup', ?, ?, 'x', 0, 0)",
     )
       .bind(customer.user.id, id)
       .run();

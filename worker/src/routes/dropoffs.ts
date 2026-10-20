@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
-import { computeFees, type Rate } from '../lib/fees';
+import { computeFees, DEFAULT_CATEGORY, type Rate } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { pushToUsers } from '../lib/push';
@@ -59,7 +59,10 @@ dropoffs.post('/', requireRole('customer'), async (c) => {
 
   const store = await shopFor(c, input.store_id);
 
-  const rate = await db.prepare('SELECT base_fee, rate_per_km, commission_pct FROM rates WHERE group_id = ?').bind(store.group_id).first<Rate>();
+  const rate = await db
+    .prepare("SELECT base_fee, rate_per_km, commission_pct FROM rates WHERE group_id = ? AND type = 'dropoff' AND category = ?")
+    .bind(store.group_id, DEFAULT_CATEGORY)
+    .first<Rate>();
   if (!rate) fail(500, 'No rates set for this area');
 
   const roadKm = await roadDistanceKm(c.env, input, { lat: store.lat, lng: store.lng });
@@ -69,7 +72,7 @@ dropoffs.post('/', requireRole('customer'), async (c) => {
   try {
     const row = await db
       .prepare(
-        `INSERT INTO transactions (room_id, customer_id, store_id, customer_lat, customer_lng, customer_address,
+        `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, customer_lat, customer_lng, customer_address,
            shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
@@ -99,7 +102,7 @@ dropoffs.post('/', requireRole('customer'), async (c) => {
   try {
     await dispatchFor(c.env, created.store_group_id).newRequest(newRequestFrom(created, await blockedDrivers(db, created.store_id)));
   } catch (err) {
-    await db.prepare("UPDATE transactions SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status = 'searching'").bind(id).run();
+    await db.prepare("UPDATE transactions_dropoff SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status = 'searching'").bind(id).run();
     throw err;
   }
   return c.json({ dropoff: viewFor(created, c.get('user')) }, 201);
@@ -122,13 +125,13 @@ dropoffs.post('/:id/cancel', requireRole('customer'), async (c) => {
   const cancellable = "status IN ('searching', 'driver_accepted', 'en_route_pickup')";
   // One batch: the driver is freed only if the cancel itself lands.
   const [, cancelled] = await db.batch([
-    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions WHERE id = ? AND ${cancellable})`).bind(row.id),
-    db.prepare(`UPDATE transactions SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND ${cancellable}`).bind(row.id),
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_dropoff WHERE id = ? AND ${cancellable})`).bind(row.id),
+    db.prepare(`UPDATE transactions_dropoff SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND ${cancellable}`).bind(row.id),
   ]);
   if (cancelled.meta.changes === 0) fail(409, 'Drop off changed, refresh and try again');
 
   // Re-read: a driver may have accepted between load() and the update.
-  const after = await db.prepare('SELECT driver_id FROM transactions WHERE id = ?').bind(row.id).first<{ driver_id: number | null }>();
+  const after = await db.prepare('SELECT driver_id FROM transactions_dropoff WHERE id = ?').bind(row.id).first<{ driver_id: number | null }>();
   const driverId = after?.driver_id ?? undefined;
   await afterCommit('cancel removeRequest', () =>
     dispatchFor(c.env, row.store_group_id).removeRequest(row.id, { t: 'cancelled', transaction_id: row.id }, driverId),
@@ -154,8 +157,8 @@ dropoffs.post('/:id/driver-cancel', requireRole('driver'), async (c) => {
   const mine = "id = ? AND driver_id = ? AND status IN ('en_route_pickup', 'en_route_shop')";
   // One batch: the driver is freed only if the cancel itself lands.
   const [, cancelled] = await db.batch([
-    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions WHERE ${mine})`).bind(row.id, driverId),
-    db.prepare(`UPDATE transactions SET status = 'cancelled', updated_at = datetime('now') WHERE ${mine}`).bind(row.id, driverId),
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_dropoff WHERE ${mine})`).bind(row.id, driverId),
+    db.prepare(`UPDATE transactions_dropoff SET status = 'cancelled', updated_at = datetime('now') WHERE ${mine}`).bind(row.id, driverId),
   ]);
   if (cancelled.meta.changes === 0) fail(409, 'Drop off changed, refresh and try again');
 
@@ -170,7 +173,7 @@ dropoffs.post('/:id/driver-cancel', requireRole('driver'), async (c) => {
 dropoffs.post('/:id/confirm-driver', requireRole('customer'), async (c) => {
   const row = await load(c);
   const { meta } = await c.env.DB.prepare(
-    "UPDATE transactions SET status = 'en_route_pickup', updated_at = datetime('now') WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?",
+    "UPDATE transactions_dropoff SET status = 'en_route_pickup', updated_at = datetime('now') WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?",
   )
     .bind(row.id, row.driver_id)
     .run();
@@ -193,9 +196,9 @@ dropoffs.post('/:id/reject-driver', requireRole('customer'), async (c) => {
   const held = "id = ? AND status = 'driver_accepted' AND driver_id = ?";
   // One batch: the driver is freed only if the turn-down itself lands.
   const [, rejected] = await db.batch([
-    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions WHERE ${held})`).bind(row.id, row.driver_id),
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_dropoff WHERE ${held})`).bind(row.id, row.driver_id),
     db
-      .prepare(`UPDATE transactions SET status = 'searching', driver_id = NULL, updated_at = datetime('now') WHERE ${held}`)
+      .prepare(`UPDATE transactions_dropoff SET status = 'searching', driver_id = NULL, updated_at = datetime('now') WHERE ${held}`)
       .bind(row.id, row.driver_id),
   ]);
   if (rejected.meta.changes === 0) fail(409, 'There is no driver to turn down');
@@ -209,7 +212,7 @@ dropoffs.post('/:id/reject-driver', requireRole('customer'), async (c) => {
 dropoffs.post('/:id/picked-up', requireRole('driver'), async (c) => {
   const row = await load(c);
   const { meta } = await c.env.DB.prepare(
-    "UPDATE transactions SET status = 'en_route_shop', updated_at = datetime('now') WHERE id = ? AND driver_id = ? AND status = 'en_route_pickup'",
+    "UPDATE transactions_dropoff SET status = 'en_route_shop', updated_at = datetime('now') WHERE id = ? AND driver_id = ? AND status = 'en_route_pickup'",
   )
     .bind(row.id, c.get('user').id)
     .run();
@@ -246,7 +249,7 @@ dropoffs.post('/:id/drop', requireRole('driver'), async (c) => {
 
   const db = c.env.DB;
   const driverId = c.get('user').id;
-  const stillAtShop = "SELECT 1 FROM transactions WHERE id = ? AND driver_id = ? AND status = 'en_route_shop'";
+  const stillAtShop = "SELECT 1 FROM transactions_dropoff WHERE id = ? AND driver_id = ? AND status = 'en_route_shop'";
   // One batch = one transaction: either everything lands or the drop off stays retryable.
   const results = await db.batch([
     db
@@ -257,7 +260,7 @@ dropoffs.post('/:id/drop', requireRole('driver'), async (c) => {
     db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = ? AND EXISTS (${stillAtShop})`).bind(driverId, row.id, driverId),
     db
       .prepare(
-        "UPDATE transactions SET status = 'dropped_off', laundry_fee = ?, updated_at = datetime('now') WHERE id = ? AND driver_id = ? AND status = 'en_route_shop'",
+        "UPDATE transactions_dropoff SET status = 'dropped_off', laundry_fee = ?, updated_at = datetime('now') WHERE id = ? AND driver_id = ? AND status = 'en_route_shop'",
       )
       .bind(input.laundry_fee, row.id, driverId),
   ]);
@@ -302,7 +305,7 @@ dropoffs.post('/:id/payment', async (c) => {
   const to = paid ? 'completed' : 'payment_pending';
   const from = paid ? ['owner_confirmed', 'payment_pending'] : ['owner_confirmed', 'completed'];
   const { meta } = await c.env.DB.prepare(
-    "UPDATE transactions SET status = ?, updated_at = datetime('now') WHERE id = ? AND status IN (?, ?)",
+    "UPDATE transactions_dropoff SET status = ?, updated_at = datetime('now') WHERE id = ? AND status IN (?, ?)",
   )
     .bind(to, row.id, ...from)
     .run();

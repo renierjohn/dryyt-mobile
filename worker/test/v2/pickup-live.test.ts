@@ -18,7 +18,7 @@ async function pickupDriver() {
 /** Placed by the customer: awaiting payment → confirmed → placed (pending), like the app does. */
 async function placed(customerToken: string) {
   const id = (await api('/orders', { token: customerToken, body: { ...order, payment_ref: 'GC-1' } })).body.order.id as number;
-  await env.DB.prepare("UPDATE orders SET status = 'payment_confirmed' WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE transactions_pickup SET status = 'payment_confirmed' WHERE id = ?").bind(id).run();
   return id;
 }
 
@@ -126,7 +126,7 @@ describe('order room', () => {
 });
 
 describe('waiting for Done Pay', () => {
-  const statusOf = async (id: number) => (await env.DB.prepare('SELECT status FROM orders WHERE id = ?').bind(id).first<{ status: string }>())!.status;
+  const statusOf = async (id: number) => (await env.DB.prepare('SELECT status FROM transactions_pickup WHERE id = ?').bind(id).first<{ status: string }>())!.status;
   const roomOf = (id: number) => env.ORDER_ROOM.get(env.ORDER_ROOM.idFromName(`order-${id}`));
   type Timers = { remindAt?: number; reminded?: number; confirmAt?: number };
   const paymentTimers = (id: number) => runInDurableObject(roomOf(id), (_r: OrderRoom, state) => state.storage.get<Timers>('payment'));

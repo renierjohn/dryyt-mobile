@@ -45,10 +45,14 @@ export type Order = {
   customer_address: string;
   notes: string;
   items_total: number;
-  /** What the customer pays for delivery: the driver's share plus service_fee. */
+  /** The driver's share of total_delivery_fee. */
   delivery_fee: number;
-  /** The app's cut of delivery_fee; 0 for flat-fee orders. */
+  /** The app's cut; 0 for flat-fee orders. */
   service_fee: number;
+  /** What the customer pays for delivery: delivery_fee plus service_fee. */
+  total_delivery_fee: number;
+  /** Road distance customer to store; null for typed-address (flat-fee) orders. */
+  road_km: number | null;
   created_at: string;
   updated_at: string;
   /** Proof of an upfront (food) payment: a reference number and/or a photo (see /owner/orders/:id/payment-photo). */
@@ -167,6 +171,8 @@ export type DriverVerification = {
   /** How the face photo was taken; 'skipped' waits for a closer manual review. null: no face photo, or an older one. */
   face_check: 'passed' | 'skipped' | null;
   notes: string;
+  /** Vehicle code (src/lib/vehicles.ts); null until picked. */
+  vehicle_type: number | null;
   verified: boolean;
 };
 

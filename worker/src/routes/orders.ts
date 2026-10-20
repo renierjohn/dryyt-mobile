@@ -3,7 +3,7 @@ import { sign, verify } from 'hono/jwt';
 import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
-import { computeFees, discountedPrice, type Rate } from '../lib/fees';
+import { computeFees, DEFAULT_CATEGORY, discountedPrice, type Rate } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
@@ -38,7 +38,7 @@ const quoteSchema = z.object({ store_id: z.number().int().positive(), ...pin });
 
 /** The store with its group's rate (null fields when the group has none). */
 type Store = { id: number; type: StoreType; lat: number | null; lng: number | null; owner_id: number | null } & { [K in keyof Rate]: Rate[K] | null };
-type Quote = { road_km: number; delivery_fee: number; service_fee: number };
+type Quote = { road_km: number; delivery_fee: number; service_fee: number; total_delivery_fee: number };
 type QuoteClaims = Quote & { store_id: number; lat: number; lng: number; exp: number };
 
 /** A quote stays good for Send proof of payment this long. */
@@ -52,7 +52,7 @@ async function quoteFor(env: AppEnv['Bindings'], store: Store, at: LatLng): Prom
   if (store.base_fee === null || store.rate_per_km === null || store.commission_pct === null) fail(500, 'No rates set for this area');
   const roadKm = await roadDistanceKm(env, at, { lat: store.lat, lng: store.lng });
   const fees = computeFees(roadKm, { base_fee: store.base_fee, rate_per_km: store.rate_per_km, commission_pct: store.commission_pct });
-  return { road_km: roadKm, delivery_fee: fees.total_delivery_fee, service_fee: fees.service_fee };
+  return { road_km: roadKm, ...fees };
 }
 
 const signQuote = (env: AppEnv['Bindings'], storeId: number, at: LatLng, quote: Quote) =>
@@ -64,7 +64,9 @@ async function verifiedQuote(env: AppEnv['Bindings'], token: string | undefined,
   try {
     const q = (await verify(token, quoteSecret(env), 'HS256')) as unknown as QuoteClaims;
     if (q.store_id !== storeId || q.lat !== at.lat || q.lng !== at.lng) return null;
-    return { road_km: q.road_km, delivery_fee: q.delivery_fee, service_fee: q.service_fee };
+    // Tokens signed before total_delivery_fee existed get priced again.
+    if (typeof q.total_delivery_fee !== 'number') return null;
+    return { road_km: q.road_km, delivery_fee: q.delivery_fee, service_fee: q.service_fee, total_delivery_fee: q.total_delivery_fee };
   } catch {
     return null;
   }
@@ -74,9 +76,9 @@ const findStore = (db: D1Database, id: number) =>
   db
     .prepare(
       `SELECT s.id, s.type, s.lat, s.lng, s.owner_id, r.base_fee, r.rate_per_km, r.commission_pct
-       FROM stores s LEFT JOIN rates r ON r.group_id = s.group_id WHERE s.id = ?`,
+       FROM stores s LEFT JOIN rates r ON r.group_id = s.group_id AND r.type = 'pickup' AND r.category = ? WHERE s.id = ?`,
     )
-    .bind(id)
+    .bind(DEFAULT_CATEGORY, id)
     .first<Store>();
 
 type Line = { menuItemId: number; name: string; price: number; qty: number };
@@ -106,7 +108,7 @@ orders.post('/quote', requireRole('customer'), async (c) => {
   // The customer sees one delivery fee; the split is for drivers.
   const at = { lat: input.lat, lng: input.lng };
   const quote = await quoteFor(c.env, store, at);
-  return c.json({ quote: { road_km: quote.road_km, delivery_fee: quote.delivery_fee, token: await signQuote(c.env, store.id, at, quote) } });
+  return c.json({ quote: { road_km: quote.road_km, total_delivery_fee: quote.total_delivery_fee, token: await signQuote(c.env, store.id, at, quote) } });
 });
 
 /** Proof of payment photo, uploaded before the order exists; the order then references the returned key. */
@@ -139,7 +141,7 @@ orders.post('/', requireRole('customer'), async (c) => {
   // Fees, payment photo and item prices don't depend on each other: look them up together.
   const [fees, photo, lines] = await Promise.all([
     !at
-      ? { delivery_fee: Number(c.env.DELIVERY_FEE), service_fee: 0 }
+      ? { road_km: null, delivery_fee: Number(c.env.DELIVERY_FEE), service_fee: 0, total_delivery_fee: Number(c.env.DELIVERY_FEE) }
       : verifiedQuote(c.env, input.quote_token, store.id, at).then((q) => q ?? quoteFor(c.env, store, at)),
     store.type === 'food' && input.payment_photo_key ? c.env.PROOFS.head(input.payment_photo_key) : true,
     store.type === 'food' ? priceItems(db, store.id, input.items) : ([] as Line[]),
@@ -153,9 +155,9 @@ orders.post('/', requireRole('customer'), async (c) => {
   const [created] = await db.batch([
     db
       .prepare(
-        `INSERT INTO orders (type, customer_id, store_id, status, customer_address, customer_lat, customer_lng, notes, items_total, delivery_fee,
-           service_fee, payment_ref, payment_photo_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions_pickup (type, customer_id, store_id, status, customer_address, customer_lat, customer_lng, notes, items_total, road_km,
+           delivery_fee, service_fee, total_delivery_fee, payment_ref, payment_photo_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         input.type,
@@ -167,15 +169,17 @@ orders.post('/', requireRole('customer'), async (c) => {
         at?.lng ?? null,
         input.notes,
         itemsTotal,
+        fees.road_km,
         fees.delivery_fee,
         fees.service_fee,
+        fees.total_delivery_fee,
         input.payment_ref,
         input.payment_photo_key ?? null,
       ),
     ...lines.map((l) =>
       db
         .prepare(
-          'INSERT INTO order_items (order_id, menu_item_id, name, price, qty) VALUES ((SELECT MAX(id) FROM orders WHERE customer_id = ?), ?, ?, ?, ?)',
+          'INSERT INTO order_items (order_id, menu_item_id, name, price, qty) VALUES ((SELECT MAX(id) FROM transactions_pickup WHERE customer_id = ?), ?, ?, ?, ?)',
         )
         .bind(customerId, l.menuItemId, l.name, l.price, l.qty),
     ),
@@ -198,11 +202,11 @@ orders.post('/', requireRole('customer'), async (c) => {
 orders.post('/:id/place', requireRole('customer'), async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
-  const order = await db.prepare('SELECT customer_id FROM orders WHERE id = ?').bind(id).first<{ customer_id: number }>();
+  const order = await db.prepare('SELECT customer_id FROM transactions_pickup WHERE id = ?').bind(id).first<{ customer_id: number }>();
   if (!order || order.customer_id !== c.get('user').id) fail(404, 'Order not found');
 
   const { meta } = await db
-    .prepare("UPDATE orders SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'payment_confirmed'")
+    .prepare("UPDATE transactions_pickup SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'payment_confirmed'")
     .bind(id)
     .run();
   if (meta.changes === 0) fail(409, 'The store has not confirmed your payment yet');
@@ -232,7 +236,7 @@ orders.get('/:id/driver-photo/:kind', requireRole('customer'), async (c) => {
   const kind = c.req.param('kind');
   if (kind !== 'face' && kind !== 'id') fail(404, 'Not found');
   const row = await c.env.DB.prepare(
-    `SELECT o.customer_id, o.status, dd.photo_face, dd.photo_id FROM orders o LEFT JOIN driver_data dd ON dd.user_id = o.driver_id WHERE o.id = ?`,
+    `SELECT o.customer_id, o.status, dd.photo_face, dd.photo_id FROM transactions_pickup o LEFT JOIN driver_data dd ON dd.user_id = o.driver_id WHERE o.id = ?`,
   )
     .bind(id)
     .first<{ customer_id: number; status: string; photo_face: string | null; photo_id: string | null }>();
@@ -245,13 +249,13 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
 
-  const order = await db.prepare('SELECT customer_id FROM orders WHERE id = ?').bind(id).first<{ customer_id: number }>();
+  const order = await db.prepare('SELECT customer_id FROM transactions_pickup WHERE id = ?').bind(id).first<{ customer_id: number }>();
   if (!order) fail(404, 'Order not found');
   if (order.customer_id !== c.get('user').id) fail(403, 'You cannot cancel this order');
 
   const { meta } = await db
     .prepare(
-      "UPDATE orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status IN ('awaiting_payment', 'payment_confirmed', 'pending')",
+      "UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status IN ('awaiting_payment', 'payment_confirmed', 'pending')",
     )
     .bind(id)
     .run();

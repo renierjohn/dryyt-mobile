@@ -86,7 +86,7 @@ async function main() {
     payment_photo_key: key,
   }));
   console.log(`[${time()}] ${customer.user.name} ordered #${order.id} at ${store.name}: ${order.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}`);
-  console.log(`[${time()}] Items ${peso(order.items_total)} + delivery ${peso(order.delivery_fee)}. Tap Done Pay in the owner app. Ctrl+C cancels.`);
+  console.log(`[${time()}] Items ${peso(order.items_total)} + delivery ${peso(order.total_delivery_fee)}. Tap Done Pay in the owner app. Ctrl+C cancels.`);
 
   process.on('SIGINT', async () => {
     if (['awaiting_payment', 'payment_confirmed', 'pending'].includes(order.status)) {

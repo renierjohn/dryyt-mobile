@@ -28,7 +28,7 @@ export async function orderAccess(db: D1Database, user: AuthUser, orderId: numbe
         ? "driver_id = ? AND status IN ('accepted', 'picked_up')"
         : null;
   if (!where) return false;
-  return Boolean(await db.prepare(`SELECT 1 FROM orders WHERE id = ? AND ${where}`).bind(orderId, user.id).first());
+  return Boolean(await db.prepare(`SELECT 1 FROM transactions_pickup WHERE id = ? AND ${where}`).bind(orderId, user.id).first());
 }
 
 /** "order-12" → 12, else null. */

@@ -126,7 +126,7 @@ function OrderCard({
               style={[styles.grow, o.status === 'delivered' ? { color: theme.success } : o.status === 'cancelled' ? { color: theme.danger } : undefined]}>
               {STATUS_LABEL[o.status]}
             </ThemedText>
-            <ThemedText type="smallBold">{peso(o.items_total + o.delivery_fee)}</ThemedText>
+            <ThemedText type="smallBold">{peso(o.items_total + o.total_delivery_fee)}</ThemedText>
           </View>
         </>
       )}

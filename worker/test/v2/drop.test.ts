@@ -86,7 +86,7 @@ describe('drop off at the shop', () => {
 
     const failed = await api(`/dropoffs/${flow.id}/drop`, { token: flow.driver.token, body });
     expect(failed.status).toBeGreaterThanOrEqual(500);
-    expect(await env.DB.prepare('SELECT status FROM transactions WHERE id = ?').bind(flow.id).first()).toEqual({ status: 'en_route_shop' });
+    expect(await env.DB.prepare('SELECT status FROM transactions_dropoff WHERE id = ?').bind(flow.id).first()).toEqual({ status: 'en_route_shop' });
     expect(await env.DB.prepare('SELECT busy FROM drivers WHERE user_id = ?').bind(flow.driver.user.id).first()).toEqual({ busy: 1 });
 
     await env.DB.prepare('DELETE FROM owner_transactions WHERE transaction_id = ?').bind(flow.id).run();

@@ -204,7 +204,7 @@ describe('trip', () => {
 
     it('alarm keeps a drop off searching when a reject already reset it', async () => {
       const { group, id } = await acceptedDropoff();
-      await env.DB.prepare("UPDATE transactions SET status = 'searching', driver_id = NULL WHERE id = ?").bind(id).run();
+      await env.DB.prepare("UPDATE transactions_dropoff SET status = 'searching', driver_id = NULL WHERE id = ?").bind(id).run();
       const stub = dispatchOf(group);
       await runInDurableObject(stub, (instance: Dispatch) => {
         instance['requests'].get(id)!.deadline = 0;

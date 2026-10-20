@@ -7,7 +7,7 @@ export type StoreType = 'food' | 'laundry';
 export type OrderType = 'pickup';
 export type OrderStatus = 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
-export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; EXPO_ACCESS_TOKEN?: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PICKUPS: DurableObjectNamespace<PickupBoard>; ORDER_ROOM: DurableObjectNamespace<OrderRoom>; PROOFS: R2Bucket };
+export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; EXPO_ACCESS_TOKEN?: string; TURNSTILE_SECRET?: string; TURNSTILE_HOSTNAMES?: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PICKUPS: DurableObjectNamespace<PickupBoard>; ORDER_ROOM: DurableObjectNamespace<OrderRoom>; PROOFS: R2Bucket };
 export type AuthUser = { id: number; role: Role };
 export type AppEnv = { Bindings: Bindings; Variables: { user: AuthUser } };
 
@@ -67,10 +67,14 @@ export type OrderRow = {
   customer_address: string;
   notes: string;
   items_total: number;
-  /** What the customer pays for delivery: the driver's share plus service_fee. */
+  /** The driver's share of total_delivery_fee. */
   delivery_fee: number;
-  /** The app's cut of delivery_fee; 0 for flat-fee orders. */
+  /** The app's cut; 0 for flat-fee orders. */
   service_fee: number;
+  /** What the customer pays for delivery: delivery_fee plus service_fee. */
+  total_delivery_fee: number;
+  /** Road distance customer to store; null for typed-address (flat-fee) orders. */
+  road_km: number | null;
   created_at: string;
   updated_at: string;
   payment_ref: string;

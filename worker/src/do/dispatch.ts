@@ -146,7 +146,7 @@ export class Dispatch extends DurableObject<Bindings> {
       if (r.deadline > now) continue;
       if (r.status === 'searching') {
         const expired = await db
-          .prepare("UPDATE transactions SET status = 'expired', updated_at = datetime('now') WHERE id = ? AND status = 'searching'")
+          .prepare("UPDATE transactions_dropoff SET status = 'expired', updated_at = datetime('now') WHERE id = ? AND status = 'searching'")
           .bind(r.id)
           .run();
         if (expired.meta.changes > 0) {
@@ -157,7 +157,7 @@ export class Dispatch extends DurableObject<Bindings> {
         }
         // An accept (or cancel) got there first. Re-read D1 and the live entry, not the snapshot.
         const row = await db
-          .prepare('SELECT status, driver_id FROM transactions WHERE id = ?')
+          .prepare('SELECT status, driver_id FROM transactions_dropoff WHERE id = ?')
           .bind(r.id)
           .first<{ status: string; driver_id: number | null }>();
         const live = this.requests.get(r.id);
@@ -181,11 +181,11 @@ export class Dispatch extends DurableObject<Bindings> {
       // One batch: the busy reset goes first, guarded by the old state, so it lands only with the status change.
       const [, released] = await db.batch([
         db
-          .prepare("UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?)")
+          .prepare("UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_dropoff WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?)")
           .bind(r.id, r.driverId ?? null),
         db
           .prepare(
-            "UPDATE transactions SET status = 'searching', driver_id = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?",
+            "UPDATE transactions_dropoff SET status = 'searching', driver_id = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'driver_accepted' AND driver_id = ?",
           )
           .bind(r.id, r.driverId ?? null),
       ]);
@@ -193,7 +193,7 @@ export class Dispatch extends DurableObject<Bindings> {
         // Confirmed or cancelled meanwhile, the customer turned the driver down (now searching again),
         // or another driver holds it now.
         const row = await db
-          .prepare('SELECT status, driver_id FROM transactions WHERE id = ?')
+          .prepare('SELECT status, driver_id FROM transactions_dropoff WHERE id = ?')
           .bind(r.id)
           .first<{ status: string; driver_id: number | null }>();
         if (row?.status === 'searching') {
@@ -245,7 +245,7 @@ export class Dispatch extends DurableObject<Bindings> {
     try {
       const won = await db
         .prepare(
-          "UPDATE transactions SET driver_id = ?, status = 'driver_accepted', updated_at = datetime('now') WHERE id = ? AND status = 'searching'",
+          "UPDATE transactions_dropoff SET driver_id = ?, status = 'driver_accepted', updated_at = datetime('now') WHERE id = ? AND status = 'searching'",
         )
         .bind(att.userId, id)
         .run();
@@ -257,7 +257,7 @@ export class Dispatch extends DurableObject<Bindings> {
       // The entry may be gone if a cancel or an expiry ran while we awaited D1; D1 says who really holds it.
       let base = this.requests.get(id);
       if (!base) {
-        const row = await db.prepare('SELECT status, driver_id FROM transactions WHERE id = ?').bind(id).first<{ status: string; driver_id: number | null }>();
+        const row = await db.prepare('SELECT status, driver_id FROM transactions_dropoff WHERE id = ?').bind(id).first<{ status: string; driver_id: number | null }>();
         if (row?.status !== 'driver_accepted' || row.driver_id !== att.userId) return this.send(ws, { t: 'cancelled', transaction_id: id });
         base = r;
       }
@@ -272,7 +272,7 @@ export class Dispatch extends DurableObject<Bindings> {
     } catch (err) {
       console.error('accept failed', err);
       try {
-        const row = await db.prepare('SELECT status, driver_id FROM transactions WHERE id = ?').bind(id).first<{ status: string; driver_id: number | null }>();
+        const row = await db.prepare('SELECT status, driver_id FROM transactions_dropoff WHERE id = ?').bind(id).first<{ status: string; driver_id: number | null }>();
         if (!(row?.status === 'driver_accepted' && row.driver_id === att.userId)) {
           await db.prepare('UPDATE drivers SET busy = 0 WHERE user_id = ?').bind(att.userId).run();
         }

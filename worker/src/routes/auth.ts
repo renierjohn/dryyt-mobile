@@ -16,7 +16,19 @@ const registerSchema = z.object({
   role: z.enum(['customer', 'driver', 'owner']),
 });
 
-const loginSchema = z.object({ email, password: z.string().min(1) });
+export const loginSchema = z.object({ email, password: z.string().min(1) });
+
+/** The user for these credentials, or a 401. */
+export async function checkLogin(db: D1Database, input: z.infer<typeof loginSchema>): Promise<User> {
+  const row = await db.prepare('SELECT id, email, name, phone, role, password_hash, blocked FROM users WHERE email = ?')
+    .bind(input.email)
+    .first<User & { password_hash: string; blocked: number }>();
+  if (!row || !(await verifyPassword(input.password, row.password_hash))) fail(401, 'Invalid email or password');
+  // Only after the password matches, so this never tells strangers which emails exist.
+  if (row.blocked === 1) fail(403, 'This account is blocked. Please contact support.');
+  const { password_hash: _, blocked: __, ...user } = row;
+  return user;
+}
 
 const auth = new Hono<AppEnv>();
 
@@ -40,13 +52,7 @@ auth.post('/register', async (c) => {
 });
 
 auth.post('/login', async (c) => {
-  const input = await parseBody(c, loginSchema);
-  const row = await c.env.DB.prepare('SELECT id, email, name, phone, role, password_hash FROM users WHERE email = ?')
-    .bind(input.email)
-    .first<User & { password_hash: string }>();
-  if (!row || !(await verifyPassword(input.password, row.password_hash))) fail(401, 'Invalid email or password');
-
-  const { password_hash: _, ...user } = row;
+  const user = await checkLogin(c.env.DB, await parseBody(c, loginSchema));
   return c.json({ token: await signToken(user, c.env.JWT_SECRET), user });
 });
 

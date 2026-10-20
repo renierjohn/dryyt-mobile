@@ -78,7 +78,7 @@ export function usePlaceOrder() {
   });
 }
 
-export type DeliveryQuote = { road_km: number; delivery_fee: number; token: string };
+export type DeliveryQuote = { road_km: number; total_delivery_fee: number; token: string };
 
 /** Delivery fee from a pin to the store, priced like a drop off. */
 export const useOrderQuote = () =>
@@ -385,6 +385,15 @@ export function useSaveVerificationNotes() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (notes: string) => api<{ verification: DriverVerification }>('/drivers/me/verification', { body: { notes } }),
+    onSuccess: (r) => qc.setQueryData(['driver', 'verification'], r.verification),
+  });
+}
+
+/** Locked (409) once verified, like the photos and plate. */
+export function useSaveVehicleType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vehicleType: number) => api<{ verification: DriverVerification }>('/drivers/me/vehicle', { body: { vehicle_type: vehicleType } }),
     onSuccess: (r) => qc.setQueryData(['driver', 'verification'], r.verification),
   });
 }

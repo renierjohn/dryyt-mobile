@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt Cloudflare Usage</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; max-width: 1040px; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc ol ol { margin: 2px 0 8px 10px; border-left: 1px solid var(--line); }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 10px; }
+  h2 { font-size: 1.35rem; margin: 44px 0 10px; padding-top: 4px; border-top: 1px solid var(--line); scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 26px 0 8px; color: var(--accent); scroll-margin-top: 16px; }
+  p, li { color: var(--fg); }
+  main > p:first-of-type { color: var(--muted); }
+  ul, ol { padding-left: 22px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--accent); }
+  code { font: 12.5px ui-monospace, Menlo, monospace; background: var(--code); border-radius: 5px; padding: 1px 5px; }
+  .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); margin: 12px 0 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { font-size: 0.76rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num { white-space: nowrap; }
+  tr.total td { background: var(--accent-soft); }
+  tr.total td b { color: var(--accent); }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 20px 16px; }
+    main { padding: 24px 16px 48px; }
+  }
+
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+<div class="title">Contents</div>
+<ol>
+<li><a class="sec" href="#what-the-worker-uses">What the worker uses</a>
+</li>
+<li><a class="sec" href="#prices-workers-paid-plan-5-month-minimum">Prices (Workers Paid plan, $5/month minimum)</a>
+</li>
+<li><a class="sec" href="#three-sizes">Three sizes</a>
+<ol>
+<li><a href="#how-usage-was-worked-out">How usage was worked out</a></li>
+</ol></li>
+<li><a class="sec" href="#expected-monthly-usage-and-cost">Expected monthly usage and cost</a>
+<ol>
+<li><a href="#workers">Workers</a></li>
+<li><a href="#d1">D1</a></li>
+<li><a href="#durable-objects">Durable Objects</a></li>
+<li><a href="#r2">R2</a></li>
+<li><a href="#total-per-month">Total per month</a></li>
+</ol></li>
+<li><a class="sec" href="#recommended-budget">Recommended budget</a>
+</li>
+<li><a class="sec" href="#ways-to-pay-less">Ways to pay less</a>
+</li>
+<li><a class="sec" href="#outside-cloudflare">Outside Cloudflare</a>
+</li>
+</ol>
+</aside>
+<main>
+<h1>Cloudflare usage and budget</h1>
+<p>Expected monthly usage of every Cloudflare service the Dryyt worker uses, at three sizes, with the cost and a recommended budget for each.</p>
+<ul><li>Prices are from Cloudflare's pricing pages, checked <b>2026-10-20</b>. Re-check them before relying on the totals.</li><li>Usage is estimated from how the app actually calls the worker: poll intervals, socket messages and writes per order, taken from the code. These are planning numbers, not measurements. Once the app is live, compare them with the Cloudflare dashboard (Workers &amp; Pages → dryyt-worker → Metrics, plus D1 and R2 metrics) and adjust.</li></ul>
+<h2 id="what-the-worker-uses">What the worker uses</h2>
+<p>From <code>worker/wrangler.jsonc</code>:</p>
+<div class="tbl"><table><thead><tr><th>Service</th><th>Used for</th></tr></thead><tbody><tr class=total><td><b>Workers</b></td><td>The API (<code>dryyt-worker</code>), the cron job every 15 min (push receipts), and the landing page, legal pages and cpanel as static assets</td></tr><tr class=total><td><b>D1</b></td><td>The <code>dryyt-mobile</code> database: every table in <code>docs/DB_MODEL.html</code></td></tr><tr class=total><td><b>Durable Objects</b> (SQLite, WebSocket Hibernation)</td><td><code>Dispatch</code> (drop off requests, one per area), <code>Trip</code> (one per drop off trip), <code>PickupBoard</code> (live pickup job board), <code>OrderRoom</code> (one per pickup order)</td></tr><tr class=total><td><b>R2</b></td><td>The <code>dryyt-mobile</code> bucket (<code>PROOFS</code>): drop off proof photos, payment proof photos, driver face and license photos, store logos, payment QR codes and menu images</td></tr><tr class=total><td><b>Turnstile</b></td><td>Cpanel sign-in. Free.</td></tr></tbody></table></div>
+<p>Services the worker relies on outside Cloudflare are covered under <a href="#outside-cloudflare">Outside Cloudflare</a>.</p>
+<h2 id="prices-workers-paid-plan-5-month-minimum">Prices (Workers Paid plan, $5/month minimum)</h2>
+<div class="tbl"><table><thead><tr><th>Service</th><th class=num>Included each month</th><th class=num>Over that</th></tr></thead><tbody><tr><td>Workers requests</td><td class=num>10 million</td><td class=num>$0.30 per million</td></tr><tr><td>Workers CPU time</td><td class=num>30 million CPU ms</td><td class=num>$0.02 per million CPU ms</td></tr><tr><td>Static assets</td><td class=num>unlimited</td><td class=num>free</td></tr><tr><td>D1 rows read</td><td class=num>25 billion</td><td class=num>$0.001 per million</td></tr><tr><td>D1 rows written</td><td class=num>50 million</td><td class=num>$1.00 per million</td></tr><tr><td>D1 storage</td><td class=num>5 GB</td><td class=num>$0.75 per GB-month</td></tr><tr><td>DO requests</td><td class=num>1 million</td><td class=num>$0.15 per million</td></tr><tr><td>DO duration</td><td class=num>400,000 GB-s</td><td class=num>$12.50 per million GB-s (rounded <b>up</b> to the next million)</td></tr><tr><td>DO SQLite rows read / written</td><td class=num>25 billion / 50 million</td><td class=num>$0.001 / $1.00 per million</td></tr><tr><td>DO SQLite storage</td><td class=num>5 GB-month</td><td class=num>$0.20 per GB-month</td></tr><tr><td>R2 storage</td><td class=num>10 GB-month</td><td class=num>$0.015 per GB-month</td></tr><tr><td>R2 Class A (writes: PutObject, List)</td><td class=num>1 million</td><td class=num>$4.50 per million</td></tr><tr><td>R2 Class B (reads: GetObject, HeadObject)</td><td class=num>10 million</td><td class=num>$0.36 per million</td></tr><tr><td>R2 egress, deletes</td><td class=num>free</td><td class=num>free</td></tr></tbody></table></div>
+<p>How the platform counts usage, which these estimates rely on:</p>
+<ul><li><b>Incoming WebSocket messages</b> count as Durable Object requests at <b>20:1</b> (100 messages = 5 requests). Opening a socket is 1 request. Outgoing messages and protocol pings are free.</li><li><b>Hibernation:</b> an idle Durable Object isn't billed for duration, so duration is roughly the time spent handling messages. The memory charged is always 128 MB, whatever the object actually uses.</li><li><b>D1 indexes:</b> every write to an indexed column also writes one row per index.</li><li><b>The Free plan isn't enough even at small scale.</b> It allows 100,000 Worker requests a day, and this app's polling alone goes past that. Stay on Workers Paid.</li></ul>
+<h2 id="three-sizes">Three sizes</h2>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>Customers (registered)</td><td class=num>2,000</td><td class=num>20,000</td><td class=num>100,000</td></tr><tr><td>Customers using the app each day</td><td class=num>400</td><td class=num>4,000</td><td class=num>20,000</td></tr><tr><td>Drivers (registered / online at a time)</td><td class=num>100 / 50</td><td class=num>1,000 / 500</td><td class=num>5,000 / 2,500</td></tr><tr><td>Shop owners / stores</td><td class=num>50 / 100</td><td class=num>300 / 600</td><td class=num>1,000 / 2,000</td></tr><tr><td>Areas (<code>group_id</code>)</td><td class=num>1–2</td><td class=num>5</td><td class=num>20</td></tr><tr><td>Pickup orders a day</td><td class=num>200</td><td class=num>2,000</td><td class=num>10,000</td></tr><tr><td>Drop offs a day</td><td class=num>100</td><td class=num>800</td><td class=num>3,000</td></tr></tbody></table></div>
+<p>The large size is the same scenario as the "Expected rows" section of <code>docs/DB_MODEL.html</code>.</p>
+<h3 id="how-usage-was-worked-out">How usage was worked out</h3>
+<div class="tbl"><table><thead><tr><th>Source</th><th>Rule (from the code)</th><th class=num>Assumed</th></tr></thead><tbody><tr><td>Customer polling</td><td><code>POLL_MS = 5 s</code> on the focused screen; <code>LIVE_POLL_MS = 30 s</code> when a socket is live (<code>src/hooks/queries.ts</code>)</td><td class=num>10 min of app use per daily user ≈ 120 requests</td></tr><tr><td>Driver polling</td><td>30 s fallback poll while online (Dispatch / PickupBoard socket live)</td><td class=num>8 h online a day ≈ 960 requests</td></tr><tr><td>Owner polling</td><td>30 s live poll, on-demand lists at most every 5 s (<code>OWNER_MIN_GAP_MS</code>)</td><td class=num>4 h open a day ≈ 480 requests</td></tr><tr><td>Order actions</td><td>quote, place, pay, accept, status changes, history</td><td class=num>≈ 15 Worker requests per order or drop off</td></tr><tr><td>Driver location</td><td><code>watchPositionAsync</code> every 5 s while online; the DO drops anything faster than 2 s (<code>LOCATION_MIN_INTERVAL_MS</code>)</td><td class=num>720 socket messages per online hour</td></tr><tr><td>Trip heartbeat</td><td><code>{"t":"ping"}</code> every 10 s per trip participant (<code>HEARTBEAT_MS</code>)</td><td class=num>2 participants, ~30 min per trip, counted as billed to be safe</td></tr><tr><td>Worker CPU</td><td>Mostly waiting on D1 and R2, which isn't CPU time</td><td class=num>≈ 3 ms per request</td></tr><tr><td>DO duration</td><td>Billed only while handling a message (hibernation)</td><td class=num>≈ 10 ms per message × 128 MB</td></tr><tr><td>D1 writes</td><td>Insert, about 5 status updates, order lines, and the driver's location saved every 30 s while a pickup is picked up (<code>ORDER_LOC_SAVE_MS</code>), each × its indexes</td><td class=num>≈ 60 rows per order or drop off</td></tr><tr><td>D1 reads</td><td>Indexed list and detail queries with joins</td><td class=num>≈ 30 rows per request</td></tr><tr><td>R2</td><td>One ~300 KB proof photo per drop off; half of pickups send a payment photo</td><td class=num>Menu and logo images read ~30 times per daily customer</td></tr></tbody></table></div>
+<h2 id="expected-monthly-usage-and-cost">Expected monthly usage and cost</h2>
+<h3 id="workers">Workers</h3>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>Customer polling</td><td class=num>1.4 M</td><td class=num>14.4 M</td><td class=num>72 M</td></tr><tr><td>Driver polling</td><td class=num>1.4 M</td><td class=num>14.4 M</td><td class=num>72 M</td></tr><tr><td>Owner polling</td><td class=num>0.7 M</td><td class=num>4.3 M</td><td class=num>14.4 M</td></tr><tr><td>Order and drop off actions</td><td class=num>0.14 M</td><td class=num>1.3 M</td><td class=num>5.9 M</td></tr><tr class=total><td><b>Requests</b></td><td class=num><b>≈ 3.7 M</b></td><td class=num><b>≈ 34 M</b></td><td class=num><b>≈ 164 M</b></td></tr><tr><td>CPU time</td><td class=num>11 M ms</td><td class=num>102 M ms</td><td class=num>492 M ms</td></tr><tr><td>Cost over the included amounts</td><td class=num>$0</td><td class=num>$7.20 + $1.44</td><td class=num>$46.20 + $9.24</td></tr></tbody></table></div>
+<h3 id="d1">D1</h3>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>Rows read</td><td class=num>0.1 B</td><td class=num>1 B</td><td class=num>4.9 B</td></tr><tr><td>Rows written</td><td class=num>0.5 M</td><td class=num>5 M</td><td class=num>23 M</td></tr><tr><td>Storage at the end of year 1</td><td class=num>0.06 GB</td><td class=num>0.6 GB</td><td class=num>3 GB</td></tr><tr><td>Cost</td><td class=num>$0</td><td class=num>$0</td><td class=num>$0 in year 1; about $0.75/GB-month once past 5 GB (year 2)</td></tr></tbody></table></div>
+<h3 id="durable-objects">Durable Objects</h3>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>Driver location messages (Dispatch, PickupBoard)</td><td class=num>8.6 M → 0.43 M requests</td><td class=num>86 M → 4.3 M</td><td class=num>432 M → 21.6 M</td></tr><tr><td>Trip and order room messages (pings, locations)</td><td class=num>2.3 M → 0.11 M</td><td class=num>21 M → 1.0 M</td><td class=num>92 M → 4.6 M</td></tr><tr><td>RPC calls from the worker, sockets, alarms</td><td class=num>0.2 M</td><td class=num>1.5 M</td><td class=num>6.5 M</td></tr><tr class=total><td><b>Requests</b></td><td class=num><b>≈ 0.74 M</b></td><td class=num><b>≈ 6.8 M</b></td><td class=num><b>≈ 32.7 M</b></td></tr><tr><td>Duration</td><td class=num>≈ 0.01 M GB-s</td><td class=num>≈ 0.13 M GB-s</td><td class=num>≈ 0.66 M GB-s</td></tr><tr><td>SQLite storage and rows</td><td class=num>small (Dispatch and room state)</td><td class=num>small</td><td class=num>small</td></tr><tr><td>Cost</td><td class=num>$0</td><td class=num>$0.87</td><td class=num>$4.76 + $12.50 (duration is rounded up to the next 1 M)</td></tr></tbody></table></div>
+<p>Messages turn into requests at 20:1. Driver location messages are the biggest share: each online driver sends a fix about every 5 s (50 × 8 h × 720 = 8.6 M a month at small scale). Order rooms add the driver's location while a pickup is on its way (about 15 min × 5 s) plus pings. Halving how often drivers send their location (see <a href="#ways-to-pay-less">Ways to pay less</a>) roughly halves the requests and keeps large-scale duration inside the included 400,000 GB-s.</p>
+<h3 id="r2">R2</h3>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>New photos a year</td><td class=num>≈ 22 GB</td><td class=num>≈ 200 GB</td><td class=num>≈ 880 GB</td></tr><tr><td>Average stored, year 1</td><td class=num>11 GB</td><td class=num>100 GB</td><td class=num>440 GB</td></tr><tr><td>Class A (uploads)</td><td class=num>0.007 M</td><td class=num>0.06 M</td><td class=num>0.24 M</td></tr><tr><td>Class B (photo views)</td><td class=num>0.4 M</td><td class=num>3.6 M</td><td class=num>18 M</td></tr><tr><td>Cost</td><td class=num>≈ $0.02</td><td class=num>≈ $1.35</td><td class=num>≈ $6.45 storage + $2.88 reads (rises to ≈ $13 storage by month 12)</td></tr></tbody></table></div>
+<h3 id="total-per-month">Total per month</h3>
+<div class="tbl"><table><thead><tr><th></th><th class=num>Small</th><th class=num>Medium</th><th class=num>Large</th></tr></thead><tbody><tr><td>Workers Paid plan</td><td class=num>$5.00</td><td class=num>$5.00</td><td class=num>$5.00</td></tr><tr><td>Workers</td><td class=num>$0</td><td class=num>$8.64</td><td class=num>$55.44</td></tr><tr><td>D1</td><td class=num>$0</td><td class=num>$0</td><td class=num>$0 (year 1)</td></tr><tr><td>Durable Objects</td><td class=num>$0</td><td class=num>$0.87</td><td class=num>$17.26</td></tr><tr><td>R2</td><td class=num>$0.02</td><td class=num>$1.35</td><td class=num>$9.33</td></tr><tr class=total><td><b>Expected total</b></td><td class=num><b>≈ $5</b></td><td class=num><b>≈ $16</b></td><td class=num><b>≈ $87</b></td></tr></tbody></table></div>
+<h2 id="recommended-budget">Recommended budget</h2>
+<p>Budget each month for the expected total plus headroom for growth, launch spikes and estimation error. Add an alert below each line, so you hear about it before the bill does.</p>
+<div class="tbl"><table><thead><tr><th>Size</th><th class=num>Expected</th><th class=num><b>Monthly budget</b></th><th class=num>Alert at</th></tr></thead><tbody><tr><td>Small</td><td class=num>≈ $5</td><td class=num><b>$10</b></td><td class=num>$8</td></tr><tr><td>Medium</td><td class=num>≈ $16</td><td class=num><b>$30</b></td><td class=num>$22</td></tr><tr><td>Large</td><td class=num>≈ $87</td><td class=num><b>$130</b></td><td class=num>$100</td></tr></tbody></table></div>
+<p>To set the alert, use Cloudflare dashboard → Notifications → Add → <b>Usage Based Billing</b>. Add one for Workers requests, Durable Objects and R2, each sized from the tables above.</p>
+<p>Year 2 at large scale: add D1 storage (≈ $1–4 a month once past 5 GB) and the growing R2 storage (≈ $13 a month for each extra 880 GB a year), unless you archive old data (below).</p>
+<h2 id="ways-to-pay-less">Ways to pay less</h2>
+<p>Ordered by how much they save. Most of the bill at medium and large scale is <b>polling</b> (Workers requests) and <b>driver location messages</b> (Durable Objects).</p>
+<ol><li><b>Poll less on screens that already have a socket.</b> Customer and owner screens poll every 5 s while focused. Pushing changes over the existing rooms and polling at 30–60 s only as a fallback cuts Workers requests by about half. At large scale that saves about <b>$25 a month</b>.</li><li><b>Send driver locations less often.</b> A fix every 10 s instead of 5 s (or only after moving ~30 m) halves the Dispatch messages. At large scale that saves about <b>$1.60 in requests</b>, and duration drops to about 0.39 M GB-s, inside the included 400,000. That saves another <b>$12.50</b>.</li><li><b>Answer the trip <code>ping</code> with <code>setWebSocketAutoResponse</code>.</b> If it isn't already an auto-response, make it one, or switch to protocol pings. Auto-responses don't wake the object, and protocol pings aren't billed.</li><li><b>Serve images through a cache, not the worker.</b> Put menu images, logos and QR codes on a public R2 bucket with a custom domain and caching, or behind the Cache API. That avoids most Class B reads and a Worker request per image.</li><li><b>Shrink photos before upload.</b> The app already does this (<code>shrinkImage</code>). Keep proof photos around 300 KB or less, since R2 storage grows with every order.</li><li><b>Archive finished transactions after 12 months.</b> Move old <code>transactions_*</code>, <code>order_items</code>, <code>payouts</code> and <code>owner_transactions</code> rows to R2 (or Basin) as Parquet or JSON. That keeps D1 under its 5 GB free storage, and under the 10 GB limit for one database.</li><li><b>Delete proof photos after the dispute window.</b> For example, delete drop off and payment proofs 90 days after completion. Deletes are free in R2.</li><li><b>Keep queries on indexes.</b> D1 bills every row a query scans. The admin date-range totals scan each store's transactions and are fine at cpanel traffic. Don't move them into the mobile app's hot paths.</li><li><b>Don't turn on Workers Caching for the API.</b> Cached requests are still billed as Worker requests, and static assets are already free.</li></ol>
+<h2 id="outside-cloudflare">Outside Cloudflare</h2>
+<p>These don't appear on the Cloudflare bill, but they can limit or cost money at scale:</p>
+<div class="tbl"><table><thead><tr><th>Service</th><th>Used for</th><th>Watch out for</th></tr></thead><tbody><tr><td>Public OSRM (<code>router.project-osrm.org</code>)</td><td>Road distance for fees and routes</td><td>A demo server with no uptime promise. Not meant for production traffic at medium or large scale; self-host OSRM (as planned) or pay for a routing API.</td></tr><tr><td>OpenRouteService</td><td>Fallback when OSRM fails</td><td>The free key allows about <b>2,000 directions a day</b>. Large scale makes about 13,000 quotes a day, so this can't be the only fallback.</td></tr><tr><td>Expo Push</td><td>Push notifications and receipts</td><td>Free, with rate limits. The cron already cleans up receipts.</td></tr><tr><td>Google Play / Apple developer accounts</td><td>Shipping the app</td><td>Fixed yearly or one-time fees, not usage-based.</td></tr></tbody></table></div>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

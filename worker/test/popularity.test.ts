@@ -6,10 +6,10 @@ import { api, placeOrder, registerUser } from './helpers';
 const popularity = async (id: number) =>
   (await env.DB.prepare('SELECT popularity FROM store_menu_items WHERE id = ?').bind(id).first<{ popularity: number }>())!.popularity;
 
-/** The migration's UPDATE statements, re-run against the current data. */
+/** The migration's UPDATE statements, re-run against the current data (orders is transactions_pickup since 0021). */
 async function rerunBackfill() {
   const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith('0013_'))!;
-  for (const sql of migration.queries.filter((q) => q.trim().toUpperCase().startsWith('UPDATE'))) await env.DB.prepare(sql).run();
+  for (const sql of migration.queries.filter((q) => q.trim().toUpperCase().startsWith('UPDATE'))) await env.DB.prepare(sql.replace(/\bJOIN orders\b/g, 'JOIN transactions_pickup')).run();
 }
 
 describe('menu popularity', () => {
@@ -28,8 +28,8 @@ describe('menu popularity', () => {
     // Old data: lines without menu_item_id.
     await env.DB.batch([
       env.DB.prepare('UPDATE order_items SET menu_item_id = NULL'),
-      env.DB.prepare("UPDATE orders SET status = 'delivered' WHERE id = ?").bind(delivered),
-      env.DB.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").bind(cancelled),
+      env.DB.prepare("UPDATE transactions_pickup SET status = 'delivered' WHERE id = ?").bind(delivered),
+      env.DB.prepare("UPDATE transactions_pickup SET status = 'cancelled' WHERE id = ?").bind(cancelled),
     ]);
 
     await rerunBackfill();

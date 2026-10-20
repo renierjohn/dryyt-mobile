@@ -159,7 +159,7 @@ describe('owner', () => {
     const ids: number[] = [];
     for (const [i, status] of statuses.entries()) {
       const row = await env.DB.prepare(
-        `INSERT INTO transactions (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
+        `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
            shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee, created_at, updated_at)
          VALUES (?, ?, ?, ?, 14.56, 121.03, 'Home', 14.55, 121.02, 1, 5000, 500, 5500, ?, ?) RETURNING id`,
       )
@@ -205,8 +205,8 @@ describe('owner', () => {
     const customer = await registerUser('customer');
     const insert = (status: string) =>
       env.DB.prepare(
-        `INSERT INTO orders (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, service_fee)
-         VALUES ('pickup', ?, ?, ?, ?, '1 Customer St', 0, 8800, 800) RETURNING id`,
+        `INSERT INTO transactions_pickup (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, service_fee,
+           total_delivery_fee) VALUES ('pickup', ?, ?, ?, ?, '1 Customer St', 0, 8000, 800, 8800) RETURNING id`,
       )
         .bind(customer.user.id, driver.user.id, storeId, status)
         .first<{ id: number }>();
@@ -230,7 +230,7 @@ describe('owner', () => {
 
   it('a failed confirm leaves the drop off confirmable', async () => {
     const { owner, id } = await withOwner();
-    await env.DB.prepare("INSERT INTO payouts (transaction_id, payer_store_id, payee_type, payee_id, amount) SELECT id, store_id, 'driver', driver_id, 1 FROM transactions WHERE id = ?").bind(id).run();
+    await env.DB.prepare("INSERT INTO payouts (transaction_id, payer_store_id, payee_type, payee_id, amount) SELECT id, store_id, 'driver', driver_id, 1 FROM transactions_dropoff WHERE id = ?").bind(id).run();
 
     expect((await post(`/owner/transactions/${id}/confirm`, owner.token)).status).toBeGreaterThanOrEqual(500);
     expect((await api(`/dropoffs/${id}`, { token: owner.token })).body.dropoff.status).toBe('dropped_off');

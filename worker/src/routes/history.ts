@@ -23,23 +23,23 @@ const DRIVER_DONE = "('dropped_off', 'owner_confirmed', 'completed', 'payment_pe
  */
 const PIN = "(status = 'owner_confirmed')";
 const DROPOFFS = {
-  customer: `SELECT 'dropoff' AS kind, id, created_at AS at, ${PIN} AS pin FROM transactions WHERE customer_id = ?1`,
-  driver: `SELECT 'dropoff' AS kind, id, updated_at AS at, ${PIN} AS pin FROM transactions WHERE driver_id = ?1 AND status IN ${DRIVER_DONE}`,
+  customer: `SELECT 'dropoff' AS kind, id, created_at AS at, ${PIN} AS pin FROM transactions_dropoff WHERE customer_id = ?1`,
+  driver: `SELECT 'dropoff' AS kind, id, updated_at AS at, ${PIN} AS pin FROM transactions_dropoff WHERE driver_id = ?1 AND status IN ${DRIVER_DONE}`,
 };
 const ORDERS = {
-  customer: `SELECT 'order', id, created_at, 0 FROM orders WHERE customer_id = ?1`,
-  driver: `SELECT 'order', id, updated_at, 0 FROM orders WHERE driver_id = ?1 AND status = 'delivered'`,
+  customer: `SELECT 'order', id, created_at, 0 FROM transactions_pickup WHERE customer_id = ?1`,
+  driver: `SELECT 'order', id, updated_at, 0 FROM transactions_pickup WHERE driver_id = ?1 AND status = 'delivered'`,
 };
 /** Drop offs, plus Pickup orders while PICKUP_ENABLED is on. */
 const sources = (role: 'customer' | 'driver', pickup: boolean) => (pickup ? `${DROPOFFS[role]} UNION ALL ${ORDERS[role]}` : DROPOFFS[role]);
 
 /**
- * The driver's share of every job in their history, like the app's day totals: a drop off's delivery_fee (the service
- * fee is already split out) and a pickup's delivery_fee - service_fee; cancelled drop offs earn nothing.
+ * The driver's share of every job in their history, like the app's day totals: delivery_fee (the service fee is
+ * already split out); cancelled drop offs earn nothing.
  */
 const EARNINGS = `SELECT
-  (SELECT COALESCE(SUM(delivery_fee), 0) FROM transactions WHERE driver_id = ?1 AND status IN ${DRIVER_DONE} AND status != 'cancelled') +
-  (SELECT COALESCE(SUM(delivery_fee - service_fee), 0) FROM orders WHERE driver_id = ?1 AND status = 'delivered') AS earnings`;
+  (SELECT COALESCE(SUM(delivery_fee), 0) FROM transactions_dropoff WHERE driver_id = ?1 AND status IN ${DRIVER_DONE} AND status != 'cancelled') +
+  (SELECT COALESCE(SUM(delivery_fee), 0) FROM transactions_pickup WHERE driver_id = ?1 AND status = 'delivered') AS earnings`;
 
 type Entry = { kind: 'order' | 'dropoff'; id: number; at: string; pin: number };
 

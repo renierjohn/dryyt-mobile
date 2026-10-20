@@ -29,7 +29,7 @@ function Countdown({ startedAt, seconds }: { startedAt: string; seconds: number 
 }
 
 /** Live drop off requests near the driver. Sends the driver's location while mounted. */
-export function DropoffRequests({ acceptedAt }: { acceptedAt: string | null }) {
+export function DropoffRequests({ acceptedAt, onLive }: { acceptedAt: string | null; onLive?: (connected: boolean) => void }) {
   const waitingForCustomer = acceptedAt !== null;
   const qc = useQueryClient();
   const [items, setItems] = useState<DispatchRequest[]>([]);
@@ -63,6 +63,10 @@ export function DropoffRequests({ acceptedAt }: { acceptedAt: string | null }) {
   const { connected, send } = useSocket('dispatch', onMessage, (sendNow) => {
     if (lastLoc.current) sendNow({ t: 'loc', ...lastLoc.current });
   });
+  useEffect(() => {
+    onLive?.(connected);
+    return () => onLive?.(false);
+  }, [onLive, connected]);
   const accepting = connected ? acceptingId : null;
   useWatchLocation(true, (at) => {
     lastLoc.current = at;

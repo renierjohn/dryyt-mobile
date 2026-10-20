@@ -144,7 +144,8 @@ export default function ActiveJob() {
   const me = useDriverMe(() => live.current);
   const job = me.data?.job;
   const onTrip = job?.status === 'en_route_pickup' || job?.status === 'en_route_shop';
-  const pickup = useActiveJob(onTrip);
+  // Only decides which screen to show; PickupJob polls (or listens) for the job itself.
+  const pickup = useActiveJob(onTrip, () => true);
   if (job && (onTrip || (job.status === 'dropped_off' && !pickup.data))) {
     return <DropoffTrip job={job} onLive={(connected) => (live.current = connected)} />;
   }

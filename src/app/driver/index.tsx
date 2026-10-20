@@ -21,11 +21,13 @@ import type { Order } from '@/lib/types';
 export default function AvailableJobs() {
   const qc = useQueryClient();
   const theme = useTheme();
-  const me = useDriverMe();
+  // Dispatch or the job board is connected: they push every change to the driver's state, so polling is a slow fallback.
+  const dispatchLive = useRef(false);
+  const live = useRef(false);
+  const me = useDriverMe(() => dispatchLive.current || live.current);
   const setPickupOnline = useSetPickupOnline();
   // The requested value while saving.
   const pickupOnline = PICKUP_ENABLED && (setPickupOnline.isPending ? setPickupOnline.variables : (me.data?.driver.pickup_online ?? false));
-  const live = useRef(false);
   const jobs = useAvailableJobs(pickupOnline, () => live.current);
   // Online for pickup: the job board pushes every change instead of polling.
   const { connected } = useSocket(pickupOnline && me.data?.driver.pickup_online ? 'pickups' : null, (msg) => {
@@ -58,7 +60,7 @@ export default function AvailableJobs() {
         </ThemedText>
       </Card>
       {online && !onPickup && (!job || job.status === 'driver_accepted' || job.status === 'dropped_off') && (
-        <DropoffRequests acceptedAt={job?.status === 'driver_accepted' ? job.updated_at : null} />
+        <DropoffRequests acceptedAt={job?.status === 'driver_accepted' ? job.updated_at : null} onLive={(c) => (dispatchLive.current = c)} />
       )}
       {job && job.status !== 'driver_accepted' && job.status !== 'dropped_off' && (
         <ThemedText themeColor="textSecondary">You have an active drop off. Open the Active tab.</ThemedText>

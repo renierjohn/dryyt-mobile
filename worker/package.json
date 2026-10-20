@@ -7,6 +7,7 @@
     "web:dev": "bun run --cwd web dev",
     "web:build": "bun run --cwd web build",
     "deploy": "bun run web:build && wrangler deploy",
+    "r2:lifecycle": "wrangler r2 bucket lifecycle add dryyt-mobile expire-proofs proof/ --expire-days 90 -y && wrangler r2 bucket lifecycle add dryyt-mobile expire-payments payments/ --expire-days 90 -y",
     "test": "vitest run && vitest run -c vitest.v2.config.ts",
     "test:v2": "vitest run -c vitest.v2.config.ts",
     "typecheck": "tsc --noEmit",

@@ -53,7 +53,10 @@ export function useCurrentLocation() {
   return { loc, accuracy, error };
 }
 
-/** Calls `onLocation` about every 5 s while `enabled` (foreground only: the app must stay open). `accuracy` is in meters. */
+/** How often a driver's location goes out: each fix is a billed Durable Object message, and the worker drops drivers after 30 s. */
+const WATCH_EVERY_MS = 10_000;
+
+/** Calls `onLocation` about every 10 s while `enabled` (foreground only: the app must stay open). `accuracy` is in meters. */
 export function useWatchLocation(enabled: boolean, onLocation: (at: LatLng, accuracy: number | null) => void) {
   const handler = useRef(onLocation);
 
@@ -65,12 +68,18 @@ export function useWatchLocation(enabled: boolean, onLocation: (at: LatLng, accu
     if (!enabled) return;
     let sub: Location.LocationSubscription | null = null;
     let cancelled = false;
+    let last = 0;
     (async () => {
       const { granted } = await Location.requestForegroundPermissionsAsync();
       if (!granted || cancelled) return;
+      // iOS ignores timeInterval and reports about every second, so skip fixes that come too soon.
       sub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 5000, distanceInterval: 0 },
-        (pos) => handler.current({ lat: pos.coords.latitude, lng: pos.coords.longitude }, pos.coords.accuracy ?? null),
+        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: WATCH_EVERY_MS, distanceInterval: 0 },
+        (pos) => {
+          if (pos.timestamp - last < WATCH_EVERY_MS - 500) return;
+          last = pos.timestamp;
+          handler.current({ lat: pos.coords.latitude, lng: pos.coords.longitude }, pos.coords.accuracy ?? null);
+        },
       );
       if (cancelled) sub.remove();
     })();

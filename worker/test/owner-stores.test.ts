@@ -301,6 +301,13 @@ describe('owner menu', () => {
     expect(photo.headers.get('content-type')).toBe('image/jpeg');
     expect(new Uint8Array(await photo.arrayBuffer())).toEqual(JPEG);
 
+    // Served from the edge cache after the first view, so repeat views skip R2.
+    const key = new URL(image_url).pathname.replace('/menu-images/', 'menu/');
+    const stored = (await env.PROOFS.get(key))!;
+    await env.PROOFS.delete(key);
+    await vi.waitFor(async () => expect((await SELF.fetch(image_url)).status).toBe(200));
+    await env.PROOFS.put(key, await stored.arrayBuffer(), { httpMetadata: stored.httpMetadata });
+
     const itemId = (await api(`/owner/stores/${storeId}/menu`, { token, body: { ...item, image_url } })).body.item.id;
     await api(`/owner/stores/${storeId}/menu/${itemId}`, { token, method: 'DELETE' });
     // The R2 delete runs in waitUntil, after the response.

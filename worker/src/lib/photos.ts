@@ -36,3 +36,29 @@ export async function photoResponse(bucket: R2Bucket, key: string | null | undef
     headers: { 'content-type': object.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': cacheControl },
   });
 }
+
+/**
+ * A public image whose name changes on every upload (menu photos, logos, QRs), served from the edge cache so repeat
+ * views skip R2. The Cache API does nothing on workers.dev: this only saves reads on the custom domain.
+ */
+export async function cachedPhotoResponse(c: Context, bucket: R2Bucket, key: string | null | undefined) {
+  const cache = edgeCache();
+  const hit = await cache.match(c.req.raw);
+  if (hit) return hit;
+  const res = await photoResponse(bucket, key, 'public, max-age=31536000, immutable');
+  c.executionCtx.waitUntil(cache.put(c.req.raw, res.clone()));
+  return res;
+}
+
+/**
+ * Deletes public images from R2, then from this location's edge cache. Other locations keep their copy until it ages
+ * out, but nothing links to it any more: every upload gets a new name.
+ */
+export function dropPublicImages(c: Context, bucket: R2Bucket, keys: string[], urlOf: (key: string) => string) {
+  if (keys.length === 0) return;
+  const cache = edgeCache();
+  c.executionCtx.waitUntil(bucket.delete(keys).then(() => Promise.all(keys.map((key) => cache.delete(urlOf(key))))));
+}
+
+// The test pool's types hide `caches.default`.
+const edgeCache = () => (caches as unknown as { default: Cache }).default;

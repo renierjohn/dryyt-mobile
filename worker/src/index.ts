@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { requireAuth } from './lib/auth';
 import { fail, parseBody } from './lib/http';
 import { menuImageKey } from './lib/menu';
-import { photoResponse } from './lib/photos';
+import { cachedPhotoResponse } from './lib/photos';
 import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
 import admin from './routes/admin';
@@ -30,13 +30,9 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.route('/auth', auth);
 app.route('/stores', stores);
 // Menu photos are public (no token) so any client can show them; each upload gets a new name, so cache for good.
-app.get('/menu-images/:store/:file', (c) =>
-  photoResponse(c.env.PROOFS, menuImageKey(c.req.url), 'public, max-age=31536000, immutable'),
-);
+app.get('/menu-images/:store/:file', (c) => cachedPhotoResponse(c, c.env.PROOFS, menuImageKey(c.req.url)));
 // Shop logos and payment QRs, public like menu photos.
-app.get('/store-images/:owner/:file', (c) =>
-  photoResponse(c.env.PROOFS, storeImageKey(c.req.url), 'public, max-age=31536000, immutable'),
-);
+app.get('/store-images/:owner/:file', (c) => cachedPhotoResponse(c, c.env.PROOFS, storeImageKey(c.req.url)));
 // Pickup is switched off by PICKUP_ENABLED (wrangler.jsonc) while Drop off ships first.
 const pickupOnly = createMiddleware<AppEnv>(async (c, next) => {
   if (c.env.PICKUP_ENABLED !== 'true') fail(403, 'Pickup is not available yet');

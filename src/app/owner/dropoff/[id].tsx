@@ -12,7 +12,8 @@ import { DROPOFF_STATUS_LABEL } from '@/lib/format';
 
 export default function OwnerDropoff() {
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const dropoff = useDropoff(id);
+  // Every status change the owner cares about also comes as a push, which refetches this; poll only as a fallback.
+  const dropoff = useDropoff(id, () => true);
   const confirm = useOwnerConfirm();
   const payment = useDropoffAction(id);
   const block = useBlockDriver();

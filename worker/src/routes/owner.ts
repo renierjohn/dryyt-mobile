@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
 import { getMenuItem, listMenu, menuImageKey, menuImageUrl } from '../lib/menu';
 import { getOrder, listOrders } from '../lib/orders';
-import { photoResponse, readPhoto } from '../lib/photos';
+import { dropPublicImages, photoResponse, readPhoto } from '../lib/photos';
 import { pickupChanged } from '../lib/pickup-live';
 import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
@@ -126,8 +126,9 @@ owner.post('/stores/image', async (c) => {
 
 /** Removes uploaded logos and QRs the shop no longer shows. */
 function dropStoreImages(c: Context<AppEnv>, before: string[], after: string[] = []) {
+  const origin = new URL(c.req.url).origin;
   const gone = before.filter((key) => !after.includes(key));
-  if (gone.length > 0) c.executionCtx.waitUntil(c.env.PROOFS.delete(gone));
+  dropPublicImages(c, c.env.PROOFS, gone, (key) => `${origin}/store-images/${key.slice('stores/'.length)}`);
 }
 
 owner.post('/stores/:id', async (c) => {
@@ -200,7 +201,7 @@ owner.post('/stores/:id/menu/image', async (c) => {
 /** Removes an uploaded photo the menu no longer uses. */
 function dropImage(c: Context<AppEnv>, before: string | null | undefined, after: string | null = null) {
   const key = menuImageKey(before);
-  if (key && before !== after) c.executionCtx.waitUntil(c.env.PROOFS.delete(key));
+  if (key && before !== after) dropPublicImages(c, c.env.PROOFS, [key], () => before!);
 }
 
 /** Must list every item exactly once, so a stale list can't scramble the menu. */

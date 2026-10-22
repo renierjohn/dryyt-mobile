@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { api, peso } from './api';
 import { addMonths, today } from './dates';
 
-type Fee = { id: number; amount: number; type: 'pickup' | 'dropoff'; payment_type: string; date_paid: string; next_due_date: string | null };
+type Fee = { id: number; amount: number; type: keyof typeof TYPE_LABEL; payment_type: string; date_paid: string; next_due_date: string | null };
 type Owner = { id: number; name: string; last_fee_amount: number | null; last_fee_paid: string | null; next_due_date: string | null };
 
-const TYPE_LABEL = { pickup: 'Pickup + Store', dropoff: 'Drop off' };
+/** app_fee.type: what the payment covers. */
+const TYPE_LABEL = { both: 'Service fee & Subscription', service_fee: 'Service fee', subscription: 'Subscription' };
 const addMonth = (d: string) => addMonths(d, 1);
 
 /** YYYY-MM-DD as "Oct 20, 2026". */
@@ -104,7 +105,7 @@ function FeesModal({ owner, onClose, onAuthError, onLatest }: { owner: Owner; on
 									<tr key={f.id}>
 										<td>{day(f.date_paid)}</td>
 										<td>
-											<span className={`cp-badge s-${f.type === 'pickup' ? 'food' : 'laundry'}`}>{TYPE_LABEL[f.type]}</span>
+											<span className={`cp-badge s-${f.type === 'subscription' ? 'laundry' : 'food'}`}>{TYPE_LABEL[f.type]}</span>
 										</td>
 										<td>{f.payment_type}</td>
 										<td className="num">{peso(f.amount)}</td>
@@ -150,7 +151,7 @@ function FeesModal({ owner, onClose, onAuthError, onLatest }: { owner: Owner; on
 }
 
 function AddFee({ ownerId, onAdded, onCancel, onAuthError }: { ownerId: number; onAdded: (f: Fee) => void; onCancel: () => void; onAuthError: (e: unknown) => void }) {
-	const [draft, setDraft] = useState(() => ({ amount: '', type: 'pickup', payment_type: 'cash', date_paid: today(), next_due_date: addMonth(today()) }));
+	const [draft, setDraft] = useState(() => ({ amount: '', type: 'subscription', payment_type: 'cash', date_paid: today(), next_due_date: addMonth(today()) }));
 	// Next due follows date paid (one month on) until the admin picks it themselves.
 	const [dueTouched, setDueTouched] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -190,8 +191,11 @@ function AddFee({ ownerId, onAdded, onCancel, onAuthError }: { ownerId: number; 
 			<label className="cp-field">
 				Type
 				<select value={draft.type} onChange={set('type')}>
-					<option value="pickup">{TYPE_LABEL.pickup}</option>
-					<option value="dropoff">{TYPE_LABEL.dropoff}</option>
+					{Object.entries(TYPE_LABEL).map(([value, label]) => (
+						<option key={value} value={value}>
+							{label}
+						</option>
+					))}
 				</select>
 			</label>
 			<label className="cp-field">

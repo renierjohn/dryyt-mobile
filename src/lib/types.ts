@@ -187,6 +187,11 @@ export type Payout = {
   status: 'pending' | 'paid';
   paid_at: string | null;
   created_at: string;
+  /** The drop off's driver, also on the app's service fee lines (whose payee is the app). */
+  driver_name: string | null;
+  /** The driver's face photo, from GET /owner/drivers/:payee_id/face?v=<payee_photo_version>. */
+  payee_has_face: boolean;
+  payee_photo_version: string;
 };
 
 /** A delivered pickup's driver share of the delivery fee; `id` is the order id. */
@@ -199,4 +204,26 @@ export type PickupPayout = {
   amount: number;
   paid_at: string | null;
   updated_at: string;
+  /** The driver's face photo, from GET /owner/drivers/:driver_id/face?v=<driver_photo_version>. */
+  driver_has_face: boolean;
+  driver_photo_version: string;
+};
+
+/** GET /owner/app-fee: this month's app fee due per shop and the owner's latest subscription payment. */
+export type OwnerAppFee = {
+  /** "YYYY-MM", Manila. */
+  month: string;
+  stores: {
+    id: number;
+    name: string;
+    type: StoreType;
+    store_logo: string | null;
+    /** 1 flat fee, 2 percentage of sales. */
+    fee_type: 1 | 2;
+    fee_flat: number;
+    fee_percentage: number;
+    sales: number;
+    amount_due: number;
+  }[];
+  last_payment: { amount: number; type: 'both' | 'service_fee' | 'subscription'; payment_type: string; date_paid: string; next_due_date: string | null } | null;
 };

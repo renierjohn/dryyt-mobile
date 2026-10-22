@@ -5,11 +5,12 @@ import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
 import { getMenuItem, listMenu, menuImageKey, menuImageUrl } from '../lib/menu';
 import { getOrder, listOrders } from '../lib/orders';
-import { dropPublicImages, photoResponse, readPhoto } from '../lib/photos';
+import { driverPhotoVersion, dropPublicImages, photoResponse, readPhoto } from '../lib/photos';
 import { pickupChanged } from '../lib/pickup-live';
 import { storeImageKeys, storeImageUrl, toStore, type StoreRow } from '../lib/stores';
 import { fail, parseBody, parseId } from '../lib/http';
 import { pushToUsers } from '../lib/push';
+import { STORE_TOTALS, storeRange } from '../lib/store-totals';
 import { tripFor } from '../lib/rooms';
 import type { AppEnv } from '../types';
 
@@ -51,7 +52,12 @@ async function myFoodStore(c: Context<AppEnv>) {
 /** Without store_id the block applies to every shop the owner runs. */
 const blockSchema = z.object({ driver_id: z.number().int().positive(), blocked: z.boolean(), store_id: z.number().int().positive().optional() });
 
-const PAYOUT_SELECT = `SELECT p.*, u.name AS payee_name, s.name AS store_name FROM payouts p LEFT JOIN users u ON u.id = p.payee_id LEFT JOIN stores s ON s.id = p.payer_store_id`;
+/** `payee_has_face` / `payee_photo_version`: the driver's face photo for the payout line (GET /owner/drivers/:id/face). */
+const PAYOUT_SELECT = `SELECT p.*, u.name AS payee_name, s.name AS store_name, du.name AS driver_name,
+  dd.photo_face IS NOT NULL AS payee_has_face, ${driverPhotoVersion('dd')} AS payee_photo_version
+  FROM payouts p LEFT JOIN users u ON u.id = p.payee_id LEFT JOIN stores s ON s.id = p.payer_store_id
+  LEFT JOIN driver_data dd ON dd.user_id = p.payee_id
+  LEFT JOIN transactions_dropoff t ON t.id = p.transaction_id LEFT JOIN users du ON du.id = t.driver_id`;
 
 /** Every shop this owner runs (an owner may run several). */
 async function myStoreIds(c: Context<AppEnv>) {
@@ -77,6 +83,12 @@ function cursorParts(before: string, count: number) {
   const parts = before.split('|');
   if (parts.length !== count || parts.some((p) => p === '')) fail(400, 'Invalid page cursor');
   return parts;
+}
+
+/** A `next` cursor that is just the last row's id, or 400s. */
+function idCursor(before: string) {
+  if (!/^\d+$/.test(before)) fail(400, 'Invalid page cursor');
+  return Number(before);
 }
 
 /** `IN (?, ?, …)` for a list of ids. */
@@ -283,7 +295,7 @@ owner.get('/orders', async (c) => {
   if (type !== undefined && type !== 'food' && type !== 'laundry') fail(400, 'type must be food or laundry');
   const binds: unknown[] = [...storeIds];
   if (type) binds.push(type);
-  if (before) binds.push(Number(cursorParts(before, 1)[0]));
+  if (before) binds.push(idCursor(before));
   const rows = await listOrders(
     c.env.DB,
     `o.store_id IN ${inList(storeIds)} ${type ? 'AND s.type = ?' : ''} ${before ? 'AND o.id < ?' : ''} ORDER BY o.id DESC LIMIT ${limit + 1}`,
@@ -388,18 +400,16 @@ owner.get('/payouts', async (c) => {
   let cursor = '';
   const binds: unknown[] = [...storeIds];
   if (before) {
-    const [status, id] = cursorParts(before, 2);
-    cursor = 'AND (p.status < ? OR (p.status = ? AND p.id < ?))';
-    binds.push(status, status, Number(id));
+    cursor = 'AND p.id < ?';
+    binds.push(idCursor(before));
   }
-  const { results } = await c.env.DB.prepare(
-    `${PAYOUT_SELECT} WHERE p.payer_store_id IN ${inList(storeIds)} ${cursor} ORDER BY p.status DESC, p.id DESC LIMIT ${limit + 1}`,
-  )
+  // Newest first: the app groups payouts by day.
+  const { results } = await c.env.DB.prepare(`${PAYOUT_SELECT} WHERE p.payer_store_id IN ${inList(storeIds)} ${cursor} ORDER BY p.id DESC LIMIT ${limit + 1}`)
     .bind(...binds)
-    .all<{ id: number; status: string }>();
-  const page = results.slice(0, limit);
+    .all<{ id: number }>();
+  const page = results.slice(0, limit).map(withFaceFlag('payee_has_face'));
   const last = page[page.length - 1];
-  return c.json({ payouts: page, next: results.length > limit && last ? `${last.status}|${last.id}` : null });
+  return c.json({ payouts: page, next: results.length > limit && last ? String(last.id) : null });
 });
 
 owner.post('/payouts/:id/paid', async (c) => {
@@ -419,29 +429,90 @@ owner.post('/payouts/:id/paid', async (c) => {
 });
 
 const PICKUP_PAYOUT_SELECT = `SELECT o.id, o.store_id, s.name AS store_name, o.driver_id, u.name AS driver_name,
-  o.delivery_fee AS amount, o.driver_paid_at AS paid_at, o.updated_at
-  FROM transactions_pickup o JOIN stores s ON s.id = o.store_id LEFT JOIN users u ON u.id = o.driver_id`;
+  o.delivery_fee AS amount, o.driver_paid_at AS paid_at, o.updated_at,
+  dd.photo_face IS NOT NULL AS driver_has_face, ${driverPhotoVersion('dd')} AS driver_photo_version
+  FROM transactions_pickup o JOIN stores s ON s.id = o.store_id LEFT JOIN users u ON u.id = o.driver_id
+  LEFT JOIN driver_data dd ON dd.user_id = o.driver_id`;
 
-/** Drivers' share of delivered pickups' delivery fees. Not yet paid first, then newest; 10 per page. */
+/**
+ * Drivers' share of delivered pickups' delivery fees, newest first; 10 per page.
+ * `?type=food|laundry`: only food orders' or laundry pickups' (the app's Payouts tabs); all without it.
+ */
 owner.get('/pickup-payouts', async (c) => {
   const storeIds = await myStoreIds(c);
   const { before, limit } = pageQuery(c);
+  const type = c.req.query('type');
+  if (type !== undefined && type !== 'food' && type !== 'laundry') fail(400, 'type must be food or laundry');
   let cursor = '';
   const binds: unknown[] = [...storeIds];
+  if (type) binds.push(type);
   if (before) {
-    const [paid, id] = cursorParts(before, 2);
-    cursor = 'AND ((o.driver_paid_at IS NOT NULL) > ? OR ((o.driver_paid_at IS NOT NULL) = ? AND o.id < ?))';
-    binds.push(Number(paid), Number(paid), Number(id));
+    cursor = 'AND o.id < ?';
+    binds.push(idCursor(before));
   }
+  // Newest first: the app groups payouts by day.
   const { results } = await c.env.DB.prepare(
-    `${PICKUP_PAYOUT_SELECT} WHERE o.store_id IN ${inList(storeIds)} AND o.status = 'delivered' AND o.driver_id IS NOT NULL ${cursor}
-     ORDER BY o.driver_paid_at IS NOT NULL, o.id DESC LIMIT ${limit + 1}`,
+    `${PICKUP_PAYOUT_SELECT} WHERE o.store_id IN ${inList(storeIds)} ${type ? 'AND s.type = ?' : ''} AND o.status = 'delivered' AND o.driver_id IS NOT NULL ${cursor}
+     ORDER BY o.id DESC LIMIT ${limit + 1}`,
   )
     .bind(...binds)
-    .all<{ id: number; paid_at: string | null }>();
-  const page = results.slice(0, limit);
+    .all<{ id: number }>();
+  const page = results.slice(0, limit).map(withFaceFlag('driver_has_face'));
   const last = page[page.length - 1];
-  return c.json({ payouts: page, next: results.length > limit && last ? `${last.paid_at ? 1 : 0}|${last.id}` : null });
+  return c.json({ payouts: page, next: results.length > limit && last ? String(last.id) : null });
+});
+
+/** Today's month in Manila as [first day, last day] (YYYY-MM-DD) and its "YYYY-MM". */
+function manilaMonth(now = Date.now()) {
+  const today = new Date(now + 8 * 3600_000).toISOString().slice(0, 10);
+  const [y, m] = today.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const month = today.slice(0, 7);
+  return { month, range: [`${month}-01`, `${month}-${String(last).padStart(2, '0')}`] as const };
+}
+
+/**
+ * The APP Fee tab: this Manila month's amount due per shop (its fee_type: a flat fee, or a percentage of the month's
+ * sales; same as the cpanel's Stores tab) and the owner's latest subscription payment recorded in the cpanel.
+ */
+owner.get('/app-fee', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const { month, range } = manilaMonth();
+  const db = c.env.DB;
+  const [stores, last] = await Promise.all([
+    db
+      .prepare(
+        `SELECT s.id, s.name, s.type, s.store_logo, s.fee_type, s.fee_flat, s.fee_percentage, s.sales, s.app_fee AS amount_due
+         FROM ${STORE_TOTALS} WHERE s.id IN ${inList(storeIds)} ORDER BY s.name`,
+      )
+      .bind(...storeRange(range), ...storeIds)
+      .all(),
+    db
+      .prepare('SELECT amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? ORDER BY date_paid DESC, id DESC LIMIT 1')
+      .bind(c.get('user').id)
+      .first(),
+  ]);
+  return c.json({ month, stores: stores.results, last_payment: last ?? null });
+});
+
+/** D1 returns SQL booleans as 0/1. */
+const withFaceFlag =
+  (key: string) =>
+  <T extends Record<string, unknown>>(row: T): T => ({ ...row, [key]: Boolean(row[key]) });
+
+/** A driver's face photo, for the payout lists: only drivers who have delivered for one of the owner's shops. */
+owner.get('/drivers/:id/face', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const driverId = parseId(c);
+  const row = await c.env.DB.prepare(
+    `SELECT dd.photo_face FROM driver_data dd WHERE dd.user_id = ? AND (
+       EXISTS (SELECT 1 FROM transactions_pickup o WHERE o.driver_id = dd.user_id AND o.store_id IN ${inList(storeIds)})
+       OR EXISTS (SELECT 1 FROM transactions_dropoff t WHERE t.driver_id = dd.user_id AND t.store_id IN ${inList(storeIds)}))`,
+  )
+    .bind(driverId, ...storeIds, ...storeIds)
+    .first<{ photo_face: string | null }>();
+  if (!row) fail(404, 'Driver not found');
+  return photoResponse(c.env.PROOFS, row.photo_face);
 });
 
 owner.post('/orders/:id/driver-paid', async (c) => {

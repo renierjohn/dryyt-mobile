@@ -142,7 +142,7 @@
 </aside>
 <main>
 <h1>Dryyt DB Model</h1>
-<p class="lede">The worker's D1 database after migration 0029: 15 tables, what each holds, and which roles read and write it (R read, W write, R/W both; Admin is the cpanel). Amounts are centavos; times are UTC unless noted.</p>
+<p class="lede">The worker's D1 database after migration 0030: 15 tables, what each holds, and which roles read and write it (R read, W write, R/W both; Admin is the cpanel). Amounts are centavos; times are UTC unless noted.</p>
 
 <h2 id="tables">Tables</h2>
 <div class="group" id="g-accounts">Accounts</div>
@@ -174,7 +174,7 @@
 <div class="group" id="g-money">Money</div>
 <div class="cards">
 <article class="card" id="t-payouts"><h3>payouts</h3><div class="roles"><span class="role own" title="Owner: read · write">Owner <i>R/W</i></span><span class="role adm" title="Admin: read">Admin <i>R</i></span></div><div class="scale" title="2 per confirmed drop off (driver + app)"><b>~2M</b> rows / year<span>2 per confirmed drop off (driver + app)</span></div><p>What a shop owes per confirmed drop off: the driver&#x27;s share and the app&#x27;s service fee.</p><ul class="cols"><li><code>transaction_id</code><span>→ transactions_dropoff</span></li><li><code>payer_store_id</code><span>→ stores</span></li><li><code>payee_type</code><span>driver · developer</span></li><li><code>payee_id</code><span>→ users</span></li><li><code>amount</code><span>centavos</span></li><li><code>status</code><span>pending · paid</span></li><li><code>paid_at</code><span>TEXT</span></li></ul></article>
-<article class="card" id="t-app_fee"><h3>app_fee</h3><div class="roles"><span class="role adm" title="Admin: read · write">Admin <i>R/W</i></span></div><div class="scale" title="1,000 owners × 12 months × 1.5"><b>~18k</b> rows / year<span>1,000 owners × 12 months × 1.5</span></div><p>Subscription payments owners make to the app, recorded from the cpanel.</p><ul class="cols"><li><code>user_id</code><span>→ users (owner)</span></li><li><code>amount</code><span>centavos</span></li><li><code>type</code><span>pickup · dropoff</span></li><li><code>payment_type</code><span>cash, gcash, …</span></li><li><code>date_paid / next_due_date</code><span>YYYY-MM-DD</span></li></ul></article>
+<article class="card" id="t-app_fee"><h3>app_fee</h3><div class="roles"><span class="role adm" title="Admin: read · write">Admin <i>R/W</i></span></div><div class="scale" title="1,000 owners × 12 months × 1.5"><b>~18k</b> rows / year<span>1,000 owners × 12 months × 1.5</span></div><p>Subscription payments owners make to the app, recorded from the cpanel.</p><ul class="cols"><li><code>user_id</code><span>→ users (owner)</span></li><li><code>amount</code><span>centavos</span></li><li><code>type</code><span>both (service fee &amp; subscription) · service_fee · subscription</span></li><li><code>payment_type</code><span>cash, gcash, …</span></li><li><code>date_paid / next_due_date</code><span>YYYY-MM-DD</span></li></ul></article>
 </div>
 <div class="group" id="g-system">System</div>
 <div class="cards">

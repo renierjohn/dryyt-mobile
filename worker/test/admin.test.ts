@@ -212,24 +212,25 @@ describe('admin app fees', () => {
     expect(await row()).toMatchObject({ last_fee_amount: null, last_fee_paid: null });
 
     const pay = (body: Record<string, unknown>) => api(fees, { token: admin, body });
-    const first = await pay({ amount: 50000, type: 'pickup', payment_type: 'gcash', date_paid: '2026-09-20', next_due_date: '2026-10-20' });
+    const first = await pay({ amount: 50000, type: 'both', payment_type: 'gcash', date_paid: '2026-09-20', next_due_date: '2026-10-20' });
     expect(first.status).toBe(201);
-    expect(first.body.fee).toMatchObject({ user_id: owner.user.id, amount: 50000, type: 'pickup', payment_type: 'gcash', date_paid: '2026-09-20' });
-    await pay({ amount: 30000, type: 'dropoff', payment_type: 'cash', date_paid: '2026-10-20' });
+    expect(first.body.fee).toMatchObject({ user_id: owner.user.id, amount: 50000, type: 'both', payment_type: 'gcash', date_paid: '2026-09-20' });
+    await pay({ amount: 30000, type: 'subscription', payment_type: 'cash', date_paid: '2026-10-20' });
 
     const list = (await api(fees, { token: admin })).body.fees;
     expect(list.map((f: { amount: number }) => f.amount)).toEqual([30000, 50000]); // newest paid first
-    expect(list[0]).toMatchObject({ type: 'dropoff', payment_type: 'cash', next_due_date: null });
-    expect(await row()).toMatchObject({ last_fee_amount: 30000, last_fee_type: 'dropoff', last_fee_paid: '2026-10-20', next_due_date: null });
+    expect(list[0]).toMatchObject({ type: 'subscription', payment_type: 'cash', next_due_date: null });
+    expect(await row()).toMatchObject({ last_fee_amount: 30000, last_fee_type: 'subscription', last_fee_paid: '2026-10-20', next_due_date: null });
   });
 
   it('rejects bad payments, non-owners and non-admins', async () => {
     const owner = await registerUser('owner');
     const fees = `/admin/owners/${owner.user.id}/fees`;
-    const good = { amount: 50000, type: 'pickup', payment_type: 'cash', date_paid: '2026-10-20' };
+    const good = { amount: 50000, type: 'service_fee', payment_type: 'cash', date_paid: '2026-10-20' };
     for (const bad of [
       { ...good, amount: 0 },
       { ...good, type: 'monthly' },
+      { ...good, type: 'pickup' }, // the old types are gone
       { ...good, payment_type: ' ' },
       { ...good, date_paid: '10/20/2026' },
       { ...good, next_due_date: '2026-10-19' },

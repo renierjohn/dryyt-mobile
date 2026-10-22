@@ -4,6 +4,9 @@ export type Rate = { base_fee: number; rate_per_km: number; commission_pct: numb
 export const RATE_TYPES = ['pickup', 'dropoff'] as const;
 export type RateType = (typeof RATE_TYPES)[number];
 
+/** app_fee.type: what an owner's payment to the app covers ('both' = service fee and subscription). */
+export const APP_FEE_TYPES = ['both', 'service_fee', 'subscription'] as const;
+
 /** rates.category: the vehicle a rate is for, by code. Add new codes here; the column has no CHECK. */
 export const VEHICLE_CATEGORIES = { 1: 'Bicycle', 2: 'Motorcycle', 3: 'Tricycle', 4: 'Car (lightweight)' } as const;
 export type VehicleCategory = keyof typeof VEHICLE_CATEGORIES;

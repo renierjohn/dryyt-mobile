@@ -9,7 +9,7 @@ import { api, uploadImage } from '@/lib/api';
 import { roadRoute } from '@/lib/road-route';
 import { loadOnline, saveOnline } from '@/lib/session-storage';
 import { shrinkImage } from '@/lib/shrink-image';
-import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
+import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, OwnerAppFee, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
 
 const POLL_MS = 5000;
 /** Fallback poll for screens that also get live updates over a socket. */
@@ -447,7 +447,15 @@ export function useOwnerConfirm() {
   });
 }
 
-/** Pending first, then newest; 10 per page (`fetchNextPage` for more). */
+/** The APP Fee tab's month: amount due per shop and the latest subscription payment. */
+export const useOwnerAppFee = () =>
+  useQuery({
+    queryKey: ['owner', 'app-fee'],
+    queryFn: () => api<OwnerAppFee>('/owner/app-fee'),
+    ...useLoadOnFocus(),
+  });
+
+/** Newest first; 10 per page (`fetchNextPage` for more). */
 export const usePayouts = () => {
   const loadOnFocus = useLoadOnFocus();
   return withMinGap(
@@ -462,12 +470,14 @@ export const usePayouts = () => {
 };
 
 /** Delivered pickups' driver share: not yet paid first, then newest; 10 per page. */
-export const usePickupPayouts = () => {
+/** Drivers' share of delivered food orders (Orders tab) or laundry pickups (Pickup tab). */
+export const usePickupPayouts = (type: StoreType) => {
   const loadOnFocus = useLoadOnFocus();
   return withMinGap(
     useInfiniteQuery({
-      queryKey: ['owner', 'pickup-payouts'],
-      queryFn: ({ pageParam: next }) => api<{ payouts: PickupPayout[]; next: string | null }>(`/owner/pickup-payouts${pageParam(next)}`),
+      queryKey: ['owner', 'pickup-payouts', type],
+      queryFn: ({ pageParam: next }) =>
+        api<{ payouts: PickupPayout[]; next: string | null }>(`/owner/pickup-payouts?type=${type}${next ? `&before=${encodeURIComponent(next)}` : ''}`),
       initialPageParam: null as string | null,
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,

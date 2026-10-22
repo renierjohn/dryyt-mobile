@@ -28,7 +28,8 @@ it.each([
   ['owner food orders', () => useOwnerOrders('food'), '/owner/orders?type=food'],
   ['owner laundry pickups', () => useOwnerOrders('laundry'), '/owner/orders?type=laundry'],
   ['shop payouts', usePayouts, '/owner/payouts'],
-  ['pickup payouts', usePickupPayouts, '/owner/pickup-payouts'],
+  ['laundry pickup payouts', () => usePickupPayouts('laundry'), '/owner/pickup-payouts?type=laundry'],
+  ['food order payouts', () => usePickupPayouts('food'), '/owner/pickup-payouts?type=food'],
 ])('loads %s on each visit or pull, at most once per 5 s, never by polling', async (_name, useList, path) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;

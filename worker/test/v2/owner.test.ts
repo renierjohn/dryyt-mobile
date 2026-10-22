@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:test';
+import { env, SELF } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { api, registerUser } from '../helpers';
@@ -148,7 +148,7 @@ describe('owner', () => {
     expect(await blockedAt()).toEqual([]);
   });
 
-  it('pages drop offs and payouts 10 at a time, not yet paid/pending first, without repeats', async () => {
+  it('pages drop offs (not yet paid first) and payouts (newest first) 10 at a time, without repeats', async () => {
     const owner = await registerUser('owner');
     const customer = await registerUser('customer');
     const { storeId } = await makeShop({ ownerId: owner.user.id });
@@ -192,7 +192,7 @@ describe('owner', () => {
 
     const payouts = await pages('/owner/payouts', 'payouts');
     expect(payouts.map((p) => p.length)).toEqual([10, 2]);
-    expect(payouts.flat().map((p) => p.status).slice(0, 3)).toEqual(['pending', 'pending', 'paid']);
+    expect(payouts.flat().map((p) => p.id)).toEqual([...payouts.flat().map((p) => p.id)].sort((a, b) => b - a));
     expect(new Set(payouts.flat().map((p) => p.id)).size).toBe(12);
 
     expect((await api('/owner/payouts?before=junk', { token: owner.token })).status).toBe(400);
@@ -226,6 +226,70 @@ describe('owner', () => {
     await makeShop({ ownerId: other.user.id });
     expect((await post(`/owner/orders/${delivered}/driver-paid`, other.token)).status).toBe(404);
     expect((await api('/owner/pickup-payouts?before=junk', { token: owner.token })).status).toBe(400);
+
+    // The test shop is a laundry: its pickups show under ?type=laundry, not food.
+    expect((await api('/owner/pickup-payouts?type=laundry', { token: owner.token })).body.payouts.map((p: { id: number }) => p.id)).toEqual([delivered]);
+    expect((await api('/owner/pickup-payouts?type=food', { token: owner.token })).body.payouts).toEqual([]);
+    expect((await api('/owner/pickup-payouts?type=drinks', { token: owner.token })).status).toBe(400);
+  });
+
+  it("shows each shop's app fee due this month and the owner's latest subscription payment", async () => {
+    const owner = await registerUser('owner');
+    const { storeId: flat } = await makeShop({ ownerId: owner.user.id });
+    const { storeId: pct } = await makeShop({ ownerId: owner.user.id });
+    await env.DB.batch([
+      env.DB.prepare('UPDATE stores SET fee_type = 1, fee_flat = 50000 WHERE id = ?').bind(flat),
+      env.DB.prepare('UPDATE stores SET fee_type = 2, fee_percentage = 10 WHERE id = ?').bind(pct),
+    ]);
+    const customer = await registerUser('customer');
+    const order = (storeId: number, items: number, at: string) =>
+      env.DB.prepare(
+        `INSERT INTO transactions_pickup (type, customer_id, store_id, status, customer_address, items_total, delivery_fee, updated_at)
+         VALUES ('pickup', ?, ?, 'delivered', 'x', ?, 5000, ?)`,
+      ).bind(customer.user.id, storeId, items, at);
+    // This month's delivered sales count; last year's don't.
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await env.DB.batch([order(pct, 25050, now), order(pct, 99900, '2025-01-15 04:00:00')]);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, 50000, 'service_fee', 'cash', '2026-08-01', '2026-09-01')").bind(owner.user.id),
+      env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, 60000, 'both', 'gcash', '2026-09-01', '2026-10-01')").bind(owner.user.id),
+    ]);
+
+    const { body } = await api('/owner/app-fee', { token: owner.token });
+    expect(body.month).toMatch(/^\d{4}-\d{2}$/);
+    const byId = Object.fromEntries(body.stores.map((s: { id: number }) => [s.id, s]));
+    expect(byId[flat]).toMatchObject({ fee_type: 1, amount_due: 50000 });
+    // 10% of ₱250.50, rounded up to a whole peso.
+    expect(byId[pct]).toMatchObject({ fee_type: 2, sales: 25050, amount_due: 2600 });
+    expect(body.last_payment).toEqual({ amount: 60000, type: 'both', payment_type: 'gcash', date_paid: '2026-09-01', next_due_date: '2026-10-01' });
+  });
+
+  it("serves a driver's face photo only to owners whose shops they delivered for", async () => {
+    const owner = await registerUser('owner');
+    const { storeId } = await makeShop({ ownerId: owner.user.id });
+    const driver = await registerUser('driver');
+    const customer = await registerUser('customer');
+    const face = (token: string) => SELF.fetch(`https://api.test/owner/drivers/${driver.user.id}/face`, { headers: { authorization: `Bearer ${token}` } });
+    await env.PROOFS.put(`drivers/${driver.user.id}/face-test.jpg`, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), { httpMetadata: { contentType: 'image/jpeg' } });
+    await env.DB.prepare('INSERT INTO driver_data (user_id, photo_face) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET photo_face = excluded.photo_face')
+      .bind(driver.user.id, `drivers/${driver.user.id}/face-test.jpg`)
+      .run();
+    expect((await face(owner.token)).status).toBe(404);
+
+    await env.DB.prepare(
+      `INSERT INTO transactions_pickup (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee) VALUES ('pickup', ?, ?, ?, 'delivered', 'x', 0, 8000)`,
+    )
+      .bind(customer.user.id, driver.user.id, storeId)
+      .run();
+    const res = await face(owner.token);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/jpeg');
+    const list = await api('/owner/pickup-payouts', { token: owner.token });
+    expect(list.body.payouts[0]).toMatchObject({ driver_has_face: true, driver_photo_version: expect.any(String) });
+
+    const other = await registerUser('owner');
+    await makeShop({ ownerId: other.user.id });
+    expect((await face(other.token)).status).toBe(404);
   });
 
   it('a failed confirm leaves the drop off confirmable', async () => {

@@ -67,3 +67,10 @@ export const DROPOFF_STATUS_LABEL: Record<DropoffStatus, string> = {
   cancelled: 'Cancelled',
   expired: 'No driver found',
 };
+
+/** D1 UTC text as local time of day, e.g. "1:45 PM"; the input itself when unparseable. */
+export function timeOfDay(d1Utc: string) {
+  const date = new Date(d1Time(d1Utc));
+  if (Number.isNaN(date.getTime())) return d1Utc;
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}

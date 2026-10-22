@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt Payouts</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+    --ok: #1f7a43; --ok-soft: #e3f3e9; --due: #2f5f9e; --due-soft: #e4ecf7; --warn: #a36a12; --warn-soft: #fbf0dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+      --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+    --accent: #7cc4b3; --accent-soft: #1f2f2b;
+    --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; max-width: 960px; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc ol ol { margin: 2px 0 8px 10px; border-left: 1px solid var(--line); }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 44px 0 8px; scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 26px 0 6px; scroll-margin-top: 16px; }
+  .lede, .muted { color: var(--muted); }
+  code { font: 0.86em ui-monospace, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .mock { font: 13px/1.55 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; background: var(--code); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+  .tbl { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .formula { font: 14px/1.6 ui-monospace, Menlo, monospace; background: var(--accent-soft); color: var(--fg); border-radius: 10px; padding: 10px 14px; margin: 8px 0; overflow-x: auto; white-space: pre; }
+  .pill { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.due { background: var(--due-soft); color: var(--due); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; margin: 12px 0; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+  .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+  .tabs a { display: block; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .tabs a:hover { border-color: var(--accent); }
+  .tabs b { display: block; }
+  .tabs span { color: var(--muted); font-size: 0.85rem; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+    main { padding: 24px 16px 48px; }
+    .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+<div class="title">Contents</div>
+<ol>
+<li><a class="sec" href="#overview">Overview</a></li>
+<li><a class="sec" href="#money">Where the money comes from</a></li>
+<li><a class="sec" href="#app-fee">APP Fee tab</a><ol>
+<li><a href="#month">Month of …</a></li>
+<li><a href="#payments">Payments</a></li>
+<li><a href="#pay">Pay (send proof)</a></li>
+<li><a href="#weeks">Weekly service fee</a></li>
+</ol></li>
+<li><a class="sec" href="#dropoff">Dropoff tab</a></li>
+<li><a class="sec" href="#pickup">Pickup tab</a></li>
+<li><a class="sec" href="#orders">Orders tab</a></li>
+<li><a class="sec" href="#tables">Tables affected</a></li>
+<li><a class="sec" href="#cpanel">Cpanel side</a></li>
+</ol>
+</aside>
+<main>
+<h1>Dryyt Payouts</h1>
+<p class="lede">What a shop owner sees on the app's <b>Payouts</b> screen: four tabs, what each amount means, how it's worked out, and which tables it reads or writes. Amounts are stored in centavos and every computed fee is rounded up to a whole peso. Days, weeks and months are Manila time.</p>
+
+<h2 id="overview">Overview</h2>
+<p>Payouts is the owner's money screen. Swipe left or right, or tap a tab, to switch.</p>
+<div class="tabs">
+<a href="#app-fee"><b>APP Fee</b><span>What the shop owes Dryyt, and what it has paid</span></a>
+<a href="#dropoff"><b>Dropoff</b><span>Drivers' fees for confirmed drop offs</span></a>
+<a href="#pickup"><b>Pickup</b><span>Drivers' share of delivered laundry pickups</span></a>
+<a href="#orders"><b>Orders</b><span>Drivers' share of delivered food orders</span></a>
+</div>
+<p>The Dropoff, Pickup and Orders tabs load 10 rows at a time, newest first, with <b>Show More</b>. They are grouped by day. The APP Fee tab has a month summary at the top and the service fees grouped by week below it.</p>
+
+<h2 id="money">Where the money comes from</h2>
+<p>Every delivery (a drop off or a pickup) is priced from the area's rate in <code>rates</code> and the road distance:</p>
+<div class="formula">delivery_fee       = round_up(base_fee + road_km × rate_per_km)      → the driver's share
+service_fee        = round_up(delivery_fee × commission_pct / 100)   → Dryyt's cut
+total_delivery_fee = delivery_fee + service_fee                      → what the customer pays for delivery</div>
+<p>The customer pays the shop: for a pickup, the items (food) or laundry fee plus <code>total_delivery_fee</code>, upfront to the shop's payment QR; for a drop off, the laundry fee plus the delivery fee. The shop then owes:</p>
+<div class="tbl"><table>
+<thead><tr><th>Who</th><th>What</th><th>Shown on</th></tr></thead>
+<tbody>
+<tr><td>The driver</td><td><code>delivery_fee</code> of each delivery they did</td><td>Dropoff, Pickup, Orders</td></tr>
+<tr><td>Dryyt</td><td><code>service_fee</code> of each drop off, and the shop's monthly app fee (flat or a percentage of sales)</td><td>APP Fee</td></tr>
+</tbody></table></div>
+
+<h2 id="app-fee">APP Fee tab</h2>
+<p>Everything between the shop owner and Dryyt. Four parts, top to bottom.</p>
+<div class="mock">Month of October 2026
+(logo) Suds            10% of ₱250.50 sales      Amount Due ₱26.00
+(logo) Tea Haven       ₱500.00 flat fee          Amount Due ₱500.00
+──────────────────────────────────────────────
+Date: Oct 5, 2026                                 ₱600.00
+Next due: Nov 5, 2026                               gcash
+Service fee &amp; Subscription
+──────────────────────────────────────────────
+Date: Oct 6, 2026                            [For review]
+Ref. GC-9   View photo
+──────────────────────────────────────────────
+[ + Pay ]
+
+Oct 12 – Oct 18, 2026                             ₱18.00
+#12  Ben                                            ₱9.00
+#11  Ana                                            ₱9.00</div>
+
+<h3 id="month">Month of …</h3>
+<p>One row per shop the owner runs, for the current calendar month. From <code>GET /owner/app-fee</code>.</p>
+<div class="tbl"><table>
+<thead><tr><th>Amount</th><th>Meaning</th><th>How it's worked out</th></tr></thead>
+<tbody>
+<tr><td><b>Amount Due</b> <span class="pill due">blue</span></td><td>What the shop owes Dryyt for this month</td><td>Depends on the shop's fee setting, set in the cpanel (<code>stores.fee_type</code>):<br>
+<b>1, flat:</b> <code>stores.fee_flat</code>, shown as "₱500.00 flat fee" (also when it's ₱0.00)<br>
+<b>2, percentage:</b> <code>round_up(sales × fee_percentage / 100)</code>, shown as "10% of ₱250.50 sales"</td></tr>
+<tr><td><b>sales</b></td><td>What the shop sold through Dryyt this month</td><td>Sum of <code>transactions_pickup.items_total</code> for pickups <i>delivered</i> this month (food items, or the laundry fee of a laundry pickup)<br>+ sum of <code>transactions_dropoff.laundry_fee</code> for drop offs <i>completed</i> this month. "This month" is by the day the job finished (<code>updated_at</code>).</td></tr>
+</tbody></table></div>
+<p class="note">This is the same calculation as the cpanel's Stores tab (shared SQL in <code>worker/src/lib/store-totals.ts</code>), so both always agree.</p>
+
+<h3 id="payments">Payments</h3>
+<p>What the owner has paid Dryyt, from the <code>app_fee</code> table:</p>
+<ul>
+<li><b>The latest payment</b> at the top, from any month (only ones the cpanel has filled in).</li>
+<li><b>Every other payment dated this month</b> below it, newest first, each separated by a line.</li>
+</ul>
+<div class="tbl"><table>
+<thead><tr><th>Shown</th><th>Column</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Date: Oct 5, 2026</td><td><code>app_fee.date_paid</code></td><td>The day it was paid (or sent, for a proof from the app)</td></tr>
+<tr><td>₱600.00 <span class="pill ok">green</span></td><td><code>app_fee.amount</code></td><td>The amount paid</td></tr>
+<tr><td>Next due: Nov 5, 2026</td><td><code>app_fee.next_due_date</code></td><td>When the next payment is due; "—" if not set</td></tr>
+<tr><td>gcash <span class="pill due">blue</span></td><td><code>app_fee.payment_type</code></td><td>How it was paid. Underlined when a photo came with it: tap to see the photo.</td></tr>
+<tr><td>Service fee &amp; Subscription <span class="pill due">blue</span></td><td><code>app_fee.type</code></td><td>What it covers: <code>both</code> (Service fee &amp; Subscription), <code>service_fee</code>, or <code>subscription</code></td></tr>
+<tr><td><span class="pill warn">For review</span></td><td><code>type</code> is NULL</td><td>A proof the owner sent that the cpanel hasn't filled in yet. Shows the reference number and <b>View photo</b>; no amount until reviewed.</td></tr>
+</tbody></table></div>
+
+<h3 id="pay">Pay (send proof)</h3>
+<p>The <b>+ Pay</b> button opens a small form: reference number, <i>or</i>, upload proof of payment, then <b>Send</b>. Either a reference number or a photo is enough.</p>
+<ol>
+<li>The photo (if any) is shrunk and uploaded: <code>POST /owner/app-fee/photo</code>. It's stored in R2 (<code>PROOFS</code>) under <code>app-fee/&lt;owner id&gt;/</code>.</li>
+<li><code>POST /owner/app-fee</code> adds a row to <code>app_fee</code>: <code>date_paid</code> = today, <code>ref_number</code>, <code>photo</code>, with <code>amount</code> 0 and <code>type</code> NULL.</li>
+<li>It shows as <span class="pill warn">For review</span> until an admin fills it in from the cpanel (see <a href="#cpanel">Cpanel side</a>).</li>
+</ol>
+
+<h3 id="weeks">Weekly service fee</h3>
+<p>Dryyt's <code>service_fee</code> from each confirmed drop off, grouped by week (Monday to Sunday).</p>
+<div class="tbl"><table>
+<thead><tr><th>Shown</th><th>Meaning</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Oct 12 – Oct 18, 2026</td><td>The week</td><td>By the day the payout was created (<code>payouts.created_at</code>)</td></tr>
+<tr><td>Week total (right)</td><td>Dryyt's service fee for the whole week, even rows not loaded yet</td><td><code>GET /owner/service-fee-weeks</code>: sum of <code>payouts.amount</code> where <code>payee_type = 'developer'</code></td></tr>
+<tr><td>#12 Ben ₱9.00</td><td>The drop off number, its driver, and that drop off's service fee</td><td><code>payouts.transaction_id</code>, the drop off's driver (<code>transactions_dropoff.driver_id</code> → <code>users.name</code>), <code>payouts.amount</code></td></tr>
+</tbody></table></div>
+<p class="note">Only drop offs create service fee payouts. Pickup service fees are recorded on <code>transactions_pickup.service_fee</code> (and counted on the cpanel's Overview) but don't appear on this list.</p>
+
+<h2 id="dropoff">Dropoff tab</h2>
+<p>What the shop owes drivers for drop offs. When the owner taps <b>Confirm received</b> on a drop off (<code>POST /owner/transactions/:id/confirm</code>), one batch:</p>
+<ul>
+<li>adds a <code>payouts</code> row for the <b>driver</b>: <code>amount = transactions_dropoff.delivery_fee</code>, status <code>pending</code>;</li>
+<li>adds a <code>payouts</code> row for <b>Dryyt</b> (<code>payee_type = 'developer'</code>): <code>amount = transactions_dropoff.service_fee</code> (the APP Fee tab's weekly list);</li>
+<li>adds the delivery fee to the driver's running total, <code>driver_data.earnings</code>;</li>
+<li>marks <code>owner_transactions.status = 'ok'</code> and <code>transactions_dropoff.status = 'owner_confirmed'</code>.</li>
+</ul>
+<div class="mock">Sat, Oct 17, 2026                                ₱50.00
+#24  (face) Ben · 12:00 PM                       ₱50.00
+Shop                                              Paid
+#23  (face) Ana · 11:00 AM                       ₱40.00
+Shop                                           Pending
+[ Mark paid ]</div>
+<div class="tbl"><table>
+<thead><tr><th>Shown</th><th>Meaning</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Day total (right of the date)</td><td>What was <b>paid</b> to drivers for that day's drop offs. Pending ones don't count.</td><td>Sum of <code>payouts.amount</code> with <code>status = 'paid'</code> in that day</td></tr>
+<tr><td>#24</td><td>The drop off number</td><td><code>payouts.transaction_id</code></td></tr>
+<tr><td>(face) Ben · 12:00 PM</td><td>The driver's face photo, name, and when the payout was created</td><td><code>driver_data.photo_face</code> (via <code>GET /owner/drivers/:id/face</code>), <code>users.name</code>, <code>payouts.created_at</code></td></tr>
+<tr><td>₱50.00</td><td>The driver's delivery fee for that drop off</td><td><code>payouts.amount</code></td></tr>
+<tr><td>Paid / Pending</td><td>Whether the shop has paid the driver</td><td><code>payouts.status</code>, <code>payouts.paid_at</code></td></tr>
+<tr><td>Mark paid</td><td>The owner paid the driver</td><td><code>POST /owner/payouts/:id/paid</code> sets <code>status = 'paid'</code>, <code>paid_at</code> = now</td></tr>
+</tbody></table></div>
+
+<h2 id="pickup">Pickup tab</h2>
+<p>What the shop owes drivers for <b>laundry pickups</b> (the shop's finished laundry delivered to the customer). No separate payout row: it reads delivered orders straight from <code>transactions_pickup</code> (<code>GET /owner/pickup-payouts?type=laundry</code>).</p>
+<div class="tbl"><table>
+<thead><tr><th>Shown</th><th>Meaning</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Day total</td><td>What was <b>paid</b> to drivers for that day's pickups</td><td>Sum of <code>delivery_fee</code> where <code>driver_paid_at</code> is set</td></tr>
+<tr><td>#31</td><td>The order number</td><td><code>transactions_pickup.id</code></td></tr>
+<tr><td>(face) Ben · 3:10 PM</td><td>The driver and when it was delivered</td><td><code>driver_id</code> → <code>users.name</code>, <code>driver_data.photo_face</code>, <code>updated_at</code></td></tr>
+<tr><td>₱56.00</td><td>The driver's share of the delivery fee</td><td><code>transactions_pickup.delivery_fee</code> (not <code>total_delivery_fee</code>: the service fee part is Dryyt's)</td></tr>
+<tr><td>Paid / Pending</td><td>Whether the shop has paid the driver</td><td><code>transactions_pickup.driver_paid_at</code></td></tr>
+<tr><td>Mark paid</td><td>The owner paid the driver</td><td><code>POST /owner/orders/:id/driver-paid</code> sets <code>driver_paid_at</code> = now</td></tr>
+</tbody></table></div>
+<p class="muted">Only orders with <code>status = 'delivered'</code> and a driver appear here.</p>
+
+<h2 id="orders">Orders tab</h2>
+<p>Exactly like the Pickup tab, for <b>food orders</b> (<code>GET /owner/pickup-payouts?type=food</code>): the driver's <code>delivery_fee</code> for each delivered food order, paid or pending, with the same <b>Mark paid</b>.</p>
+
+<h2 id="tables">Tables affected</h2>
+<div class="tbl"><table>
+<thead><tr><th>Table</th><th>Read by</th><th>Written by</th></tr></thead>
+<tbody>
+<tr><td><code>payouts</code></td><td>Dropoff tab (driver rows), APP Fee weekly list (Dryyt rows)</td><td>Confirm received (creates both rows); Mark paid on Dropoff (<code>status</code>, <code>paid_at</code>)</td></tr>
+<tr><td><code>transactions_dropoff</code></td><td>APP Fee (sales: <code>laundry_fee</code>); weekly list (driver)</td><td>Confirm received (<code>status</code>)</td></tr>
+<tr><td><code>owner_transactions</code></td><td>—</td><td>Confirm received (<code>status = 'ok'</code>)</td></tr>
+<tr><td><code>transactions_pickup</code></td><td>Pickup and Orders tabs; APP Fee (sales: <code>items_total</code>)</td><td>Mark paid on Pickup / Orders (<code>driver_paid_at</code>)</td></tr>
+<tr><td><code>driver_data</code></td><td>Driver face photos</td><td>Confirm received (<code>earnings</code> += delivery fee)</td></tr>
+<tr><td><code>stores</code></td><td>APP Fee (logo, <code>fee_type</code>, <code>fee_flat</code>, <code>fee_percentage</code>)</td><td>Cpanel only (fee settings)</td></tr>
+<tr><td><code>app_fee</code></td><td>APP Fee payments</td><td>Pay / Send proof (new row); cpanel (records and fills in payments)</td></tr>
+<tr><td><code>users</code></td><td>Driver names</td><td>—</td></tr>
+<tr><td>R2 <code>PROOFS</code></td><td>Proof photos, driver faces</td><td>Pay (<code>app-fee/…</code> photos)</td></tr>
+</tbody></table></div>
+
+<h2 id="cpanel">Cpanel side</h2>
+<ul>
+<li><b>Stores tab / Owners → Stores popup:</b> set each shop's fee (<code>fee_type</code>, <code>fee_flat</code>, <code>fee_percentage</code>). This is what <b>Amount Due</b> is worked out from.</li>
+<li><b>Owners → Subscription popup:</b> proofs the owner sent appear above the payments table (photo or "No photo", the reference number on hover). Click one to see it and fill in amount, type, payment type, date paid and next due (<code>POST /admin/app-fee/:id</code>). It then moves into the table and becomes the owner's latest payment. <b>+ Record payment</b> adds one directly (<code>POST /admin/owners/:id/fees</code>).</li>
+<li><b>Owners list:</b> the Subscription column shows the last amount paid, <span class="pill warn">overdue</span> past the next due date, and "N to review" while proofs wait.</li>
+</ul>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

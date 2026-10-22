@@ -88,7 +88,7 @@ jest.mock('react-native-safe-area-context', () => {
 it('shows one section per tab under the title, the tabs pinned while it scrolls', async () => {
   await render(<Payouts />);
   expect(mockSticky).toHaveBeenLastCalledWith([1]);
-  expect(screen.getByText("The app's commission on each drop off.")).toBeTruthy();
+  expect(screen.queryByText(/commission/)).toBeNull();
   expect(screen.queryByText('Mark paid')).toBeNull();
 
   expect(['APP Fee', 'Dropoff', 'Pickup', 'Orders'].map((t) => screen.getByText(t))).toHaveLength(4);
@@ -158,6 +158,9 @@ it("APP Fee shows this month's amount due per store, the last payment, and weekl
   expect(other.getByText('₱15.00')).toBeTruthy();
   expect(screen.queryByTestId('payment-7')).toBeNull();
 
+  const title = within(screen.getByTestId('service-fee-title'));
+  expect(title.getByText('Service Fee')).toBeTruthy();
+  expect(title.getByText('Paid from customers')).toBeTruthy();
   expect(screen.getAllByTestId('fee-week')).toHaveLength(1);
   expect(within(screen.getByTestId('fee-week')).getByText('₱1,234.00')).toBeTruthy();
   const line = within(screen.getByTestId('fee-line-payout-1'));

@@ -85,7 +85,8 @@ const TABS = [
     key: 'fees',
     title: 'APP Fee',
     icon: { ios: 'percent', android: 'percent', web: 'percent' },
-    hint: "The app's commission on each drop off.",
+    // No hint: the Service Fee section has its own title.
+    hint: '',
   },
   {
     key: 'dropoff',
@@ -475,14 +476,25 @@ export default function Payouts() {
       {text}
     </ThemedText>
   );
-  rows.push(
-    <ThemedText key="hint" type="small" themeColor="textSecondary">
-      {TABS.find((t) => t.key === tab)!.hint}
-    </ThemedText>,
-  );
+  const hint = TABS.find((t) => t.key === tab)!.hint;
+  if (hint) {
+    rows.push(
+      <ThemedText key="hint" type="small" themeColor="textSecondary">
+        {hint}
+      </ThemedText>,
+    );
+  }
 
   if (tab === 'fees' && appFee.data) rows.push(<MonthDue key="month" fee={appFee.data} />);
   if (tab === 'fees' && payouts.isSuccess) {
+    rows.push(
+      <View key="service-fee-title" testID="service-fee-title" style={styles.sectionTitle}>
+        <ThemedText style={styles.groupTitleText}>Service Fee</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Paid from customers
+        </ThemedText>
+      </View>,
+    );
     if (serviceFees.length === 0) rows.push(empty('no-fees', 'No service fees yet.'));
     for (const week of byWeek(serviceFees)) {
       rows.push(
@@ -567,4 +579,5 @@ const styles = StyleSheet.create({
   face: { width: FACE, height: FACE, borderRadius: FACE / 2 },
   proof: { width: '100%', height: 200, borderRadius: 12 },
   underline: { textDecorationLine: 'underline' },
+  sectionTitle: { paddingTop: Spacing.two, gap: Spacing.half },
 });

@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import { z } from 'zod';
 
@@ -135,8 +135,11 @@ orders.post('/', requireRole('customer'), async (c) => {
     if (input.items.length === 0) fail(400, 'Add at least one item');
     if (!input.payment_ref && !input.payment_photo_key) fail(400, 'Add a reference number or a photo of your payment');
     if (input.payment_photo_key && !input.payment_photo_key.startsWith(`payments/${customerId}/`)) fail(400, 'payment_photo_key: upload the photo first');
-  } else if (input.items.length > 0) {
-    fail(400, 'Laundry orders do not take menu items');
+  } else {
+    if (input.items.length > 0) fail(400, 'Laundry orders do not take menu items');
+    // Priced by road like food; paid once the shop sets the laundry fee (POST /:id/payment).
+    if (!at) fail(400, 'Pin your location on the map');
+    if (input.payment_ref || input.payment_photo_key) fail(400, 'Pay once the shop sets the laundry fee');
   }
   // Fees, payment photo and item prices don't depend on each other: look them up together.
   const [fees, photo, lines] = await Promise.all([
@@ -149,8 +152,8 @@ orders.post('/', requireRole('customer'), async (c) => {
   if (!photo) fail(400, 'payment_photo_key: upload the photo first');
 
   const itemsTotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
-  // Food waits for the owner to confirm the payment; laundry goes straight to drivers (cash on delivery).
-  const status = store.type === 'food' ? 'awaiting_payment' : 'pending';
+  // Food waits for the owner to confirm the payment; laundry first waits for the shop to set the laundry fee.
+  const status = store.type === 'food' ? 'awaiting_payment' : 'awaiting_fee';
   // D1 batches run in one transaction, so MAX(id) for this customer is the order just inserted.
   const [created] = await db.batch([
     db
@@ -186,16 +189,57 @@ orders.post('/', requireRole('customer'), async (c) => {
   ]);
 
   const id = created.meta.last_row_id;
-  // Laundry pickups go straight to drivers.
-  if (status === 'pending') pickupChanged(c, id, { room: false });
-  if (status === 'awaiting_payment') {
-    // The room reminds the owner and accepts the payment if they never tap Done Pay; the customer waits on its socket.
-    c.executionCtx.waitUntil(orderRoom(c.env, id).awaitPayment(id).catch((err) => console.error('pickup payment timers failed', err)));
-    if (store.owner_id !== null) {
-      c.executionCtx.waitUntil(pushToUsers(c.env, [store.owner_id], 'New order', 'A customer sent a proof of payment. Check Orders.', { order_id: id }, 'ownerOrder'));
-    }
+  if (status === 'awaiting_payment') awaitPayment(c, id, store.owner_id, 'New order', 'A customer sent a proof of payment. Check Orders.');
+  if (status === 'awaiting_fee' && store.owner_id !== null) {
+    c.executionCtx.waitUntil(
+      pushToUsers(c.env, [store.owner_id], 'New laundry pickup', 'A customer wants their laundry delivered. Set the laundry fee in Pickups.', { order_id: id, laundry: true }, 'ownerOrder'),
+    );
   }
   return c.json({ order: await getOrder(db, id) }, 201);
+});
+
+/**
+ * Proof sent: pushes the owner to review it; the room reminds them and accepts the payment if they never tap Done Pay.
+ * The customer waits on the order's socket.
+ */
+function awaitPayment(c: Context<AppEnv>, id: number, ownerId: number | null, title: string, body: string, laundry = false) {
+  c.executionCtx.waitUntil(orderRoom(c.env, id).awaitPayment(id).catch((err) => console.error('pickup payment timers failed', err)));
+  if (ownerId !== null) c.executionCtx.waitUntil(pushToUsers(c.env, [ownerId], title, body, { order_id: id, laundry }, 'ownerOrder'));
+}
+
+const paymentSchema = z.object({
+  payment_ref: z.string().trim().max(100).default(''),
+  payment_photo_key: z.string().max(200).optional(),
+});
+
+/** Laundry: once the shop sets the laundry fee, the customer pays the total and sends the proof, like food at checkout. */
+orders.post('/:id/payment', requireRole('customer'), async (c) => {
+  const id = parseId(c);
+  const input = await parseBody(c, paymentSchema);
+  const customerId = c.get('user').id;
+  const db = c.env.DB;
+  const order = await db
+    .prepare('SELECT o.customer_id, s.owner_id FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ?')
+    .bind(id)
+    .first<{ customer_id: number; owner_id: number | null }>();
+  if (!order || order.customer_id !== customerId) fail(404, 'Order not found');
+  if (!input.payment_ref && !input.payment_photo_key) fail(400, 'Add a reference number or a photo of your payment');
+  if (input.payment_photo_key) {
+    if (!input.payment_photo_key.startsWith(`payments/${customerId}/`) || !(await c.env.PROOFS.head(input.payment_photo_key))) {
+      fail(400, 'payment_photo_key: upload the photo first');
+    }
+  }
+
+  const { meta } = await db
+    .prepare(
+      "UPDATE transactions_pickup SET status = 'awaiting_payment', payment_ref = ?, payment_photo_key = ?, updated_at = datetime('now') WHERE id = ? AND status = 'to_pay'",
+    )
+    .bind(input.payment_ref, input.payment_photo_key ?? null, id)
+    .run();
+  if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
+  awaitPayment(c, id, order.owner_id, 'Review payment', 'A customer paid for a laundry pickup. Check the proof in Pickups and tap Done Pay.', true);
+  pickupChanged(c, id, { board: false });
+  return c.json({ order: await getOrder(db, id) });
 });
 
 /** After the owner confirms the payment, the customer releases the order to drivers. */
@@ -255,7 +299,7 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
 
   const { meta } = await db
     .prepare(
-      "UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status IN ('awaiting_payment', 'payment_confirmed', 'pending')",
+      "UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status IN ('awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending')",
     )
     .bind(id)
     .run();

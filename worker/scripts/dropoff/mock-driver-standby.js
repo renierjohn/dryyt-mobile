@@ -3,7 +3,7 @@
 // reaches them (fee and distance) and when it goes away. Never accepts. Ctrl+C restores their online state.
 // Usage: bun run mock:standby <driverId|email> <lat> <lng> [--api <url>]
 // Signs in with worker/.dev.vars JWT_SECRET, so it works against local `bun run dev` only.
-import { openRoom, parseArgs, peso, sleep, time, tokenForUser, usageError } from './lib/mock.js';
+import { openRoom, parseArgs, peso, sleep, time, tokenForUser, usageError } from '../lib/mock.js';
 
 const { api, positional } = parseArgs();
 const [who, latArg, lngArg] = positional;

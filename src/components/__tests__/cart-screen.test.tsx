@@ -129,9 +129,12 @@ it("shows the store's payment QR once the fee is computed, and sends the referen
       <Harness />
     </CartProvider>,
   );
+  // Same as laundry: pick a payment method to see its QR.
+  expect(screen.queryByTestId('payment-qr')).toBeNull();
+  await fireEvent.press(screen.getByText('GCash 0917'));
   expect([screen.getByTestId('payment-qr').props.source].flat()).toEqual([{ uri: 'https://img.test/qr.png' }]);
-  expect(screen.getByText('GCash 0917')).toBeTruthy();
-  expect(screen.getByText('Upload photo')).toBeTruthy();
+  expect(screen.getByTestId('or-divider')).toBeTruthy();
+  expect(screen.getByText('Upload proof of payment')).toBeTruthy();
   expect(screen.getByLabelText('Place order').props.accessibilityState.disabled).toBe(true);
 
   // A reference number alone is enough proof.
@@ -155,6 +158,7 @@ it('sending the proof switches the cart to waiting for the store', async () => {
       <Harness />
     </CartProvider>,
   );
+  await fireEvent.press(screen.getByText('GCash 0917'));
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
 

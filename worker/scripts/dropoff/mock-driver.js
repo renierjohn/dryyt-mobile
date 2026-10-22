@@ -6,7 +6,7 @@
 // Ctrl+C goes offline.
 import { readFileSync } from 'node:fs';
 
-import { car, openRoom, parseArgs, peso, sleep, testUser, time, usageError } from './lib/mock.js';
+import { car, openRoom, parseArgs, peso, sleep, testUser, time, usageError } from '../lib/mock.js';
 
 const argv = process.argv.slice(2);
 const speedAt = argv.indexOf('--speed');
@@ -31,7 +31,7 @@ const TICK_MS = 3000; // above the server's 2 s location limit
 const POLL_MS = 3000;
 
 // The app logo stands in for the proof photo, so the owner app has a real image to show.
-const PROOF_PNG = readFileSync(new URL('../../assets/images/logo@3x.png', import.meta.url));
+const PROOF_PNG = readFileSync(new URL('../../../assets/images/logo@3x.png', import.meta.url));
 
 let user;
 let room = null;

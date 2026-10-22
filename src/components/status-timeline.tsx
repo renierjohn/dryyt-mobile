@@ -8,9 +8,10 @@ import type { OrderStatus } from '@/lib/types';
 
 const STEPS: OrderStatus[] = ['pending', 'accepted', 'picked_up', 'delivered'];
 const PAID_STEPS: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', ...STEPS];
+const LAUNDRY_STEPS: OrderStatus[] = ['awaiting_fee', 'to_pay', ...PAID_STEPS];
 
-/** `paid`: paid upfront (food), so the payment steps come first. */
-export function StatusTimeline({ status, paid = false }: { status: OrderStatus; paid?: boolean }) {
+/** `paid`: paid upfront (food), so the payment steps come first; `laundry`: the shop sets the laundry fee before that. */
+export function StatusTimeline({ status, paid = false, laundry = false }: { status: OrderStatus; paid?: boolean; laundry?: boolean }) {
   const theme = useTheme();
 
   if (status === 'cancelled') {
@@ -21,7 +22,7 @@ export function StatusTimeline({ status, paid = false }: { status: OrderStatus; 
     );
   }
 
-  const steps = paid ? PAID_STEPS : STEPS;
+  const steps = laundry ? LAUNDRY_STEPS : paid ? PAID_STEPS : STEPS;
   const current = steps.indexOf(status);
   return (
     <View style={styles.list}>

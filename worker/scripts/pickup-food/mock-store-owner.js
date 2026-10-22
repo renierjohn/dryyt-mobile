@@ -3,7 +3,7 @@
 // Usage: bun run mock:store-owner <ownerUserId|email> [--api <url>]
 // Signs in as that existing owner (local `bun run dev` only: the token is signed with worker/.dev.vars),
 // then taps Done Pay on every order at their stores that is waiting for payment. Ctrl+C stops.
-import { parseArgs, peso, sleep, time, tokenForUser, usageError } from './lib/mock.js';
+import { parseArgs, peso, sleep, time, tokenForUser, usageError } from '../lib/mock.js';
 
 const { api, positional } = parseArgs();
 const usage = usageError('bun run mock:store-owner <ownerUserId|email> [--api <url>]');

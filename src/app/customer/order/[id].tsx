@@ -8,6 +8,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { DriverDetails } from '@/components/driver-details';
+import { LaundryPayment } from '@/components/payment-method';
 import { OrderSummary } from '@/components/order-summary';
 import { OrderTripMap } from '@/components/order-trip-map';
 import { Screen } from '@/components/screen';
@@ -21,7 +22,8 @@ import { useSocket } from '@/hooks/use-socket';
 import { STATUS_LABEL } from '@/lib/format';
 import type { LatLng, OrderStatus } from '@/lib/types';
 
-const LIVE_STATUSES: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up'];
+const CANCELLABLE: OrderStatus[] = ['awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending'];
+const LIVE_STATUSES: OrderStatus[] = ['awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up'];
 
 export default function OrderScreen() {
   const id = Number(useLocalSearchParams<{ id: string }>().id);
@@ -29,7 +31,7 @@ export default function OrderScreen() {
   const live = useRef(false);
   const order = useOrder(id, () => live.current);
   const [driverAt, setDriverAt] = useState<LatLng | null>(null);
-  // Live from Send proof of payment until delivered (or cancelled): the worker pushes each change and the driver's location.
+  // Live from Send to shop (laundry) or Send proof of payment (food) until delivered (or cancelled): the worker pushes each change and the driver's location.
   const status = order.data?.status;
   const { connected } = useSocket(status && LIVE_STATUSES.includes(status) ? `order-${id}` : null, (msg) => {
     if (msg.t === 'order') qc.setQueryData(['order', id], msg.order);
@@ -68,7 +70,7 @@ export default function OrderScreen() {
           </ThemedText>
           <StatusBadge label={STATUS_LABEL[o.status]} tone={tone} />
         </View>
-        <StatusTimeline status={o.status} paid={o.store_type === 'food'} />
+        <StatusTimeline status={o.status} paid={o.store_type === 'food'} laundry={o.store_type === 'laundry'} />
       </Card>
       {/* The driver has the order: follow them to you, live over the order's socket. */}
       {o.status === 'picked_up' && <OrderTripMap order={o} driverAt={driverAt} />}
@@ -93,6 +95,19 @@ export default function OrderScreen() {
           </View>
         </Card>
       ) : null}
+      {o.status === 'awaiting_fee' && (
+        <View style={styles.statusRow}>
+          <ActivityIndicator />
+          <ThemedText style={styles.grow}>Waiting for {o.store_name} to set the laundry fee…</ThemedText>
+        </View>
+      )}
+      {o.status === 'to_pay' && <LaundryPayment order={o} />}
+      {o.status === 'awaiting_payment' && o.store_type === 'laundry' && (
+        <View style={styles.statusRow}>
+          <ActivityIndicator />
+          <ThemedText style={styles.grow}>Waiting for the shop to confirm your payment…</ThemedText>
+        </View>
+      )}
       <ErrorText error={cancel.error ?? place.error} />
       {(o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
         <Button
@@ -103,7 +118,7 @@ export default function OrderScreen() {
           onPress={() => place.mutate(id, { onSuccess: () => cart.orderId === id && cart.clear() })}
         />
       )}
-      {(o.status === 'pending' || o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
+      {CANCELLABLE.includes(o.status) && (
         <Button title="Cancel order" variant="danger" onPress={() => cancel.mutate()} loading={cancel.isPending} />
       )}
     </Screen>

@@ -29,6 +29,7 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
+jest.mock('@/components/delivery-pin', () => ({ DeliveryPinCard: () => null, useDeliveryPin: () => ({ at: null, fee: null, quote: {} }) }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
 jest.mock('@/components/app-logo', () => ({ AppLogo: () => null }));
 jest.mock('react-native-safe-area-context', () => {

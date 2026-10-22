@@ -155,7 +155,7 @@ function DataTable({
 
 type Props = { onAuthError: (e: unknown) => void };
 
-const ORDER_STATUSES = ['awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up', 'delivered', 'cancelled'];
+const ORDER_STATUSES = ['awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up', 'delivered', 'cancelled'];
 const DROPOFF_STATUSES = ['searching', 'driver_accepted', 'en_route_pickup', 'en_route_shop', 'dropped_off', 'owner_confirmed', 'completed', 'payment_pending', 'cancelled', 'expired'];
 
 const person = (name: string | null, sub?: string | null) =>

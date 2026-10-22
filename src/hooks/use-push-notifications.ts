@@ -82,7 +82,7 @@ function open(role: Role, n: Notifications.Notification) {
   const orderId = idOf(n, 'order_id');
   if (orderId !== null) {
     if (role === 'customer') router.push({ pathname: '/customer/order/[id]', params: { id: String(orderId) } });
-    else router.navigate('/owner/orders');
+    else router.navigate(n.request.content.data?.laundry ? '/owner/pickups' : '/owner/orders');
     return;
   }
   const id = transactionOf(n);

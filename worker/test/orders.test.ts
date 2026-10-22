@@ -11,6 +11,8 @@ beforeEach(async () => {
   other = (await registerUser('customer')).token;
 });
 
+const laundryOrder = { type: 'pickup', store_id: 4, lat: 14.56, lng: 121.03 };
+
 const foodOrder = {
   type: 'pickup',
   store_id: 1,
@@ -135,13 +137,19 @@ describe('POST /orders', () => {
     expect((await placeOrder({ token: customer, body: { ...foodOrder, items: [{ menu_item_id: 1, qty: 51 }] } })).status).toBe(400);
   });
 
-  it('creates a laundry pickup with no items', async () => {
-    const res = await placeOrder({
-      token: customer,
-      body: { type: 'pickup', store_id: 4, customer_address: '1 Customer St', notes: 'ticket #42' },
-    });
+  it('creates a laundry pickup with no items, waiting for the shop to set the laundry fee', async () => {
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 4').run();
+    const res = await api('/orders', { token: customer, body: { ...laundryOrder, notes: 'ticket #42' } });
     expect(res.status).toBe(201);
-    expect(res.body.order).toMatchObject({ store_type: 'laundry', items_total: 0, delivery_fee: 5000, items: [] });
+    expect(res.body.order).toMatchObject({ store_type: 'laundry', status: 'awaiting_fee', items_total: 0, notes: 'ticket #42', items: [] });
+    expect(res.body.order.total_delivery_fee).toBeGreaterThan(0);
+  });
+
+  it('needs a pin and no payment for a laundry pickup', async () => {
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 4').run();
+    const typed = { type: 'pickup', store_id: 4, customer_address: '1 Customer St' };
+    expect((await api('/orders', { token: customer, body: typed })).body).toEqual({ error: 'Pin your location on the map' });
+    expect((await api('/orders', { token: customer, body: { ...laundryOrder, payment_ref: 'X' } })).status).toBe(400);
   });
 
   it('rejects drop offs (they go through /dropoffs)', async () => {
@@ -171,7 +179,8 @@ describe('POST /orders', () => {
 describe('reading and cancelling orders', () => {
   it("lists only the customer's own orders, newest first", async () => {
     const first = await placeOrder({ token: customer, body: foodOrder });
-    const second = await placeOrder({ token: customer, body: { type: 'pickup', store_id: 4, customer_address: '1 Customer St' } });
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 4').run();
+    const second = await api('/orders', { token: customer, body: laundryOrder });
     await placeOrder({ token: other, body: foodOrder });
 
     const res = await api('/orders', { token: customer });
@@ -291,5 +300,82 @@ describe('paying for a food order', () => {
   it('can be cancelled while waiting for payment', async () => {
     const id = (await api('/orders', { token: customer, body: { ...foodOrder, payment_ref: 'GCASH-123' } })).body.order.id;
     expect((await api(`/orders/${id}/cancel`, { token: customer, method: 'POST' })).body.order.status).toBe('cancelled');
+  });
+});
+
+describe('paying for a laundry pickup', () => {
+  let owner: string;
+
+  beforeEach(async () => {
+    const o = await registerUser('owner');
+    owner = o.token;
+    await env.DB.prepare('UPDATE stores SET owner_id = ?, lat = 14.5547, lng = 121.0244 WHERE id = 4').bind(o.user.id).run();
+  });
+
+  it('goes: shop sets the laundry fee, customer pays, shop taps Done Pay, customer places it', async () => {
+    const id = (await api('/orders', { token: customer, body: { ...laundryOrder, notes: '2 bags, ticket #42' } })).body.order.id;
+    const pay = (token: string, body: object) => api(`/orders/${id}/payment`, { token, body });
+    const fee = (token: string, laundry_fee: number) => api(`/owner/orders/${id}/laundry-fee`, { token, body: { laundry_fee } });
+
+    // Nothing to pay until the shop sets the fee.
+    expect((await pay(customer, { payment_ref: 'GCASH-1' })).status).toBe(409);
+    expect((await fee(owner, -100)).status).toBe(400);
+    const stranger = await registerUser('owner');
+    await env.DB.prepare("INSERT INTO stores (name, type, address, owner_id) VALUES ('Other', 'laundry', 'x', ?)").bind(stranger.user.id).run();
+    expect((await fee(stranger.token, 25000)).status).toBe(404);
+
+    const set = await fee(owner, 25000);
+    expect(set.body.order).toMatchObject({ status: 'to_pay', items_total: 25000, notes: '2 bags, ticket #42' });
+    expect((await fee(owner, 30000)).status).toBe(409);
+
+    expect((await pay(customer, {})).status).toBe(400);
+    expect((await pay(other, { payment_ref: 'GCASH-1' })).status).toBe(404);
+    const theirs = (await uploadPayment(other)).body.key;
+    expect((await pay(customer, { payment_photo_key: theirs })).body).toEqual({ error: 'payment_photo_key: upload the photo first' });
+    const photo = (await uploadPayment(customer)).body.key;
+    const paid = await pay(customer, { payment_ref: 'GCASH-1', payment_photo_key: photo });
+    expect(paid.body.order).toMatchObject({ status: 'awaiting_payment', payment_ref: 'GCASH-1', payment_photo_key: photo });
+    expect((await pay(customer, { payment_ref: 'GCASH-2' })).status).toBe(409);
+
+    expect((await api(`/owner/orders/${id}/confirm-payment`, { token: owner, method: 'POST' })).body.order.status).toBe('payment_confirmed');
+    expect((await api(`/orders/${id}/place`, { token: customer, method: 'POST' })).body.order.status).toBe('pending');
+  });
+
+  it('pushes the owner for a new laundry pickup and for a payment to review', async () => {
+    const pushToken = `ExponentPushToken[laundry-owner-${crypto.randomUUID()}]`;
+    await env.DB.prepare('UPDATE users SET push_token = ? WHERE id = (SELECT owner_id FROM stores WHERE id = 4)').bind(pushToken).run();
+    const pushes = async () => (await env.DB.prepare('SELECT COUNT(*) AS n FROM push_tickets WHERE token = ?').bind(pushToken).first<{ n: number }>())!.n;
+
+    const id = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+    await vi.waitFor(async () => expect(await pushes()).toBe(1));
+
+    await api(`/owner/orders/${id}/laundry-fee`, { token: owner, body: { laundry_fee: 25000 } });
+    await api(`/orders/${id}/payment`, { token: customer, body: { payment_ref: 'GCASH-1' } });
+    await vi.waitFor(async () => expect(await pushes()).toBe(2));
+  });
+
+  it("lists laundry pickups and food orders apart on the owner's tabs", async () => {
+    await env.DB.prepare('UPDATE stores SET owner_id = (SELECT owner_id FROM stores WHERE id = 4) WHERE id = 1').run();
+    const laundry = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+    const food = (await api('/orders', { token: customer, body: { ...foodOrder, payment_ref: 'GCASH-123' } })).body.order.id;
+    const ids = async (q: string) => (await api(`/owner/orders${q}`, { token: owner })).body.orders.map((o: { id: number }) => o.id);
+    expect(await ids('?type=laundry')).toEqual([laundry]);
+    expect(await ids('?type=food')).toEqual([food]);
+    expect(await ids('')).toEqual([food, laundry]);
+    expect((await api('/owner/orders?type=drinks', { token: owner })).status).toBe(400);
+  });
+
+  it('takes a laundry fee of 0 when the laundry is already paid: only the delivery is left', async () => {
+    const id = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+    const set = await api(`/owner/orders/${id}/laundry-fee`, { token: owner, body: { laundry_fee: 0 } });
+    expect(set.body.order).toMatchObject({ status: 'to_pay', items_total: 0 });
+  });
+
+  it('can be cancelled before the fee is set or paid', async () => {
+    const first = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+    expect((await api(`/orders/${first}/cancel`, { token: customer, method: 'POST' })).body.order.status).toBe('cancelled');
+    const second = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+    await api(`/owner/orders/${second}/laundry-fee`, { token: owner, body: { laundry_fee: 25000 } });
+    expect((await api(`/orders/${second}/cancel`, { token: customer, method: 'POST' })).body.order.status).toBe('cancelled');
   });
 });

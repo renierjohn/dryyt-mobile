@@ -105,7 +105,7 @@ function PickupJob() {
       <StatusTimeline status={job.status} />
       {carrying && <OrderTripMap order={job} driverAt={here} />}
       <Card>
-        <OrderSummary order={job} showFees />
+        <OrderSummary order={job} showFees orderTotal />
       </Card>
       <Card>
         <ThemedText type="smallBold">Customer</ThemedText>

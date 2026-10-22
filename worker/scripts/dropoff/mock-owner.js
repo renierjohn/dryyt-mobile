@@ -4,7 +4,7 @@
 // Links a test owner to the shop (if the shop has no owner yet), then confirms every
 // drop off that arrives. With --paid it also marks it paid, completing the drop off.
 // --remote links the owner in the deployed D1; use it together with --api.
-import { d1, parseArgs, peso, sleep, testUser, time, usageError } from './lib/mock.js';
+import { d1, parseArgs, peso, sleep, testUser, time, usageError } from '../lib/mock.js';
 
 const { api, flags, positional } = parseArgs();
 const storeId = Number(positional[0]);

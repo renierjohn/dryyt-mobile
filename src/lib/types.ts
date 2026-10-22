@@ -2,7 +2,7 @@
 export type Role = 'customer' | 'driver' | 'owner';
 export type StoreType = 'food' | 'laundry';
 export type OrderType = 'pickup';
-export type OrderStatus = 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
+export type OrderStatus = 'awaiting_fee' | 'to_pay' | 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
 export type User = { id: number; email: string; name: string; phone: string; role: Role };
 export type Store = {

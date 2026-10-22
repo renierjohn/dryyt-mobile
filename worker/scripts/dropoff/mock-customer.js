@@ -4,7 +4,7 @@
 // Signs in as --user (an existing customer, local `bun run dev` only) or else the test customer
 // (created on first run), requests a drop off at lat/lng,
 // prints status changes, confirms the driver as soon as one accepts, and cancels on Ctrl+C.
-import { appApiUrl, tokenForUser } from './lib/mock.js';
+import { appApiUrl, tokenForUser } from '../lib/mock.js';
 
 const args = process.argv.slice(2);
 const userAt = args.indexOf('--user');

@@ -19,7 +19,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+export function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
     <Pressable

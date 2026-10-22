@@ -15,9 +15,11 @@ type Props = {
   iconOnly?: boolean;
   disabled?: boolean;
   loading?: boolean;
+  /** Waiting on something else first (e.g. the location): a spinner before the title, and disabled. */
+  waiting?: boolean;
 };
 
-export function Button({ title, onPress, variant = 'primary', icon, iconOnly = false, disabled = false, loading = false }: Props) {
+export function Button({ title, onPress, variant = 'primary', icon, iconOnly = false, disabled = false, loading = false, waiting = false }: Props) {
   const theme = useTheme();
   const look = {
     primary: { background: theme.primary, color: theme.onPrimary, border: theme.primary },
@@ -29,7 +31,7 @@ export function Button({ title, onPress, variant = 'primary', icon, iconOnly = f
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={disabled || loading || waiting}
       accessibilityRole="button"
       accessibilityLabel={title}
       style={({ pressed }) => [
@@ -46,7 +48,8 @@ export function Button({ title, onPress, variant = 'primary', icon, iconOnly = f
         <ActivityIndicator color={look.color} />
       ) : (
         <View style={styles.content}>
-          {icon && (
+          {waiting && <ActivityIndicator testID="button-waiting" size="small" color={look.color} />}
+          {icon && !waiting && (
             <View testID="button-icon">
               <Icon name={icon} size={iconOnly ? 22 : 18} color={look.color} />
             </View>

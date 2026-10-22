@@ -16,6 +16,7 @@ import type { Order, OrderDetail } from '@/lib/types';
  * `badge`: the customer's order list, "#id · Pickup · store" with the status pill top right like drop off cards.
  * `youEarn`: the driver's job board and history, marking the driver's share of the delivery fee.
  * `orderTotal`: the owner's view, with the order amount as "Total Order" above the fees.
+ * `hideNotes`: the card shows the notes itself (the owner's Orders tab puts them on top).
  */
 export function OrderSummary({
   order,
@@ -23,15 +24,21 @@ export function OrderSummary({
   badge = false,
   youEarn = false,
   orderTotal = false,
+  hideNotes = false,
 }: {
   order: Order | OrderDetail;
   showFees?: boolean;
   badge?: boolean;
   youEarn?: boolean;
   orderTotal?: boolean;
+  hideNotes?: boolean;
 }) {
   const theme = useTheme();
   const { from, to } = route(order);
+  // A laundry pickup's items_total is the laundry fee, set by the shop after the order is sent.
+  const laundry = order.store_type === 'laundry';
+  const feePending = order.status === 'awaiting_fee';
+  const storeAmount = feePending ? 'Set by the shop' : peso(order.items_total);
   return (
     <View style={styles.summary}>
       {badge ? (
@@ -86,16 +93,16 @@ export function OrderSummary({
             <ThemedText type="small">{peso(item.price * item.qty)}</ThemedText>
           </View>
         ))}
-      {order.notes ? <ThemedText type="small">Notes: {order.notes}</ThemedText> : null}
+      {order.notes && !hideNotes ? <ThemedText type="small">Notes: {order.notes}</ThemedText> : null}
       <View testID="order-total-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
       {showFees ? (
         <>
           {orderTotal && (
             <View style={styles.item}>
               <ThemedText type="small" style={styles.grow}>
-                Total Order
+                {laundry ? 'Laundry fee' : 'Total Order'}
               </ThemedText>
-              <ThemedText type="small">{peso(order.items_total)}</ThemedText>
+              <ThemedText type="small">{storeAmount}</ThemedText>
             </View>
           )}
           <View style={styles.item}>
@@ -115,9 +122,9 @@ export function OrderSummary({
         <>
           <View style={styles.item}>
             <ThemedText type="small" style={styles.grow}>
-              Order amount
+              {laundry ? 'Laundry fee' : 'Order amount'}
             </ThemedText>
-            <ThemedText type="small">{peso(order.items_total)}</ThemedText>
+            <ThemedText type="small">{storeAmount}</ThemedText>
           </View>
           <View style={styles.item}>
             <ThemedText type="small" style={styles.grow}>
@@ -132,7 +139,9 @@ export function OrderSummary({
         <ThemedText type="smallBold" style={styles.grow}>
           Total Amount
         </ThemedText>
-        <ThemedText type="smallBold">{peso(order.items_total + order.total_delivery_fee)}</ThemedText>
+        <ThemedText type="smallBold">
+          {feePending ? `${peso(order.total_delivery_fee)} + laundry fee` : peso(order.items_total + order.total_delivery_fee)}
+        </ThemedText>
       </View>
     </View>
   );

@@ -8,7 +8,7 @@
 // Ctrl+C cancels the order (or releases the driver's job) if it's still early enough.
 import { readFileSync } from 'node:fs';
 
-import { car, d1, openRoom, parseArgs, peso, sleep, time, tokenForUser, tokenUser, usageError } from './lib/mock.js';
+import { car, d1, openRoom, parseArgs, peso, sleep, time, tokenForUser, tokenUser, usageError } from '../lib/mock.js';
 
 const argv = process.argv.slice(2);
 const speedAt = argv.indexOf('--speed');
@@ -24,7 +24,7 @@ if (!Number.isFinite(speedKmh) || speedKmh <= 0) usage('speed must be a positive
 
 const POLL_MS = 3000;
 // The app logo stands in for the payment screenshot, so the owner app has a real image to show.
-const PAYMENT_PNG = readFileSync(new URL('../../assets/images/logo@3x.png', import.meta.url));
+const PAYMENT_PNG = readFileSync(new URL('../../../assets/images/logo@3x.png', import.meta.url));
 // The customer and the driver start this far (in degrees, ~1.5 km and ~1 km) from the store.
 const CUSTOMER_OFFSET = { lat: 0.01, lng: 0.01 };
 const DRIVER_OFFSET = { lat: -0.007, lng: -0.004 };

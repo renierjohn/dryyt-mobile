@@ -19,11 +19,11 @@ export async function boardAccess(db: D1Database, user: AuthUser) {
   return Boolean(await db.prepare('SELECT 1 FROM drivers WHERE user_id = ? AND pickup_online = 1').bind(user.id).first());
 }
 
-/** The order's customer from Send proof of payment until delivered; its driver while they have it. */
+/** The order's customer from placing it (laundry) or Send proof of payment (food) until delivered; its driver while they have it. */
 export async function orderAccess(db: D1Database, user: AuthUser, orderId: number) {
   const where =
     user.role === 'customer'
-      ? "customer_id = ? AND status IN ('awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up')"
+      ? "customer_id = ? AND status IN ('awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up')"
       : user.role === 'driver'
         ? "driver_id = ? AND status IN ('accepted', 'picked_up')"
         : null;

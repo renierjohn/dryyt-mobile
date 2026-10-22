@@ -25,7 +25,8 @@ afterEach(() => {
 
 it.each([
   ['owner drop offs', useOwnerDropoffs, '/owner/transactions'],
-  ['owner orders', useOwnerOrders, '/owner/orders'],
+  ['owner food orders', () => useOwnerOrders('food'), '/owner/orders?type=food'],
+  ['owner laundry pickups', () => useOwnerOrders('laundry'), '/owner/orders?type=laundry'],
   ['shop payouts', usePayouts, '/owner/payouts'],
   ['pickup payouts', usePickupPayouts, '/owner/pickup-payouts'],
 ])('loads %s on each visit or pull, at most once per 5 s, never by polling', async (_name, useList, path) => {

@@ -162,17 +162,18 @@ export class OrderRoom extends DurableObject<Bindings> {
   /** Still awaiting_payment (the owner hasn't tapped Done Pay or the customer cancelled): nudge the owner. */
   private async remindOwner(orderId: number) {
     const row = await this.env.DB.prepare(
-      "SELECT s.owner_id FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ? AND o.status = 'awaiting_payment'",
+      "SELECT s.owner_id, s.type FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ? AND o.status = 'awaiting_payment'",
     )
       .bind(orderId)
-      .first<{ owner_id: number | null }>();
+      .first<{ owner_id: number | null; type: string }>();
     if (!row?.owner_id) return;
+    const tab = row.type === 'laundry' ? 'Pickups' : 'Orders';
     await pushToUsers(
       this.env,
       [row.owner_id],
       'Review Payment Now',
-      'A customer is waiting for you to review their payment. Check Orders and tap Done Pay.',
-      { order_id: orderId },
+      `A customer is waiting for you to review their payment. Check ${tab} and tap Done Pay.`,
+      { order_id: orderId, laundry: row.type === 'laundry' },
       'ownerOrder',
     );
   }
@@ -195,8 +196,8 @@ export class OrderRoom extends DurableObject<Bindings> {
             this.env,
             [owner.owner_id],
             'Payment accepted automatically',
-            'An order was accepted after 10 reminders without Done Pay. Check the payment in Orders.',
-            { order_id: orderId },
+            `An order was accepted after 10 reminders without Done Pay. Check the payment in ${order.store_type === 'laundry' ? 'Pickups' : 'Orders'}.`,
+            { order_id: orderId, laundry: order.store_type === 'laundry' },
             'ownerOrder',
           )
         : undefined,

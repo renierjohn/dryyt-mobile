@@ -16,6 +16,10 @@ export default function OwnerTabs() {
         <NativeTabs.Trigger.Label>Drop offs</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="tray.and.arrow.down.fill" md="move_to_inbox" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="pickups">
+        <NativeTabs.Trigger.Label>Pickups</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="box.truck.fill" md="local_shipping" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="orders">
         <NativeTabs.Trigger.Label>Orders</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="bag.fill" md="shopping_bag" />

@@ -66,6 +66,16 @@ export const useUploadPaymentPhoto = () =>
     },
   });
 
+/** Laundry pickup: sends the proof once the shop has set the laundry fee. */
+export function useSendPayment(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { payment_ref: string; payment_photo_key?: string }) =>
+      api<{ order: OrderDetail }>(`/orders/${id}/payment`, { body: input }).then((r) => r.order),
+    onSuccess: (order) => qc.setQueryData(['order', order.id], order),
+  });
+}
+
 /** Releases a payment-confirmed order to drivers. */
 export function usePlaceOrder() {
   const qc = useQueryClient();
@@ -466,12 +476,14 @@ export const usePickupPayouts = () => {
 };
 
 /** Pickup orders at the owner's shops, newest first. */
-export const useOwnerOrders = () => {
+/** The owner's food orders (Orders tab) or laundry pickups (Pickups tab). */
+export const useOwnerOrders = (type: StoreType) => {
   const loadOnFocus = useLoadOnFocus();
   return withMinGap(
     useInfiniteQuery({
-      queryKey: ['owner', 'orders'],
-      queryFn: ({ pageParam: next }) => api<{ orders: OrderDetail[]; next: string | null }>(`/owner/orders${pageParam(next)}`),
+      queryKey: ['owner', 'orders', type],
+      queryFn: ({ pageParam: next }) =>
+        api<{ orders: OrderDetail[]; next: string | null }>(`/owner/orders?type=${type}${next ? `&before=${encodeURIComponent(next)}` : ''}`),
       initialPageParam: null as string | null,
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
@@ -484,6 +496,16 @@ export function useConfirmPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<{ order: OrderDetail }>(`/owner/orders/${id}/confirm-payment`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'orders'] }),
+  });
+}
+
+/** Laundry pickup: the owner sets the laundry fee so the customer can pay. */
+export function useSetLaundryFee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, laundry_fee }: { id: number; laundry_fee: number }) =>
+      api<{ order: OrderDetail }>(`/owner/orders/${id}/laundry-fee`, { body: { laundry_fee } }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'orders'] }),
   });
 }

@@ -272,15 +272,21 @@ owner.get('/transactions', async (c) => {
   });
 });
 
-/** Pickup orders at the owner's shops with their lines, newest first; 10 per page, `next` fetches older ones. */
+/**
+ * Pickup orders at the owner's shops with their lines, newest first; 10 per page, `next` fetches older ones.
+ * `?type=food|laundry`: only that kind of shop's (the app's Orders and Pickups tabs); all without it.
+ */
 owner.get('/orders', async (c) => {
   const storeIds = await myStoreIds(c);
   const { before, limit } = pageQuery(c);
+  const type = c.req.query('type');
+  if (type !== undefined && type !== 'food' && type !== 'laundry') fail(400, 'type must be food or laundry');
   const binds: unknown[] = [...storeIds];
+  if (type) binds.push(type);
   if (before) binds.push(Number(cursorParts(before, 1)[0]));
   const rows = await listOrders(
     c.env.DB,
-    `o.store_id IN ${inList(storeIds)} ${before ? 'AND o.id < ?' : ''} ORDER BY o.id DESC LIMIT ${limit + 1}`,
+    `o.store_id IN ${inList(storeIds)} ${type ? 'AND s.type = ?' : ''} ${before ? 'AND o.id < ?' : ''} ORDER BY o.id DESC LIMIT ${limit + 1}`,
     ...binds,
   );
   const page = await Promise.all(rows.slice(0, limit).map((o) => getOrder(c.env.DB, o.id)));
@@ -313,6 +319,26 @@ owner.post('/orders/:id/confirm-payment', async (c) => {
   pickupChanged(c, order.id, { board: false });
   c.executionCtx.waitUntil(
     pushToUsers(c.env, [order.customer_id], 'Payment confirmed', `${order.store_name} confirmed your payment. Place your order now.`, { order_id: order.id }),
+  );
+  return c.json({ order: await getOrder(db, order.id) });
+});
+
+// 0: the customer already paid the laundry at the shop; they pay only the delivery.
+const laundryFeeSchema = z.object({ laundry_fee: z.number().int().min(0).max(10_000_000) });
+
+/** Laundry pickup: the owner sets the laundry fee (kept in items_total); the customer then pays the total. */
+owner.post('/orders/:id/laundry-fee', async (c) => {
+  const order = await myOrder(c);
+  const { laundry_fee } = await parseBody(c, laundryFeeSchema);
+  const db = c.env.DB;
+  const { meta } = await db
+    .prepare("UPDATE transactions_pickup SET status = 'to_pay', items_total = ?, updated_at = datetime('now') WHERE id = ? AND status = 'awaiting_fee'")
+    .bind(laundry_fee, order.id)
+    .run();
+  if (meta.changes === 0) fail(409, 'This order is not waiting for a laundry fee');
+  pickupChanged(c, order.id, { board: false });
+  c.executionCtx.waitUntil(
+    pushToUsers(c.env, [order.customer_id], 'Laundry fee set', `${order.store_name} set your laundry fee. Pay now to book a driver.`, { order_id: order.id }),
   );
   return c.json({ order: await getOrder(db, order.id) });
 });

@@ -6,6 +6,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { CategoryChips } from '@/components/category-chips';
+import { DeliveryPinCard, useDeliveryPin } from '@/components/delivery-pin';
 import { ErrorText } from '@/components/error-text';
 import { HeaderBand } from '@/components/header-band';
 import { Icon } from '@/components/icon';
@@ -25,9 +26,6 @@ export default function NewOrder() {
   const storeId = Number(useLocalSearchParams<{ storeId: string }>().storeId);
   const store = useStore(storeId);
   const cart = useCart();
-  const createOrder = useCreateOrder();
-  const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const theme = useTheme();
 
@@ -56,36 +54,8 @@ export default function NewOrder() {
     if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
   };
 
-  // Laundry pickups have no items: order straight from here.
-  if (type === 'laundry') {
-    const submit = () =>
-      createOrder.mutate(
-        { type: 'pickup', store_id: storeId, items: [], customer_address: address, notes },
-        { onSuccess: (order) => router.replace({ pathname: '/customer/order/[id]', params: { id: String(order.id) } }) },
-      );
-    return (
-      <Screen
-        edges={[]}
-        footer={
-          <>
-            <ErrorText error={createOrder.error} />
-            <Button title="Place order" onPress={submit} loading={createOrder.isPending} />
-          </>
-        }>
-        <Card>
-          <ThemedText type="smallBold">{name}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {storeAddress}
-          </ThemedText>
-        </Card>
-        <TextField label="Delivery address" value={address} onChangeText={setAddress} multiline />
-        <TextField label="Notes" placeholder="e.g. claim ticket #, number of bags" value={notes} onChangeText={setNotes} multiline />
-        <ThemedText type="small" themeColor="textSecondary">
-          Pay cash to the driver.
-        </ThemedText>
-      </Screen>
-    );
-  }
+  // Laundry pickups have no items: pin, price the delivery, then tell the shop which laundry to send.
+  if (type === 'laundry') return <LaundryPickup storeId={storeId} name={name} storeAddress={storeAddress} />;
 
   // Categories in the owner's menu order; tabs only when the store uses them.
   const categories = [...new Set(menu.map((m) => m.category).filter(Boolean))];
@@ -162,3 +132,53 @@ const styles = StyleSheet.create({
   photo: { width: 96, height: 96, borderRadius: 12 },
   placeholder: { alignItems: 'center', justifyContent: 'center' },
 });
+
+/**
+ * The shop's pin and the customer's on a map, Compute Delivery Fee, then a note for the shop. Send to shop creates the
+ * order; the shop sets the laundry fee and the customer pays on the order's screen.
+ */
+function LaundryPickup({ storeId, name, storeAddress }: { storeId: number; name: string; storeAddress: string }) {
+  const createOrder = useCreateOrder();
+  const pin = useDeliveryPin(storeId);
+  const [notes, setNotes] = useState('');
+  const submit = () =>
+    pin.at &&
+    createOrder.mutate(
+      { type: 'pickup', store_id: storeId, items: [], lat: pin.at.lat, lng: pin.at.lng, notes: notes.trim(), quote_token: pin.quote.data?.token },
+      { onSuccess: (order) => router.replace({ pathname: '/customer/order/[id]', params: { id: String(order.id) } }) },
+    );
+  return (
+    <Screen
+      edges={[]}
+      footer={
+        pin.fee !== null && (
+          <>
+            <ErrorText error={createOrder.error} />
+            <Button title="Send to shop" onPress={submit} loading={createOrder.isPending} disabled={notes.trim() === ''} />
+          </>
+        )
+      }>
+      <Card>
+        <ThemedText type="smallBold">{name}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {storeAddress}
+        </ThemedText>
+      </Card>
+      <DeliveryPinCard storeName={name} pin={pin} />
+      {pin.fee !== null && (
+        <>
+          <TextField
+            label="Note"
+            placeholder="Tell the shop which laundry to send, e.g. claim ticket #, number of bags"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+          />
+          <ThemedText type="small" themeColor="textSecondary">
+            The shop sets the laundry fee next. You pay the shop before a driver is booked.
+          </ThemedText>
+        </>
+      )}
+    </Screen>
+  );
+}

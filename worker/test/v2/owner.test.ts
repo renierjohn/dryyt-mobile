@@ -269,30 +269,56 @@ describe('owner', () => {
     expect(body.payments.map((p: { amount: number }) => p.amount)).toEqual([2000, 1000]);
   });
 
-  it('totals the service fee per Monday-to-Sunday week in Manila time, across every page', async () => {
+  it('service fees follow the cpanel: delivered pickups and completed drop offs, by when they finished, per Manila week', async () => {
     const owner = await registerUser('owner');
     const { storeId } = await makeShop({ ownerId: owner.user.id });
     const customer = await registerUser('customer');
-    // UTC times: Sun Oct 18 15:59 UTC is Sun 23:59 Manila; 16:00 UTC is Mon Oct 19 00:00 Manila, the next week.
-    const at = ['2026-10-12 00:00:00', '2026-10-18 15:59:00', '2026-10-18 16:00:00', ...Array(11).fill('2026-10-20 04:00:00')];
-    for (const [i, when] of at.entries()) {
-      const t = (await env.DB.prepare(
-        `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
+    const driver = await registerUser('driver');
+    const dropoff = (status: string, fee: number, at: string) =>
+      env.DB.prepare(
+        `INSERT INTO transactions_dropoff (room_id, customer_id, driver_id, store_id, status, customer_lat, customer_lng, customer_address,
            shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee, created_at, updated_at)
-         VALUES (?, ?, ?, 'completed', 14.56, 121.03, 'Home', 14.55, 121.02, 1, 5000, 500, 5500, ?, ?) RETURNING id`,
-      )
-        .bind(crypto.randomUUID(), customer.user.id, storeId, when, when)
-        .first<{ id: number }>())!.id;
-      await env.DB.prepare("INSERT INTO payouts (transaction_id, payer_store_id, payee_type, amount, created_at) VALUES (?, ?, 'developer', ?, ?)")
-        .bind(t, storeId, 100 * (i + 1), when)
-        .run();
-    }
-    const { body } = await api('/owner/service-fee-weeks', { token: owner.token });
-    // Week of Oct 19: payouts 3..14 (300 + 400 + … + 1400); week of Oct 12: payouts 1 and 2.
-    expect(body.weeks).toEqual([
-      { week: '2026-10-19', total: Array.from({ length: 12 }, (_, i) => 100 * (i + 3)).reduce((a, b) => a + b, 0) },
+         VALUES (?, ?, ?, ?, ?, 14.56, 121.03, 'Home', 14.55, 121.02, 1, 5000, ?, 5500, ?, ?)`,
+      ).bind(crypto.randomUUID(), customer.user.id, driver.user.id, storeId, status, fee, at, at);
+    const pickup = (status: string, fee: number, at: string) =>
+      env.DB.prepare(
+        `INSERT INTO transactions_pickup (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, service_fee, updated_at)
+         VALUES ('pickup', ?, ?, ?, ?, 'x', 0, 5000, ?, ?)`,
+      ).bind(customer.user.id, driver.user.id, storeId, status, fee, at);
+    // Sun Oct 18 15:59 UTC is Sun 23:59 Manila (week of Oct 12); 16:00 UTC is Mon Oct 19 (next week).
+    await env.DB.batch([
+      dropoff('completed', 100, '2026-10-12 00:00:00'),
+      pickup('delivered', 200, '2026-10-18 15:59:00'),
+      dropoff('completed', 400, '2026-10-18 16:00:00'),
+      ...Array.from({ length: 11 }, (_, i) => pickup('delivered', 10 * (i + 1), '2026-10-20 04:00:00')),
+      // Not counted: not finished yet.
+      dropoff('payment_pending', 9000, '2026-10-13 00:00:00'),
+      dropoff('owner_confirmed', 9000, '2026-10-13 00:00:00'),
+      pickup('picked_up', 9000, '2026-10-13 00:00:00'),
+      pickup('cancelled', 9000, '2026-10-13 00:00:00'),
+    ]);
+
+    const weeks = (await api('/owner/service-fee-weeks', { token: owner.token })).body.weeks;
+    expect(weeks).toEqual([
+      { week: '2026-10-19', total: 400 + 660 },
       { week: '2026-10-12', total: 300 },
     ]);
+
+    // The lines, 10 a page, newest first, without repeats: 14 counted rows.
+    const seen: { kind: string; id: number; amount: number; driver_name: string }[] = [];
+    let next: string | null = null;
+    do {
+      const res: { body: { fees: typeof seen; next: string | null } } = await api(`/owner/service-fees${next ? `?before=${encodeURIComponent(next)}` : ''}`, {
+        token: owner.token,
+      });
+      seen.push(...res.body.fees);
+      next = res.body.next;
+    } while (next);
+    expect(seen).toHaveLength(14);
+    expect(new Set(seen.map((f) => `${f.kind}-${f.id}`)).size).toBe(14);
+    expect(seen.reduce((sum, f) => sum + f.amount, 0)).toBe(100 + 200 + 400 + 660);
+    expect(seen[seen.length - 1]).toMatchObject({ kind: 'dropoff', amount: 100, driver_name: driver.user.name });
+    expect((await api('/owner/service-fees?before=junk', { token: owner.token })).status).toBe(400);
   });
 
   it("serves a driver's face photo only to owners whose shops they delivered for", async () => {

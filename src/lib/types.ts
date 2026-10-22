@@ -243,3 +243,6 @@ export type OwnerAppFeePayment = {
   ref_number: string;
   has_photo: boolean;
 };
+
+/** One delivery's service fee for the app (the APP Fee tab): a delivered pickup or a completed drop off. */
+export type ServiceFee = { kind: 'pickup' | 'dropoff'; id: number; amount: number; at: string; driver_name: string | null };

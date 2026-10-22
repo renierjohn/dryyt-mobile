@@ -64,8 +64,8 @@ it("groups jobs by the day they were finished, shop-confirmed ones first, with t
 
 it("pins each group's title to the top while its jobs scroll by", async () => {
   await render(<JobHistory />);
-  // Title, the dev countdown and the error slot sit above the list; then group, job, group, job, job, group, job.
-  expect(mockSticky).toHaveBeenLastCalledWith([3, 5, 8]);
+  // Title and the error slot sit above the list; then group, job, group, job, job, group, job.
+  expect(mockSticky).toHaveBeenLastCalledWith([2, 4, 7]);
 });
 
 it("shows each drop off's delivery fee (the driver's share), service fee and total", async () => {

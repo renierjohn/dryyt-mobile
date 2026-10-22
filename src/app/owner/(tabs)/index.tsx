@@ -5,7 +5,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
-import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { Screen } from '@/components/screen';
 import { StatusBadge, type Tone } from '@/components/status-badge';
 import { ThemedText } from '@/components/themed-text';
@@ -86,7 +85,6 @@ export default function OwnerDropoffs() {
     <ThemedText key="title" type="subtitle">
       Drop offs
     </ThemedText>,
-    __DEV__ && <NextLoadCountdown key="countdown" at={dropoffs.nextAt} label="/owner/transactions" />,
     dropoffs.isPending && <ActivityIndicator key="loading" />,
     <ErrorText key="error" error={dropoffs.error} />,
     dropoffs.isSuccess && list.length === 0 && (

@@ -109,8 +109,8 @@ it("groups orders by the day they were placed, with the day's order amount (no f
 
 it("pins each day's title to the top while its orders scroll by", async () => {
   await render(<Orders />);
-  // Title, the dev countdown and the error slot sit above the list; then day, order, day, order, order, day, order.
-  expect(mockSticky).toHaveBeenLastCalledWith([3, 5, 8]);
+  // Title and the error slot sit above the list; then day, order, day, order, order, day, order.
+  expect(mockSticky).toHaveBeenLastCalledWith([2, 4, 7]);
   expect(screen.getAllByTestId('order-day')).toHaveLength(3);
 });
 

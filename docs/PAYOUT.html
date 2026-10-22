@@ -168,21 +168,24 @@ Oct 12 – Oct 18, 2026                             ₱18.00
 </ol>
 
 <h3 id="weeks">Weekly service fee</h3>
-<p>Dryyt's <code>service_fee</code> from each confirmed drop off, grouped by week (Monday to Sunday).</p>
+<p>Dryyt's <code>service_fee</code> from every finished delivery at the owner's shops, grouped by week (Monday to Sunday). Same rule as the cpanel's Stores tab, so the two always match:</p>
+<ul>
+<li><b>Pickups</b> (food orders and laundry pickups) with <code>status = 'delivered'</code></li>
+<li><b>Drop offs</b> with <code>status = 'completed'</code> (not ones still waiting for payment)</li>
+</ul>
 <div class="tbl"><table>
 <thead><tr><th>Shown</th><th>Meaning</th><th>Source</th></tr></thead>
 <tbody>
-<tr><td>Oct 12 – Oct 18, 2026</td><td>The week</td><td>By the day the payout was created (<code>payouts.created_at</code>)</td></tr>
-<tr><td>Week total (right)</td><td>Dryyt's service fee for the whole week, even rows not loaded yet</td><td><code>GET /owner/service-fee-weeks</code>: sum of <code>payouts.amount</code> where <code>payee_type = 'developer'</code></td></tr>
-<tr><td>#12 Ben ₱9.00</td><td>The drop off number, its driver, and that drop off's service fee</td><td><code>payouts.transaction_id</code>, the drop off's driver (<code>transactions_dropoff.driver_id</code> → <code>users.name</code>), <code>payouts.amount</code></td></tr>
+<tr><td>Oct 12 – Oct 18, 2026</td><td>The week</td><td>By the day the delivery finished (<code>updated_at</code>, Manila time)</td></tr>
+<tr><td>Week total (right)</td><td>Dryyt's service fee for the whole week, even rows not loaded yet</td><td><code>GET /owner/service-fee-weeks</code>: sum of <code>transactions_pickup.service_fee</code> + <code>transactions_dropoff.service_fee</code></td></tr>
+<tr><td>#12 Ben ₱9.00</td><td>The order or drop off number, its driver, and its service fee</td><td><code>GET /owner/service-fees</code> (10 per page, <b>Show More</b>): <code>id</code>, <code>driver_id</code> → <code>users.name</code>, <code>service_fee</code></td></tr>
 </tbody></table></div>
-<p class="note">Only drop offs create service fee payouts. Pickup service fees are recorded on <code>transactions_pickup.service_fee</code> (and counted on the cpanel's Overview) but don't appear on this list.</p>
 
 <h2 id="dropoff">Dropoff tab</h2>
 <p>What the shop owes drivers for drop offs. When the owner taps <b>Confirm received</b> on a drop off (<code>POST /owner/transactions/:id/confirm</code>), one batch:</p>
 <ul>
 <li>adds a <code>payouts</code> row for the <b>driver</b>: <code>amount = transactions_dropoff.delivery_fee</code>, status <code>pending</code>;</li>
-<li>adds a <code>payouts</code> row for <b>Dryyt</b> (<code>payee_type = 'developer'</code>): <code>amount = transactions_dropoff.service_fee</code> (the APP Fee tab's weekly list);</li>
+<li>adds a <code>payouts</code> row for <b>Dryyt</b> (<code>payee_type = 'developer'</code>): <code>amount = transactions_dropoff.service_fee</code>;</li>
 <li>adds the delivery fee to the driver's running total, <code>driver_data.earnings</code>;</li>
 <li>marks <code>owner_transactions.status = 'ok'</code> and <code>transactions_dropoff.status = 'owner_confirmed'</code>.</li>
 </ul>
@@ -224,10 +227,10 @@ Shop                                           Pending
 <div class="tbl"><table>
 <thead><tr><th>Table</th><th>Read by</th><th>Written by</th></tr></thead>
 <tbody>
-<tr><td><code>payouts</code></td><td>Dropoff tab (driver rows), APP Fee weekly list (Dryyt rows)</td><td>Confirm received (creates both rows); Mark paid on Dropoff (<code>status</code>, <code>paid_at</code>)</td></tr>
-<tr><td><code>transactions_dropoff</code></td><td>APP Fee (sales: <code>laundry_fee</code>); weekly list (driver)</td><td>Confirm received (<code>status</code>)</td></tr>
+<tr><td><code>payouts</code></td><td>Dropoff tab (driver rows)</td><td>Confirm received (creates both rows); Mark paid on Dropoff (<code>status</code>, <code>paid_at</code>)</td></tr>
+<tr><td><code>transactions_dropoff</code></td><td>APP Fee (sales: <code>laundry_fee</code>; weekly service fee)</td><td>Confirm received (<code>status</code>)</td></tr>
 <tr><td><code>owner_transactions</code></td><td>—</td><td>Confirm received (<code>status = 'ok'</code>)</td></tr>
-<tr><td><code>transactions_pickup</code></td><td>Pickup and Orders tabs; APP Fee (sales: <code>items_total</code>)</td><td>Mark paid on Pickup / Orders (<code>driver_paid_at</code>)</td></tr>
+<tr><td><code>transactions_pickup</code></td><td>Pickup and Orders tabs; APP Fee (sales: <code>items_total</code>; weekly service fee)</td><td>Mark paid on Pickup / Orders (<code>driver_paid_at</code>)</td></tr>
 <tr><td><code>driver_data</code></td><td>Driver face photos</td><td>Confirm received (<code>earnings</code> += delivery fee)</td></tr>
 <tr><td><code>stores</code></td><td>APP Fee (logo, <code>fee_type</code>, <code>fee_flat</code>, <code>fee_percentage</code>)</td><td>Cpanel only (fee settings)</td></tr>
 <tr><td><code>app_fee</code></td><td>APP Fee payments</td><td>Pay / Send proof (new row); cpanel (records and fills in payments)</td></tr>

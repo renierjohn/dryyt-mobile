@@ -48,8 +48,8 @@ jest.mock('react-native-safe-area-context', () => {
 
 it("pins each day's title to the top while its drop offs scroll by", async () => {
   await render(<OwnerDropoffs />);
-  // Title, dev countdown, error slot; then day, card, line, day, card, line, day, card, card, day, card.
-  expect(mockSticky).toHaveBeenLastCalledWith([3, 6, 9, 12]);
+  // Title and the error slot; then day, card, line, day, card, line, day, card, card, day, card.
+  expect(mockSticky).toHaveBeenLastCalledWith([2, 5, 8, 11]);
   expect(screen.getAllByTestId('dropoff-day')).toHaveLength(4);
   // Completed days show their laundry fee total.
   expect(screen.getByText('₱270.00')).toBeTruthy();

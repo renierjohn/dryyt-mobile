@@ -38,8 +38,8 @@ it('groups orders by the day they were placed under sticky date titles, with no 
   expect(screen.getAllByTestId('history-day').map((t) => t.children.length)).toEqual([1, 1]);
   expect(screen.getByText('Sun, Oct 18, 2026')).toBeTruthy();
   expect(screen.getByText('Fri, Oct 16, 2026')).toBeTruthy();
-  // Title, the dev countdown and the error slot sit above the list; then day, order, order, day, order.
-  expect(mockSticky).toHaveBeenLastCalledWith([3, 6]);
+  // Title and the error slot sit above the list; then day, order, order, day, order.
+  expect(mockSticky).toHaveBeenLastCalledWith([2, 5]);
 });
 
 it("shows each drop off's store logo, or a placeholder", async () => {

@@ -5,7 +5,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
-import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { OrderSummary } from '@/components/order-summary';
 import { Screen } from '@/components/screen';
 import { StatusBadge, type Tone } from '@/components/status-badge';
@@ -65,7 +64,6 @@ export function HistoryScreen({ history, role, title, empty, amount }: Props) {
   // The fixed rows above the list, null ones dropped so `sticky` indexes line up with the scroll view's children.
   const top = [
     title,
-    __DEV__ && <NextLoadCountdown key="countdown" at={history.nextAt} label="/history" />,
     history.isPending && <ActivityIndicator key="loading" />,
     <ErrorText key="error" error={history.error} />,
     history.isSuccess && items.length === 0 && (

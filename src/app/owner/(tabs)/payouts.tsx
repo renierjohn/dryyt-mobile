@@ -11,7 +11,6 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
-import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { PhotoViewer } from '@/components/photo-viewer';
 import { Screen } from '@/components/screen';
 import { OrDivider } from '@/components/or-divider';
@@ -20,7 +19,7 @@ import { StoreLogo } from '@/components/store-logo';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useMarkPayoutPaid, useMarkPickupPaid, useOwnerAppFee, usePayouts, usePickupPayouts, useSendAppFeeProof, useServiceFeeWeeks } from '@/hooks/queries';
+import { useMarkPayoutPaid, useMarkPickupPaid, useOwnerAppFee, usePayouts, usePickupPayouts, useSendAppFeeProof, useServiceFees, useServiceFeeWeeks } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
 import type { OwnerAppFee, OwnerAppFeePayment } from '@/lib/types';
@@ -157,7 +156,11 @@ function MonthDue({ fee }: { fee: OwnerAppFee }) {
   const last = fee.last_payment;
   return (
     <Card>
-      <ThemedText style={styles.groupTitleText}>Month of {monthLabel(fee.month)}</ThemedText>
+      <View testID="month-title" style={styles.row}>
+        <ThemedText style={[styles.groupTitleText, styles.grow]}>Month of {monthLabel(fee.month)}</ThemedText>
+        {/* What all the shops owe the app this month. */}
+        <PayoutAmount value={fee.stores.reduce((sum, store) => sum + store.amount_due, 0)} />
+      </View>
       {fee.stores.map((store) => (
         <View key={store.id} testID={`month-store-${store.id}`} style={[styles.line, { borderTopColor: theme.border }]}>
           <View style={styles.row}>
@@ -429,6 +432,7 @@ export default function Payouts() {
     });
 
   const payouts = usePayouts();
+  const fees = useServiceFees();
   const weeks = useServiceFeeWeeks();
   const weekTotals = new Map((weeks.data ?? []).map((w) => [w.week, w.total]));
   const appFee = useOwnerAppFee();
@@ -451,10 +455,20 @@ export default function Payouts() {
     paidAt: p.status === 'paid' ? p.paid_at : null,
     at: p.created_at,
   });
-  // Service fee lines show the drop off's driver; the payee is the app.
-  const serviceFees = list
-    .filter((p) => p.payee_type === 'developer')
-    .map((p) => ({ ...toLine(p), driverName: p.driver_name, face: null }));
+  // Same rule as the cpanel: delivered pickups and completed drop offs, by when they finished.
+  const serviceFees = (fees.data?.pages.flatMap((p) => p.fees) ?? []).map(
+    (f): Line => ({
+      key: `${f.kind}-${f.id}`,
+      id: f.id,
+      driverName: f.driver_name,
+      amount: f.amount,
+      ref: `#${f.id}`,
+      storeName: '',
+      face: null,
+      paidAt: null,
+      at: f.at,
+    }),
+  );
   const drivers = list.filter((p) => p.payee_type === 'driver').map(toLine);
   const pickupLines = (pickups.data?.pages.flatMap((p) => p.payouts) ?? []).map(
     (p): Line => ({
@@ -486,7 +500,7 @@ export default function Payouts() {
   }
 
   if (tab === 'fees' && appFee.data) rows.push(<MonthDue key="month" fee={appFee.data} />);
-  if (tab === 'fees' && payouts.isSuccess) {
+  if (tab === 'fees' && fees.isSuccess) {
     rows.push(
       <View key="service-fee-title" testID="service-fee-title" style={styles.sectionTitle}>
         <ThemedText style={styles.groupTitleText}>Service Fee</ThemedText>
@@ -518,6 +532,9 @@ export default function Payouts() {
         </Card>,
       );
     }
+    if (fees.hasNextPage) {
+      rows.push(<Button key="more-fees" title="Show More" variant="secondary" loading={fees.isFetchingNextPage} onPress={() => fees.fetchNextPage()} />);
+    }
   }
 
   if (tab === 'dropoff' && payouts.isSuccess) {
@@ -525,8 +542,7 @@ export default function Payouts() {
     rows.push(...dayGroups('dropoff', drivers, markPaid.isPending ? markPaid.variables : undefined, (id) => markPaid.mutate(id)));
   }
 
-  // Service fees and drop off fees come from the same list, so either tab can load more of it.
-  if ((tab === 'fees' || tab === 'dropoff') && payouts.hasNextPage) {
+  if (tab === 'dropoff' && payouts.hasNextPage) {
     rows.push(
       <Button key="more-payouts" title="Show More" variant="secondary" loading={payouts.isFetchingNextPage} onPress={() => payouts.fetchNextPage()} />,
     );
@@ -547,14 +563,13 @@ export default function Payouts() {
       Payouts
     </ThemedText>,
     <PayoutTabs key="tabs" tab={tab} onSelect={select} />,
-    __DEV__ && <NextLoadCountdown key="countdown" at={Math.max(payouts.nextAt, pickups.nextAt)} label="payouts" />,
     (payouts.isPending || pickups.isPending) && <ActivityIndicator key="loading" />,
-    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? markPaid.error ?? markPickupPaid.error} />,
+    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? fees.error ?? markPaid.error ?? markPickupPaid.error} />,
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (
     // The tabs stick to the top while the selected section scrolls under them.
-    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch(), weeks.refetch()])} stickyHeaderIndices={[1]}>
+    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch(), fees.refresh(), weeks.refetch()])} stickyHeaderIndices={[1]}>
       {top}
       {/* Swipe left or right across the list for the next or previous tab. */}
       <GestureDetector gesture={swipe}>

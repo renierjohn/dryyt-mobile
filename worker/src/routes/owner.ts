@@ -413,17 +413,49 @@ owner.get('/payouts', async (c) => {
 });
 
 /**
- * The app's service fee per week (Monday to Sunday, Manila time) across every page of /payouts, so the APP Fee tab's
- * week totals don't depend on how many payouts it has loaded. `week` is the Monday, YYYY-MM-DD.
+ * The app's service fee from the owner's shops, the same rule as the cpanel's Stores tab: delivered pickups and
+ * completed drop offs, dated by when they finished (updated_at). `kind` is 'pickup' or 'dropoff'. Bind the store ids
+ * twice. Week keys are the Monday, YYYY-MM-DD, Manila time.
  */
+const serviceFeesFrom = (storeIds: number[]) => `(
+  SELECT 'pickup' AS kind, o.id, o.service_fee AS amount, o.updated_at AS at, u.name AS driver_name
+    FROM transactions_pickup o LEFT JOIN users u ON u.id = o.driver_id
+    WHERE o.store_id IN ${inList(storeIds)} AND o.status = 'delivered'
+  UNION ALL
+  SELECT 'dropoff', t.id, t.service_fee, t.updated_at, u.name
+    FROM transactions_dropoff t LEFT JOIN users u ON u.id = t.driver_id
+    WHERE t.store_id IN ${inList(storeIds)} AND t.status = 'completed'
+) f`;
+
+/** The APP Fee tab's service fee lines, newest first; 10 per page, `next` for older ones. */
+owner.get('/service-fees', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const { before, limit } = pageQuery(c);
+  const binds: unknown[] = [...storeIds, ...storeIds];
+  let cursor = '';
+  if (before) {
+    const [at, kind, id] = cursorParts(before, 3);
+    cursor = 'WHERE f.at < ? OR (f.at = ? AND (f.kind < ? OR (f.kind = ? AND f.id < ?)))';
+    binds.push(at, at, kind, kind, Number(id));
+  }
+  const { results } = await c.env.DB.prepare(
+    `SELECT f.* FROM ${serviceFeesFrom(storeIds)} ${cursor} ORDER BY f.at DESC, f.kind DESC, f.id DESC LIMIT ${limit + 1}`,
+  )
+    .bind(...binds)
+    .all<{ kind: string; id: number; at: string }>();
+  const page = results.slice(0, limit);
+  const last = page[page.length - 1];
+  return c.json({ fees: page, next: results.length > limit && last ? `${last.at}|${last.kind}|${last.id}` : null });
+});
+
+/** The service fee per week across every page, so the APP Fee tab's week totals don't depend on what it has loaded. */
 owner.get('/service-fee-weeks', async (c) => {
   const storeIds = await myStoreIds(c);
   const { results } = await c.env.DB.prepare(
-    `SELECT date(p.created_at, '+8 hours', '-6 days', 'weekday 1') AS week, SUM(p.amount) AS total
-     FROM payouts p WHERE p.payer_store_id IN ${inList(storeIds)} AND p.payee_type = 'developer'
-     GROUP BY week ORDER BY week DESC`,
+    `SELECT date(f.at, '+8 hours', '-6 days', 'weekday 1') AS week, SUM(f.amount) AS total
+     FROM ${serviceFeesFrom(storeIds)} GROUP BY week ORDER BY week DESC`,
   )
-    .bind(...storeIds)
+    .bind(...storeIds, ...storeIds)
     .all<{ week: string; total: number }>();
   return c.json({ weeks: results });
 });

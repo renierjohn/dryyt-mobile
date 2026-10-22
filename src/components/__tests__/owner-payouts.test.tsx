@@ -42,6 +42,12 @@ jest.mock('@/hooks/queries', () => ({
     refetch: jest.fn(),
   }),
   // The whole week's total: more than the one service fee line loaded.
+  // Service fee lines: a completed drop off and a delivered pickup, same rule as the cpanel.
+  useServiceFees: () =>
+    mockList('fees', [
+      { kind: 'dropoff', id: 1, amount: 500, at: '2026-10-17 04:00:00', driver_name: 'Ben' },
+      { kind: 'pickup', id: 41, amount: 700, at: '2026-10-16 04:00:00', driver_name: 'Ana' },
+    ]),
   useServiceFeeWeeks: () => ({ data: [{ week: '2026-10-12', total: 123400 }], refetch: jest.fn() }),
   useSendAppFeeProof: () => ({ mutate: mockSendProof, isPending: false, isSuccess: false, error: null }),
   useMarkPayoutPaid: () => mockMutation,
@@ -135,6 +141,8 @@ it('swipes left or right to the next or previous tab, stopping at the ends', asy
 it("APP Fee shows this month's amount due per store, the last payment, and weekly service fees by drop off and driver", async () => {
   await render(<Payouts />);
   expect(screen.getByText('Month of October 2026')).toBeTruthy();
+  // ₱26.00 + ₱500.00 across both stores.
+  expect(within(screen.getByTestId('month-title')).getByText('₱526.00')).toBeTruthy();
   const suds = within(screen.getByTestId('month-store-1'));
   expect(suds.getByText('10% of ₱250.50 sales')).toBeTruthy();
   expect(suds.getByText('₱26.00')).toBeTruthy();
@@ -163,9 +171,11 @@ it("APP Fee shows this month's amount due per store, the last payment, and weekl
   expect(title.getByText('Paid from customers')).toBeTruthy();
   expect(screen.getAllByTestId('fee-week')).toHaveLength(1);
   expect(within(screen.getByTestId('fee-week')).getByText('₱1,234.00')).toBeTruthy();
-  const line = within(screen.getByTestId('fee-line-payout-1'));
+  const line = within(screen.getByTestId('fee-line-dropoff-1'));
   expect(line.getByText('#1')).toBeTruthy();
   expect(line.getByText('Ben')).toBeTruthy();
+  // Pickups count too.
+  expect(within(screen.getByTestId('fee-line-pickup-41')).getByText('Ana')).toBeTruthy();
 });
 
 it('APP Fee: sends a reference number as proof of payment, and lists proofs waiting for review', async () => {

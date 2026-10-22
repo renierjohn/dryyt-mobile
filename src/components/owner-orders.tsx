@@ -6,7 +6,6 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
-import { NextLoadCountdown } from '@/components/next-load-countdown';
 import { OrderSummary } from '@/components/order-summary';
 import { PhotoViewer } from '@/components/photo-viewer';
 import { Screen } from '@/components/screen';
@@ -61,7 +60,6 @@ export function OwnerOrders({ type, title }: { type: StoreType; title: string })
     <ThemedText key="title" type="subtitle">
       {title}
     </ThemedText>,
-    __DEV__ && <NextLoadCountdown key="countdown" at={orders.nextAt} label={`/owner/orders?type=${type}`} />,
     orders.isPending && <ActivityIndicator key="loading" />,
     <ErrorText key="error" error={orders.error ?? confirm.error} />,
     orders.isSuccess && list.length === 0 && (

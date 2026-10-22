@@ -9,7 +9,7 @@ import { api, uploadImage } from '@/lib/api';
 import { roadRoute } from '@/lib/road-route';
 import { loadOnline, saveOnline } from '@/lib/session-storage';
 import { shrinkImage } from '@/lib/shrink-image';
-import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, OwnerAppFee, OwnerAppFeePayment, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
+import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, OwnerAppFee, OwnerAppFeePayment, Payout, PickupPayout, PopularItem, ServiceFee, Store, StoreType, StoreWithMenu } from '@/lib/types';
 
 const POLL_MS = 5000;
 /** Fallback poll for screens that also get live updates over a socket. */
@@ -471,10 +471,27 @@ export function useSendAppFeeProof() {
   });
 }
 
-/** The app's service fee per week (`week`: the Monday, YYYY-MM-DD, Manila), over all payouts, not just loaded pages. */
+/**
+ * The app's service fee lines (same rule as the cpanel: delivered pickups and completed drop offs, by when they
+ * finished), newest first; 10 per page.
+ */
+export const useServiceFees = () => {
+  const loadOnFocus = useLoadOnFocus();
+  return withMinGap(
+    useInfiniteQuery({
+      queryKey: ['owner', 'service-fees'],
+      queryFn: ({ pageParam: next }) => api<{ fees: ServiceFee[]; next: string | null }>(`/owner/service-fees${pageParam(next)}`),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.next,
+      ...loadOnFocus,
+    }),
+  );
+};
+
+/** The service fee per week (`week`: the Monday, YYYY-MM-DD, Manila) over every line, not just loaded pages. */
 export const useServiceFeeWeeks = () =>
   useQuery({
-    queryKey: ['owner', 'payouts', 'weeks'],
+    queryKey: ['owner', 'service-fees', 'weeks'],
     queryFn: () => api<{ weeks: { week: string; total: number }[] }>('/owner/service-fee-weeks').then((r) => r.weeks),
     ...useLoadOnFocus(),
   });

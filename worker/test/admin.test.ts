@@ -243,6 +243,57 @@ describe('admin app fees', () => {
   });
 });
 
+describe('app fee proofs from the owner app', () => {
+  it('owner sends a proof (photo and/or reference) dated today; the cpanel shows it and fills in the payment', async () => {
+    const owner = await registerUser('owner');
+    await env.DB.prepare("INSERT INTO stores (name, type, address, owner_id) VALUES ('Suds', 'laundry', '1 St', ?)").bind(owner.user.id).run();
+    const send = (body: object) => api('/owner/app-fee', { token: owner.token, body });
+    expect((await send({})).status).toBe(400);
+    expect((await send({ photo: 'app-fee/0/nope.jpg' })).body).toEqual({ error: 'photo: upload the photo first' });
+
+    const upload = await SELF.fetch('https://api.test/owner/app-fee/photo', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${owner.token}` },
+      body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 0xff, 0xd9]),
+    });
+    const { key } = (await upload.json()) as { key: string };
+    expect(key).toMatch(new RegExp(`^app-fee/${owner.user.id}/`));
+    const sent = await send({ ref_number: 'GC-777', photo: key });
+    expect(sent.status).toBe(201);
+    const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+    expect(sent.body.payment).toMatchObject({ amount: 0, type: null, ref_number: 'GC-777', has_photo: true, date_paid: today });
+    const id = sent.body.payment.id;
+
+    // The owner sees it among this month's payments; it isn't their "last payment" until reviewed.
+    const mine = (await api('/owner/app-fee', { token: owner.token })).body;
+    expect(mine.payments.map((p: { id: number }) => p.id)).toEqual([id]);
+    expect(mine.last_payment).toBeNull();
+    const photo = async (path: string, token: string) => {
+      const res = await SELF.fetch(`https://api.test${path}`, { headers: { authorization: `Bearer ${token}` } });
+      await res.arrayBuffer(); // drain it, or isolated storage can't pop
+      return res.status;
+    };
+    expect(await photo(`/owner/app-fee/${id}/photo`, owner.token)).toBe(200);
+
+    // The cpanel: listed for review, not yet the Owners list's last payment.
+    const fees = (await api(`/admin/owners/${owner.user.id}/fees`, { token: admin })).body.fees;
+    expect(fees[0]).toMatchObject({ id, type: null, has_photo: true, ref_number: 'GC-777' });
+    const row = async () => (await api('/admin/owners', { token: admin })).body.rows.find((r: { id: number }) => r.id === owner.user.id);
+    expect(await row()).toMatchObject({ last_fee_amount: null, fees_to_review: 1 });
+    expect(await photo(`/admin/app-fee/${id}/photo`, admin)).toBe(200);
+
+    const review = await api(`/admin/app-fee/${id}`, {
+      token: admin,
+      body: { amount: 50000, type: 'subscription', payment_type: 'gcash', date_paid: today, next_due_date: null },
+    });
+    expect(review.body.fee).toMatchObject({ id, amount: 50000, type: 'subscription', payment_type: 'gcash', ref_number: 'GC-777' });
+    expect(await row()).toMatchObject({ last_fee_amount: 50000, fees_to_review: 0 });
+    expect((await api('/owner/app-fee', { token: owner.token })).body.last_payment).toMatchObject({ id, amount: 50000 });
+    expect((await api('/admin/app-fee/999999', { token: admin, body: { amount: 1, type: 'both', payment_type: 'x', date_paid: today } })).status).toBe(404);
+    expect((await api(`/admin/app-fee/${id}`, { token: owner.token, body: { amount: 1, type: 'both', payment_type: 'x', date_paid: today } })).status).toBe(403);
+  });
+});
+
 describe('admin stores service fees', () => {
   it("shows each store's service fees and the total, narrowed to a Manila date range", async () => {
     await env.DB.prepare(

@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -11,12 +12,15 @@ import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
 import { NextLoadCountdown } from '@/components/next-load-countdown';
+import { PhotoViewer } from '@/components/photo-viewer';
 import { Screen } from '@/components/screen';
+import { OrDivider } from '@/components/or-divider';
 import { StatusBadge } from '@/components/status-badge';
 import { StoreLogo } from '@/components/store-logo';
+import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useMarkPayoutPaid, useMarkPickupPaid, useOwnerAppFee, usePayouts, usePickupPayouts } from '@/hooks/queries';
+import { useMarkPayoutPaid, useMarkPickupPaid, useOwnerAppFee, usePayouts, usePickupPayouts, useSendAppFeeProof, useServiceFeeWeeks } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
 import type { OwnerAppFee, OwnerAppFeePayment } from '@/lib/types';
@@ -51,6 +55,12 @@ function weekStart(d1Utc: string) {
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
   return date.getTime();
+}
+
+/** A week's Monday (local midnight, epoch ms) as YYYY-MM-DD, the worker's week key. */
+function weekKey(start: number) {
+  const d = new Date(start);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** Groups lines by week, newest week first; lines in a week newest first. */
@@ -154,7 +164,7 @@ function MonthDue({ fee }: { fee: OwnerAppFee }) {
             <View style={styles.grow}>
               <ThemedText type="smallBold">{store.name}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {store.fee_type === 2 ? `${store.fee_percentage}% of ${peso(store.sales)} sales` : 'Flat fee'}
+                {store.fee_type === 2 ? `${store.fee_percentage}% of ${peso(store.sales)} sales` : `${peso(store.fee_flat)} flat fee`}
               </ThemedText>
             </View>
             <View style={styles.total}>
@@ -183,13 +193,110 @@ function MonthDue({ fee }: { fee: OwnerAppFee }) {
         .map((p) => (
           <Payment key={p.id} testID={`payment-${p.id}`} payment={p} />
         ))}
+      <SendProof />
     </Card>
+  );
+}
+
+/** Proof of paying the app: a reference number, a photo, or both. It's dated today; the cpanel fills in the amount. */
+function SendProof() {
+  const theme = useTheme();
+  const send = useSendAppFeeProof();
+  // Folded away behind Pay until the owner wants to send one.
+  const [open, setOpen] = useState(false);
+  const [ref, setRef] = useState('');
+  const [photo, setPhoto] = useState<{ uri: string; width: number; height: number } | null>(null);
+  const pick = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    const asset = result.assets?.[0];
+    if (!result.canceled && asset) setPhoto({ uri: asset.uri, width: asset.width, height: asset.height });
+  };
+  const submit = () =>
+    send.mutate(
+      { ref_number: ref.trim(), photo: photo ?? undefined },
+      {
+        onSuccess: () => {
+          setRef('');
+          setPhoto(null);
+          setOpen(false);
+        },
+      },
+    );
+  if (!open) {
+    return (
+      <View testID="send-proof" style={[styles.line, { borderTopColor: theme.border }]}>
+        {send.isSuccess && (
+          <ThemedText type="small" style={{ color: theme.success }}>
+            Sent. It shows here once Dryyt confirms the amount.
+          </ThemedText>
+        )}
+        <Button title="Pay" icon={{ ios: 'plus', android: 'add', web: 'add' }} onPress={() => setOpen(true)} />
+      </View>
+    );
+  }
+  return (
+    <View testID="send-proof" style={[styles.line, { borderTopColor: theme.border }]}>
+      <View style={styles.row}>
+        <ThemedText type="smallBold" style={styles.grow}>
+          Send proof of payment
+        </ThemedText>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setOpen(false)} hitSlop={8}>
+          <ThemedText type="smallBold" themeColor="textSecondary">
+            Cancel
+          </ThemedText>
+        </Pressable>
+      </View>
+      <TextField label="Reference number" value={ref} onChangeText={setRef} autoCapitalize="characters" autoCorrect={false} />
+      <OrDivider />
+      {photo && <Image testID="proof-photo" source={{ uri: photo.uri }} style={styles.proof} contentFit="cover" />}
+      <Button title={photo ? 'Change photo' : 'Upload proof of payment'} variant="secondary" icon={{ ios: 'photo', android: 'image', web: 'image' }} onPress={pick} />
+      <ErrorText error={send.error} />
+      <Button title="Send" onPress={submit} loading={send.isPending} disabled={ref.trim() === '' && photo === null} />
+    </View>
   );
 }
 
 /** One app fee payment: the date and amount paid, the next due date and how it was paid, then what it covers. */
 function Payment({ payment: p, testID }: { payment: OwnerAppFeePayment; testID: string }) {
   const theme = useTheme();
+  const [viewing, setViewing] = useState(false);
+  // The photo the owner sent as proof, full screen.
+  const photo = p.has_photo ? (
+    <PhotoViewer
+      source={viewing ? { uri: apiUrl(`/owner/app-fee/${p.id}/photo`), headers: authHeaders() } : null}
+      onClose={() => setViewing(false)}
+    />
+  ) : null;
+  // A proof the owner sent, not yet filled in by the cpanel.
+  if (p.type === null) {
+    return (
+      <View testID={testID} style={[styles.line, { borderTopColor: theme.border }]}>
+        <View style={styles.row}>
+          <ThemedText type="small" style={styles.grow}>
+            Date: {dateLabel(p.date_paid)}
+          </ThemedText>
+          <StatusBadge label="For review" tone="warning" />
+        </View>
+        <View style={styles.row}>
+          {p.ref_number ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Ref. {p.ref_number}
+            </ThemedText>
+          ) : null}
+          {p.has_photo && (
+            <Pressable accessibilityRole="button" accessibilityLabel="View proof of payment" onPress={() => setViewing(true)} hitSlop={8}>
+              <ThemedText type="smallBold" style={{ color: theme.primary }}>
+                View photo
+              </ThemedText>
+            </Pressable>
+          )}
+        </View>
+        {photo}
+      </View>
+    );
+  }
   return (
     <View testID={testID} style={[styles.line, { borderTopColor: theme.border }]}>
       <View style={styles.row}>
@@ -204,13 +311,22 @@ function Payment({ payment: p, testID }: { payment: OwnerAppFeePayment; testID: 
         <ThemedText type="small" style={styles.grow}>
           Next due: {p.next_due_date ? dateLabel(p.next_due_date) : '—'}
         </ThemedText>
-        <ThemedText type="smallBold" style={{ color: theme.primary }}>
-          {p.payment_type}
-        </ThemedText>
+        {/* Tap the method to see the photo sent with this payment. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={p.has_photo ? `${p.payment_type}: view proof of payment` : p.payment_type}
+          disabled={!p.has_photo}
+          onPress={() => setViewing(true)}
+          hitSlop={8}>
+          <ThemedText type="smallBold" style={[{ color: theme.primary }, p.has_photo && styles.underline]}>
+            {p.payment_type}
+          </ThemedText>
+        </Pressable>
       </View>
       <ThemedText type="smallBold" style={{ color: theme.primary }}>
         {FEE_TYPE_LABEL[p.type]}
       </ThemedText>
+      {photo}
     </View>
   );
 }
@@ -312,6 +428,8 @@ export default function Payouts() {
     });
 
   const payouts = usePayouts();
+  const weeks = useServiceFeeWeeks();
+  const weekTotals = new Map((weeks.data ?? []).map((w) => [w.week, w.total]));
   const appFee = useOwnerAppFee();
   // Laundry pickups and food orders are paid out on their own tabs, like the Pickups and Orders tabs.
   const laundryPickups = usePickupPayouts('laundry');
@@ -373,7 +491,8 @@ export default function Payouts() {
             <ThemedText type="smallBold" style={styles.grow}>
               {weekLabel(week.start)}
             </ThemedText>
-            <PayoutAmount value={week.lines.reduce((sum, l) => sum + l.amount, 0)} />
+            {/* The whole week's total from the worker; the loaded lines only until it answers. */}
+            <PayoutAmount value={weekTotals.get(weekKey(week.start)) ?? week.lines.reduce((sum, l) => sum + l.amount, 0)} />
           </View>
           {week.lines.map((l) => (
             <View key={l.key} testID={`fee-line-${l.key}`} style={[styles.line, styles.row, { borderTopColor: theme.border }]}>
@@ -423,7 +542,7 @@ export default function Payouts() {
 
   return (
     // The tabs stick to the top while the selected section scrolls under them.
-    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch()])} stickyHeaderIndices={[1]}>
+    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch(), weeks.refetch()])} stickyHeaderIndices={[1]}>
       {top}
       {/* Swipe left or right across the list for the next or previous tab. */}
       <GestureDetector gesture={swipe}>
@@ -446,4 +565,6 @@ const styles = StyleSheet.create({
   total: { alignItems: 'flex-end', gap: Spacing.half },
   line: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.two, gap: Spacing.one },
   face: { width: FACE, height: FACE, borderRadius: FACE / 2 },
+  proof: { width: '100%', height: 200, borderRadius: 12 },
+  underline: { textDecorationLine: 'underline' },
 });

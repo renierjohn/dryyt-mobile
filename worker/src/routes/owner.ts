@@ -412,6 +412,22 @@ owner.get('/payouts', async (c) => {
   return c.json({ payouts: page, next: results.length > limit && last ? String(last.id) : null });
 });
 
+/**
+ * The app's service fee per week (Monday to Sunday, Manila time) across every page of /payouts, so the APP Fee tab's
+ * week totals don't depend on how many payouts it has loaded. `week` is the Monday, YYYY-MM-DD.
+ */
+owner.get('/service-fee-weeks', async (c) => {
+  const storeIds = await myStoreIds(c);
+  const { results } = await c.env.DB.prepare(
+    `SELECT date(p.created_at, '+8 hours', '-6 days', 'weekday 1') AS week, SUM(p.amount) AS total
+     FROM payouts p WHERE p.payer_store_id IN ${inList(storeIds)} AND p.payee_type = 'developer'
+     GROUP BY week ORDER BY week DESC`,
+  )
+    .bind(...storeIds)
+    .all<{ week: string; total: number }>();
+  return c.json({ weeks: results });
+});
+
 owner.post('/payouts/:id/paid', async (c) => {
   const storeIds = await myStoreIds(c);
   const id = parseId(c);
@@ -487,19 +503,58 @@ owner.get('/app-fee', async (c) => {
       )
       .bind(...storeRange(range), ...storeIds)
       .all(),
+    // The latest payment the cpanel has filled in; a proof the owner just sent has no type yet.
     db
-      .prepare('SELECT id, amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? ORDER BY date_paid DESC, id DESC LIMIT 1')
+      .prepare(`${APP_FEE_SELECT} WHERE user_id = ? AND type IS NOT NULL ORDER BY date_paid DESC, id DESC LIMIT 1`)
       .bind(c.get('user').id)
-      .first(),
+      .first<Record<string, unknown>>(),
     db
-      .prepare(
-        'SELECT id, amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? AND date_paid BETWEEN ? AND ? ORDER BY date_paid DESC, id DESC',
-      )
+      .prepare(`${APP_FEE_SELECT} WHERE user_id = ? AND date_paid BETWEEN ? AND ? ORDER BY date_paid DESC, id DESC`)
       .bind(c.get('user').id, ...range)
-      .all(),
+      .all<Record<string, unknown>>(),
   ]);
-  // `payments`: every payment dated this month, newest first (the latest may be from an earlier month).
-  return c.json({ month, stores: stores.results, last_payment: last ?? null, payments: payments.results });
+  // `payments`: every payment dated this month, newest first, including proofs waiting for review (type null).
+  return c.json({ month, stores: stores.results, last_payment: last ? toAppFee(last) : null, payments: payments.results.map(toAppFee) });
+});
+
+const APP_FEE_SELECT = 'SELECT id, amount, type, payment_type, date_paid, next_due_date, ref_number, photo IS NOT NULL AS has_photo FROM app_fee';
+const toAppFee = (f: Record<string, unknown>) => ({ ...f, has_photo: Boolean(f.has_photo) });
+
+/** Raw JPEG/PNG body: a photo of an app fee payment, uploaded before it's sent. Returns its key. */
+owner.post('/app-fee/photo', async (c) => {
+  const { body, type, ext } = await readPhoto(c);
+  const key = `app-fee/${c.get('user').id}/${crypto.randomUUID()}.${ext}`;
+  await c.env.PROOFS.put(key, body, { httpMetadata: { contentType: type } });
+  return c.json({ key }, 201);
+});
+
+const appFeeProofSchema = z.object({
+  ref_number: z.string().trim().max(100).default(''),
+  photo: z.string().max(200).optional(),
+});
+
+/** Proof of an app fee payment (a reference number, a photo, or both), dated today; the cpanel fills in the rest. */
+owner.post('/app-fee', async (c) => {
+  const ownerId = c.get('user').id;
+  const input = await parseBody(c, appFeeProofSchema);
+  if (!input.ref_number && !input.photo) fail(400, 'Add a reference number or a photo of your payment');
+  if (input.photo && (!input.photo.startsWith(`app-fee/${ownerId}/`) || !(await c.env.PROOFS.head(input.photo)))) {
+    fail(400, 'photo: upload the photo first');
+  }
+  const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+  const row = await c.env.DB.prepare('INSERT INTO app_fee (user_id, date_paid, ref_number, photo) VALUES (?, ?, ?, ?) RETURNING id')
+    .bind(ownerId, today, input.ref_number, input.photo ?? null)
+    .first<{ id: number }>();
+  const fee = await c.env.DB.prepare(`${APP_FEE_SELECT} WHERE id = ?`).bind(row!.id).first<Record<string, unknown>>();
+  return c.json({ payment: toAppFee(fee!) }, 201);
+});
+
+/** The photo the owner sent with one of their app fee payments. */
+owner.get('/app-fee/:id/photo', async (c) => {
+  const row = await c.env.DB.prepare('SELECT photo FROM app_fee WHERE id = ? AND user_id = ?')
+    .bind(parseId(c), c.get('user').id)
+    .first<{ photo: string | null }>();
+  return photoResponse(c.env.PROOFS, row?.photo);
 });
 
 /** D1 returns SQL booleans as 0/1. */

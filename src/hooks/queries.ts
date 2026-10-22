@@ -9,7 +9,7 @@ import { api, uploadImage } from '@/lib/api';
 import { roadRoute } from '@/lib/road-route';
 import { loadOnline, saveOnline } from '@/lib/session-storage';
 import { shrinkImage } from '@/lib/shrink-image';
-import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, OwnerAppFee, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
+import type { DriverMe, DriverVerification, Dropoff, LatLng, MenuItem, Order, OrderDetail, OrderType, OwnerAppFee, OwnerAppFeePayment, Payout, PickupPayout, PopularItem, Store, StoreType, StoreWithMenu } from '@/lib/types';
 
 const POLL_MS = 5000;
 /** Fallback poll for screens that also get live updates over a socket. */
@@ -452,6 +452,30 @@ export const useOwnerAppFee = () =>
   useQuery({
     queryKey: ['owner', 'app-fee'],
     queryFn: () => api<OwnerAppFee>('/owner/app-fee'),
+    ...useLoadOnFocus(),
+  });
+
+/** Sends proof of an app fee payment (a reference number and/or a photo); the cpanel fills in the amount. */
+export function useSendAppFeeProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ref_number, photo }: { ref_number: string; photo?: { uri: string; width: number; height: number } }) => {
+      let key: string | undefined;
+      if (photo) {
+        const { uri, type } = await shrinkImage(photo.uri, photo.width, photo.height);
+        key = (await uploadImage<{ key: string }>('/owner/app-fee/photo', uri, type)).key;
+      }
+      return api<{ payment: OwnerAppFeePayment }>('/owner/app-fee', { body: { ref_number, photo: key } }).then((r) => r.payment);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['owner', 'app-fee'] }),
+  });
+}
+
+/** The app's service fee per week (`week`: the Monday, YYYY-MM-DD, Manila), over all payouts, not just loaded pages. */
+export const useServiceFeeWeeks = () =>
+  useQuery({
+    queryKey: ['owner', 'payouts', 'weeks'],
+    queryFn: () => api<{ weeks: { week: string; total: number }[] }>('/owner/service-fee-weeks').then((r) => r.weeks),
     ...useLoadOnFocus(),
   });
 

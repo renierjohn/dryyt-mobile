@@ -234,9 +234,12 @@ export type OwnerAppFee = {
 /** An owner's payment to the app (app_fee row). Dates are YYYY-MM-DD. */
 export type OwnerAppFeePayment = {
   id: number;
+  /** 0 and type null: a proof the owner sent, waiting for the cpanel to fill in the payment. */
   amount: number;
-  type: 'both' | 'service_fee' | 'subscription';
+  type: 'both' | 'service_fee' | 'subscription' | null;
   payment_type: string;
   date_paid: string;
   next_due_date: string | null;
+  ref_number: string;
+  has_photo: boolean;
 };

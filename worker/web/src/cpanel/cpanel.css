@@ -178,3 +178,18 @@ a { color: inherit; text-decoration: none; }
 .cp-qr-zoom img { width: 100%; height: auto; display: block; }
 @media (max-width: 640px) { .cp-qr-grid { grid-template-columns: 1fr 1fr; } }
 .cp-map-loading { display: grid; place-items: center; background: var(--bg); color: var(--muted); cursor: default; }
+/* Subscription modal: proofs the owner sent from the app, above the payments table. */
+.cp-proofs { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.cp-proof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.cp-proof { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); cursor: pointer; text-align: left; color: var(--ink); }
+.cp-proof:hover, .cp-proof.is-active { border-color: var(--brand); }
+.cp-proof-thumb, .cp-proof-blank { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: var(--line); display: grid; place-items: center; font-size: 12px; color: var(--muted, #888); }
+.cp-proof-large { max-width: 100%; max-height: 360px; object-fit: contain; border-radius: 8px; align-self: center; }
+.cp-proof-ref { padding: 6px; text-align: center; }
+.cp-proof-ref-number { display: none; color: var(--ink); font-size: 14px; word-break: break-all; }
+.cp-proof:hover .cp-proof-ref-hint, .cp-proof:focus-visible .cp-proof-ref-hint { display: none; }
+.cp-proof:hover .cp-proof-ref-number, .cp-proof:focus-visible .cp-proof-ref-number { display: block; }
+/* Date, then the reference number on its own line; long numbers wrap instead of running out of the tile. */
+.cp-proof { min-width: 0; }
+.cp-proof-meta { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.cp-photo-modal { width: min(560px, 100%); }

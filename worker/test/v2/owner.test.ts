@@ -269,6 +269,32 @@ describe('owner', () => {
     expect(body.payments.map((p: { amount: number }) => p.amount)).toEqual([2000, 1000]);
   });
 
+  it('totals the service fee per Monday-to-Sunday week in Manila time, across every page', async () => {
+    const owner = await registerUser('owner');
+    const { storeId } = await makeShop({ ownerId: owner.user.id });
+    const customer = await registerUser('customer');
+    // UTC times: Sun Oct 18 15:59 UTC is Sun 23:59 Manila; 16:00 UTC is Mon Oct 19 00:00 Manila, the next week.
+    const at = ['2026-10-12 00:00:00', '2026-10-18 15:59:00', '2026-10-18 16:00:00', ...Array(11).fill('2026-10-20 04:00:00')];
+    for (const [i, when] of at.entries()) {
+      const t = (await env.DB.prepare(
+        `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, status, customer_lat, customer_lng, customer_address,
+           shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee, created_at, updated_at)
+         VALUES (?, ?, ?, 'completed', 14.56, 121.03, 'Home', 14.55, 121.02, 1, 5000, 500, 5500, ?, ?) RETURNING id`,
+      )
+        .bind(crypto.randomUUID(), customer.user.id, storeId, when, when)
+        .first<{ id: number }>())!.id;
+      await env.DB.prepare("INSERT INTO payouts (transaction_id, payer_store_id, payee_type, amount, created_at) VALUES (?, ?, 'developer', ?, ?)")
+        .bind(t, storeId, 100 * (i + 1), when)
+        .run();
+    }
+    const { body } = await api('/owner/service-fee-weeks', { token: owner.token });
+    // Week of Oct 19: payouts 3..14 (300 + 400 + … + 1400); week of Oct 12: payouts 1 and 2.
+    expect(body.weeks).toEqual([
+      { week: '2026-10-19', total: Array.from({ length: 12 }, (_, i) => 100 * (i + 3)).reduce((a, b) => a + b, 0) },
+      { week: '2026-10-12', total: 300 },
+    ]);
+  });
+
   it("serves a driver's face photo only to owners whose shops they delivered for", async () => {
     const owner = await registerUser('owner');
     const { storeId } = await makeShop({ ownerId: owner.user.id });

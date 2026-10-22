@@ -230,15 +230,19 @@ admin.get('/owners', (c) =>
     `u.id, u.email, u.name, u.phone, u.is_admin, u.blocked, u.created_at,
      u.maxstore, (SELECT COUNT(*) FROM stores WHERE owner_id = u.id) AS store_count,
      (SELECT GROUP_CONCAT(name, ', ') FROM stores WHERE owner_id = u.id) AS store_names,
-     f.amount AS last_fee_amount, f.type AS last_fee_type, f.date_paid AS last_fee_paid, f.next_due_date AS next_due_date`,
-    // Their latest app fee payment, if any.
-    `users u LEFT JOIN app_fee f ON f.id = (SELECT id FROM app_fee WHERE user_id = u.id ORDER BY date_paid DESC, id DESC LIMIT 1)`,
+     f.amount AS last_fee_amount, f.type AS last_fee_type, f.date_paid AS last_fee_paid, f.next_due_date AS next_due_date,
+     (SELECT COUNT(*) FROM app_fee WHERE user_id = u.id AND type IS NULL) AS fees_to_review`,
+    // Their latest reviewed app fee payment, if any (proofs the owner sent have no type until an admin fills it in).
+    `users u LEFT JOIN app_fee f ON f.id = (SELECT id FROM app_fee WHERE user_id = u.id AND type IS NOT NULL ORDER BY date_paid DESC, id DESC LIMIT 1)`,
     roleWhere(c, 'owner'),
     'u.id DESC',
   ),
 );
 
-const FEE_SELECT = 'SELECT id, user_id, amount, type, payment_type, date_paid, next_due_date, created_at FROM app_fee';
+/** `type` is NULL on a proof the owner sent from the app, until an admin fills in the payment. */
+const FEE_SELECT =
+  'SELECT id, user_id, amount, type, payment_type, date_paid, next_due_date, created_at, ref_number, photo IS NOT NULL AS has_photo FROM app_fee';
+const toFee = (f: Record<string, unknown>) => ({ ...f, has_photo: Boolean(f.has_photo) });
 
 /** The owner's id from the URL, or 404 when it isn't an owner. */
 async function ownerId(c: Context<AppEnv>) {
@@ -295,7 +299,7 @@ admin.post('/owners/:id/maxstore', async (c) => {
 admin.get('/owners/:id/fees', async (c) => {
   const id = await ownerId(c);
   const { results } = await c.env.DB.prepare(`${FEE_SELECT} WHERE user_id = ? ORDER BY date_paid DESC, id DESC`).bind(id).all();
-  return c.json({ fees: results });
+  return c.json({ fees: results.map(toFee) });
 });
 
 const feeSchema = z
@@ -312,14 +316,36 @@ const feeSchema = z
 admin.post('/owners/:id/fees', async (c) => {
   const id = await ownerId(c);
   const input = await parseBody(c, feeSchema);
-  const fee = await c.env.DB.prepare(
-    `INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, ?, ?, ?, ?, ?)
-     RETURNING id, user_id, amount, type, payment_type, date_paid, next_due_date, created_at`,
+  const row = await c.env.DB.prepare(
+    `INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
   )
     .bind(id, input.amount, input.type, input.payment_type, input.date_paid, input.next_due_date ?? null)
-    .first();
+    .first<{ id: number }>();
   console.log('[admin] app fee recorded', { by: c.get('user').id, owner: id, ...input });
-  return c.json({ fee }, 201);
+  return c.json({ fee: await getFee(c.env.DB, row!.id) }, 201);
+});
+
+const getFee = async (db: D1Database, id: number) => {
+  const f = await db.prepare(`${FEE_SELECT} WHERE id = ?`).bind(id).first();
+  return f ? toFee(f) : null;
+};
+
+/** The photo an owner sent as proof of an app fee payment. */
+admin.get('/app-fee/:id/photo', async (c) => {
+  const row = await c.env.DB.prepare('SELECT photo FROM app_fee WHERE id = ?').bind(Number(c.req.param('id'))).first<{ photo: string | null }>();
+  return photoResponse(c.env.PROOFS, row?.photo, 'no-store');
+});
+
+/** Fills in (or corrects) a payment, e.g. a proof the owner sent: amount, type, how it was paid, and the dates. */
+admin.post('/app-fee/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const input = await parseBody(c, feeSchema);
+  const { meta } = await c.env.DB.prepare('UPDATE app_fee SET amount = ?, type = ?, payment_type = ?, date_paid = ?, next_due_date = ? WHERE id = ?')
+    .bind(input.amount, input.type, input.payment_type, input.date_paid, input.next_due_date ?? null, Number.isInteger(id) ? id : 0)
+    .run();
+  if (meta.changes === 0) fail(404, 'Payment not found');
+  console.log('[admin] app fee reviewed', { by: c.get('user').id, fee: id, ...input });
+  return c.json({ fee: await getFee(c.env.DB, id) });
 });
 
 /** Filters for the Drivers tab (?status=). */

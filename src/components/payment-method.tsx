@@ -7,11 +7,11 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Chip } from '@/components/category-chips';
 import { ErrorText } from '@/components/error-text';
+import { OrDivider } from '@/components/or-divider';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useSendPayment, useStore, useUploadPaymentPhoto } from '@/hooks/queries';
-import { useTheme } from '@/hooks/use-theme';
 import { peso } from '@/lib/format';
 import type { OrderDetail } from '@/lib/types';
 
@@ -51,7 +51,6 @@ export function PaymentMethod({
   sending: boolean;
   error: Error | null;
 }) {
-  const theme = useTheme();
   const store = useStore(storeId);
   const upload = useUploadPaymentPhoto();
   const [method, setMethod] = useState<string | null>(null);
@@ -94,13 +93,7 @@ export function PaymentMethod({
             <ThemedText type="smallBold">{chosen.label}</ThemedText>
           </View>
           <TextField label="Reference number" value={paymentRef} onChangeText={setPaymentRef} autoCapitalize="characters" autoCorrect={false} />
-          <View testID="or-divider" style={styles.or}>
-            <View style={[styles.line, { backgroundColor: theme.border }]} />
-            <ThemedText type="small" themeColor="textSecondary">
-              or
-            </ThemedText>
-            <View style={[styles.line, { backgroundColor: theme.border }]} />
-          </View>
+          <OrDivider />
           {proof && <Image testID="payment-proof" source={{ uri: proof.uri }} style={styles.proof} contentFit="cover" />}
           <Button
             title={proof ? 'Change photo' : 'Upload proof of payment'}
@@ -130,6 +123,4 @@ const styles = StyleSheet.create({
   qr: { alignItems: 'center', gap: Spacing.one },
   qrImage: { width: 200, height: 200, borderRadius: 12 },
   proof: { width: '100%', height: 200, borderRadius: 12 },
-  or: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  line: { flex: 1, height: StyleSheet.hairlineWidth },
 });

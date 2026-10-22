@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
@@ -6,6 +5,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
+import { DishPhoto } from '@/components/dish-photo';
 import { SortableList } from '@/components/sortable-list';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
@@ -59,7 +59,8 @@ export function MenuEditor({ storeId }: { storeId: number }) {
                     <Icon name={{ ios: 'line.3.horizontal', android: 'drag_handle', web: 'drag_handle' }} size={24} color={theme.textSecondary} />
                   </View>,
                 )}
-                {item.image_url && <Image source={{ uri: item.image_url }} style={styles.thumb} contentFit="cover" />}
+                {/* The item's photo, or a placeholder so every row lines up. */}
+                <DishPhoto uri={item.image_url} size={48} testID={`menu-photo-${item.id}`} />
                 <View style={styles.text}>
                   <ThemedText type="smallBold" numberOfLines={1}>
                     {item.name}
@@ -107,5 +108,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  thumb: { width: 48, height: 48, borderRadius: 8 },
 });

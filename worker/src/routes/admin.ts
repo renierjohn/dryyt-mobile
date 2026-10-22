@@ -448,6 +448,10 @@ admin.get('/stores', async (c) => {
   const where: [string, unknown][] = [];
   filter(c, where, 'type', 's.type = ?');
   filter(c, where, 'q', "(s.name || ' ' || s.address) LIKE ?", like);
+  // ?owner=<user id>, or ?owner=none for stores nobody owns.
+  const owner = c.req.query('owner')?.trim();
+  if (owner === 'none') where.push(['s.owner_id IS NULL', undefined]);
+  else if (owner) where.push(['s.owner_id = ?', Number(owner) || 0]);
   const range = storeRange(dateRange(c));
   const { clause, binds } = whereClause(where);
   const [page, totals] = await Promise.all([
@@ -457,6 +461,15 @@ admin.get('/stores', async (c) => {
       .first<{ total_service_fee: number; total_app_fee: number }>(),
   ]);
   return c.json({ ...page, ...totals });
+});
+
+/** Owners who have at least one store, for the Stores tab's owner filter. */
+admin.get('/store-owners', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.email, COUNT(s.id) AS store_count FROM users u JOIN stores s ON s.owner_id = u.id
+     GROUP BY u.id ORDER BY u.name COLLATE NOCASE`,
+  ).all();
+  return c.json({ owners: results });
 });
 
 /** Delivery rates per area (stores.group_id), service (type) and vehicle (category), with how many stores use each area. Amounts are centavos. */

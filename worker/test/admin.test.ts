@@ -294,6 +294,25 @@ describe('app fee proofs from the owner app', () => {
   });
 });
 
+describe('admin stores owner filter', () => {
+  it('lists the owners who have stores and filters the Stores tab by one, or by none', async () => {
+    const owner = await registerUser('owner');
+    const mine = await env.DB.prepare("INSERT INTO stores (name, type, address, owner_id) VALUES ('Mine', 'laundry', '1 St', ?) RETURNING id")
+      .bind(owner.user.id)
+      .first<{ id: number }>();
+    const owners = (await api('/admin/store-owners', { token: admin })).body.owners;
+    expect(owners).toContainEqual(expect.objectContaining({ id: owner.user.id, store_count: 1 }));
+
+    const ids = async (q: string) => (await api(`/admin/stores${q}`, { token: admin })).body.rows.map((r: { id: number }) => r.id);
+    expect(await ids(`?owner=${owner.user.id}`)).toEqual([mine!.id]);
+    const unowned = await ids('?owner=none');
+    expect(unowned).not.toContain(mine!.id);
+    const all = (await api('/admin/stores', { token: admin })).body.rows as { id: number; owner_id: number | null }[];
+    expect(unowned.sort()).toEqual(all.filter((r) => r.owner_id === null).map((r) => r.id).sort());
+    expect((await api('/admin/store-owners', { token: owner.token })).status).toBe(403);
+  });
+});
+
 describe('admin stores service fees', () => {
   it("shows each store's service fees and the total, narrowed to a Manila date range", async () => {
     await env.DB.prepare(

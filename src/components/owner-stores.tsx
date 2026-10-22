@@ -5,6 +5,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { Icon } from '@/components/icon';
+import { StoreLogo } from '@/components/store-logo';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
 import { useDeleteStore, useOwnerStores } from '@/hooks/queries';
@@ -31,6 +32,8 @@ export function OwnerStores() {
       {stores.data?.stores.map((store) => (
         <Card key={store.id} onPress={() => router.push({ pathname: '/owner/store/[id]', params: { id: String(store.id) } })}>
           <View style={styles.row}>
+            {/* The shop's photo (its logo); a storefront placeholder until it has one. */}
+            <StoreLogo uri={store.store_logo} size={44} testID={`my-shop-photo-${store.id}`} />
             <View style={styles.text}>
               <ThemedText type="smallBold">{store.name}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">

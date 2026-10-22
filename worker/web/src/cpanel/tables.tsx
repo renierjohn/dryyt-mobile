@@ -24,6 +24,7 @@ function DataTable({
 	onAuthError,
 	dateRange,
 	summary,
+	extraFilters = [],
 }: {
 	title: string;
 	path: string;
@@ -36,6 +37,8 @@ function DataTable({
 	dateRange?: boolean;
 	/** Shown above the table, from the whole response (e.g. a total the API adds next to `rows`). */
 	summary?: (data: Page<Row> & Row) => ReactNode;
+	/** More dropdowns after the search (before the dates), each sent as `?<param>=<value>` ('' = all). */
+	extraFilters?: { param: string; label: string; options: { value: string; label: string }[] }[];
 }) {
 	const [filter, setFilter] = useState('');
 	const [search, setSearch] = useState('');
@@ -44,6 +47,7 @@ function DataTable({
 	const [range] = useState(defaultRange);
 	const [from, setFrom] = useState(range.from);
 	const [to, setTo] = useState(range.to);
+	const [extra, setExtra] = useState<Record<string, string>>({});
 
 	// Debounce typing so each keystroke doesn't hit the API.
 	useEffect(() => {
@@ -54,7 +58,7 @@ function DataTable({
 		return () => clearTimeout(t);
 	}, [search]);
 
-	const { data, error, loading } = useApi<Page<Row> & Row>(path, { [filterParam]: filter, q, page, from, to }, onAuthError);
+	const { data, error, loading } = useApi<Page<Row> & Row>(path, { [filterParam]: filter, q, page, from, to, ...extra }, onAuthError);
 	const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
 	return (
@@ -64,6 +68,24 @@ function DataTable({
 			</h1>
 			<div className="cp-toolbar">
 				<input type="search" placeholder={searchPlaceholder} value={search} onChange={(e) => setSearch(e.target.value)} />
+				{extraFilters.map((f) => (
+					<select
+						key={f.param}
+						aria-label={f.label}
+						value={extra[f.param] ?? ''}
+						onChange={(e) => {
+							setExtra({ ...extra, [f.param]: e.target.value });
+							setPage(1);
+						}}
+					>
+						<option value="">All {f.label.toLowerCase()}s</option>
+						{f.options.map((o) => (
+							<option key={o.value} value={o.value}>
+								{o.label}
+							</option>
+						))}
+					</select>
+				))}
 				{dateRange && (
 					<>
 						<input
@@ -442,6 +464,8 @@ export function OwnersTable({ onAuthError }: Props) {
 }
 
 export function StoresTable({ onAuthError }: Props) {
+	// Owners who have stores, for the owner filter.
+	const owners = useApi<{ owners: { id: number; name: string; store_count: number }[] }>('/admin/store-owners', {}, onAuthError).data?.owners ?? [];
 	return (
 		<DataTable
 			title="Stores"
@@ -450,6 +474,13 @@ export function StoresTable({ onAuthError }: Props) {
 			filterOptions={['food', 'laundry']}
 			searchPlaceholder="Search name or address"
 			onAuthError={onAuthError}
+			extraFilters={[
+				{
+					param: 'owner',
+					label: 'Owner',
+					options: [...owners.map((o) => ({ value: String(o.id), label: `${o.name} (${o.store_count})` })), { value: 'none', label: 'No owner' }],
+				},
+			]}
 			dateRange
 			summary={(d) => (
 				<>

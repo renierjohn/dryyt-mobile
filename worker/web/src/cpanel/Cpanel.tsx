@@ -8,11 +8,11 @@ import { DriversTable, DropoffsTable, OrdersTable, OwnersTable, StoresTable, Use
 
 const tabs = [
 	{ key: 'overview', label: 'Overview', icon: LayoutDashboard, view: Overview },
+	{ key: 'rates', label: 'Rates', icon: Calculator, view: Rates },
 	{ key: 'orders', label: 'Pickup orders', icon: ShoppingBag, view: OrdersTable },
 	{ key: 'dropoffs', label: 'Drop offs', icon: Shirt, view: DropoffsTable },
 	{ key: 'users', label: 'Users', icon: Users, view: UsersTable },
 	{ key: 'drivers', label: 'Drivers', icon: Bike, view: DriversTable },
-	{ key: 'rates', label: 'Rates', icon: Calculator, view: Rates },
 	{ key: 'stores', label: 'Stores', icon: Store, view: StoresTable },
 	{ key: 'owners', label: 'Owners', icon: Briefcase, view: OwnersTable },
 ] as const;

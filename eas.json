@@ -14,7 +14,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dryyt-worker.renier.workers.dev"
+        "EXPO_PUBLIC_API_URL": "https://dryyt.com"
       }
     }
   },

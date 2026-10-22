@@ -463,10 +463,12 @@ export function StoresTable({ onAuthError }: Props) {
 				{
 					label: 'Store',
 					cell: (r) => (
-						<span className="cp-store">
-							{r.store_logo ? <img src={r.store_logo} alt="" /> : <span className="cp-logo-blank" />}
-							{person(r.name, r.address)}
-						</span>
+						<StoreDetailsCell id={r.id} onAuthError={onAuthError}>
+							<span className="cp-store">
+								{r.store_logo ? <img src={r.store_logo} alt="" /> : <span className="cp-logo-blank" />}
+								{person(r.name, r.address)}
+							</span>
+						</StoreDetailsCell>
 					),
 				},
 				{ label: 'Type', cell: (r) => badge(r.type) },

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api';
 import type { LatLng } from './PinMap';
 import { useApi } from './useList';
@@ -26,12 +26,13 @@ const PinMap = lazy(() => import('./PinMap').then((m) => ({ default: m.PinMap })
 const DAUIN: LatLng = { lat: 9.1906, lng: 123.2669 };
 
 /** Stores tab "#" cell: opens the store's name, logo, payment QR codes and map location. */
-export function StoreDetailsCell({ id, onAuthError }: { id: number; onAuthError: (e: unknown) => void }) {
+/** Opens the store's details; shows `children` (default: the id). */
+export function StoreDetailsCell({ id, onAuthError, children }: { id: number; onAuthError: (e: unknown) => void; children?: ReactNode }) {
 	const [open, setOpen] = useState(false);
 	return (
 		<>
 			<button className="cp-link" onClick={() => setOpen(true)} title="Store details">
-				<b>{id}</b>
+				{children ?? <b>{id}</b>}
 			</button>
 			{open && <StoreDetailsModal id={id} onClose={() => setOpen(false)} onAuthError={onAuthError} />}
 		</>

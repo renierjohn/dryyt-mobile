@@ -14,6 +14,7 @@
     "stores": "node scripts/list-stores.js",
     "users": "node scripts/list-users.js",
     "shop:set": "node scripts/set-shop.js",
+    "user:add": "node scripts/add-user.js",
     "user:set": "node scripts/set-user.js",
     "driver:verify": "node scripts/verify-driver.js",
     "admin:set": "node scripts/set-admin.js",

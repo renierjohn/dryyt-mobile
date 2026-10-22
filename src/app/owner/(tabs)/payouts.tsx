@@ -19,7 +19,7 @@ import { Spacing } from '@/constants/theme';
 import { useMarkPayoutPaid, useMarkPickupPaid, useOwnerAppFee, usePayouts, usePickupPayouts } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
-import type { OwnerAppFee } from '@/lib/types';
+import type { OwnerAppFee, OwnerAppFeePayment } from '@/lib/types';
 import { d1Time, dayLabel, localDay, peso, timeOfDay } from '@/lib/format';
 
 /** One payout line, from either a drop off or a pickup. */
@@ -168,27 +168,50 @@ function MonthDue({ fee }: { fee: OwnerAppFee }) {
           </View>
         </View>
       ))}
-      <View testID="last-payment" style={[styles.line, { borderTopColor: theme.border }]}>
-        {last ? (
-          <>
-            <ThemedText type="small">
-              Date paid {dateLabel(last.date_paid)} · {FEE_TYPE_LABEL[last.type]} ·{' '}
-              <ThemedText type="smallBold" style={{ color: theme.success }}>
-                {peso(last.amount)}
-              </ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              Payment Method <ThemedText type="smallBold" style={{ color: theme.success }}>{last.payment_type}</ThemedText>
-            </ThemedText>
-            {last.next_due_date && <ThemedText type="small">Next due: {dateLabel(last.next_due_date)}</ThemedText>}
-          </>
-        ) : (
+      {last ? (
+        <Payment testID="last-payment" payment={last} />
+      ) : (
+        <View testID="last-payment" style={[styles.line, { borderTopColor: theme.border }]}>
           <ThemedText type="small" themeColor="textSecondary">
             No app fee payment recorded yet.
           </ThemedText>
-        )}
-      </View>
+        </View>
+      )}
+      {/* The month's other payments, each below the latest. */}
+      {fee.payments
+        .filter((p) => p.id !== last?.id)
+        .map((p) => (
+          <Payment key={p.id} testID={`payment-${p.id}`} payment={p} />
+        ))}
     </Card>
+  );
+}
+
+/** One app fee payment: the date and amount paid, the next due date and how it was paid, then what it covers. */
+function Payment({ payment: p, testID }: { payment: OwnerAppFeePayment; testID: string }) {
+  const theme = useTheme();
+  return (
+    <View testID={testID} style={[styles.line, { borderTopColor: theme.border }]}>
+      <View style={styles.row}>
+        <ThemedText type="small" style={styles.grow}>
+          Date: {dateLabel(p.date_paid)}
+        </ThemedText>
+        <ThemedText type="smallBold" style={{ color: theme.success }}>
+          {peso(p.amount)}
+        </ThemedText>
+      </View>
+      <View style={styles.row}>
+        <ThemedText type="small" style={styles.grow}>
+          Next due: {p.next_due_date ? dateLabel(p.next_due_date) : '—'}
+        </ThemedText>
+        <ThemedText type="smallBold" style={{ color: theme.primary }}>
+          {p.payment_type}
+        </ThemedText>
+      </View>
+      <ThemedText type="smallBold" style={{ color: theme.primary }}>
+        {FEE_TYPE_LABEL[p.type]}
+      </ThemedText>
+    </View>
   );
 }
 

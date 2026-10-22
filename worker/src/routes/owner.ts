@@ -473,13 +473,13 @@ function manilaMonth(now = Date.now()) {
 
 /**
  * The APP Fee tab: this Manila month's amount due per shop (its fee_type: a flat fee, or a percentage of the month's
- * sales; same as the cpanel's Stores tab) and the owner's latest subscription payment recorded in the cpanel.
+ * sales; same as the cpanel's Stores tab), the owner's latest subscription payment and this month's payments.
  */
 owner.get('/app-fee', async (c) => {
   const storeIds = await myStoreIds(c);
   const { month, range } = manilaMonth();
   const db = c.env.DB;
-  const [stores, last] = await Promise.all([
+  const [stores, last, payments] = await Promise.all([
     db
       .prepare(
         `SELECT s.id, s.name, s.type, s.store_logo, s.fee_type, s.fee_flat, s.fee_percentage, s.sales, s.app_fee AS amount_due
@@ -488,11 +488,18 @@ owner.get('/app-fee', async (c) => {
       .bind(...storeRange(range), ...storeIds)
       .all(),
     db
-      .prepare('SELECT amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? ORDER BY date_paid DESC, id DESC LIMIT 1')
+      .prepare('SELECT id, amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? ORDER BY date_paid DESC, id DESC LIMIT 1')
       .bind(c.get('user').id)
       .first(),
+    db
+      .prepare(
+        'SELECT id, amount, type, payment_type, date_paid, next_due_date FROM app_fee WHERE user_id = ? AND date_paid BETWEEN ? AND ? ORDER BY date_paid DESC, id DESC',
+      )
+      .bind(c.get('user').id, ...range)
+      .all(),
   ]);
-  return c.json({ month, stores: stores.results, last_payment: last ?? null });
+  // `payments`: every payment dated this month, newest first (the latest may be from an earlier month).
+  return c.json({ month, stores: stores.results, last_payment: last ?? null, payments: payments.results });
 });
 
 /** D1 returns SQL booleans as 0/1. */

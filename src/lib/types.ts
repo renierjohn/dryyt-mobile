@@ -225,5 +225,18 @@ export type OwnerAppFee = {
     sales: number;
     amount_due: number;
   }[];
-  last_payment: { amount: number; type: 'both' | 'service_fee' | 'subscription'; payment_type: string; date_paid: string; next_due_date: string | null } | null;
+  /** The latest payment, from any month. */
+  last_payment: OwnerAppFeePayment | null;
+  /** Every payment dated this month, newest first. */
+  payments: OwnerAppFeePayment[];
+};
+
+/** An owner's payment to the app (app_fee row). Dates are YYYY-MM-DD. */
+export type OwnerAppFeePayment = {
+  id: number;
+  amount: number;
+  type: 'both' | 'service_fee' | 'subscription';
+  payment_type: string;
+  date_paid: string;
+  next_due_date: string | null;
 };

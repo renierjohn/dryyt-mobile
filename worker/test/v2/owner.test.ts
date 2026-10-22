@@ -250,9 +250,12 @@ describe('owner', () => {
     // This month's delivered sales count; last year's don't.
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await env.DB.batch([order(pct, 25050, now), order(pct, 99900, '2025-01-15 04:00:00')]);
+    const today = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
     await env.DB.batch([
       env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, 50000, 'service_fee', 'cash', '2026-08-01', '2026-09-01')").bind(owner.user.id),
       env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid, next_due_date) VALUES (?, 60000, 'both', 'gcash', '2026-09-01', '2026-10-01')").bind(owner.user.id),
+      env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid) VALUES (?, 1000, 'subscription', 'cash', ?)").bind(owner.user.id, `${today.slice(0, 7)}-01`),
+      env.DB.prepare("INSERT INTO app_fee (user_id, amount, type, payment_type, date_paid) VALUES (?, 2000, 'service_fee', 'maya', ?)").bind(owner.user.id, today),
     ]);
 
     const { body } = await api('/owner/app-fee', { token: owner.token });
@@ -261,7 +264,9 @@ describe('owner', () => {
     expect(byId[flat]).toMatchObject({ fee_type: 1, amount_due: 50000 });
     // 10% of ₱250.50, rounded up to a whole peso.
     expect(byId[pct]).toMatchObject({ fee_type: 2, sales: 25050, amount_due: 2600 });
-    expect(body.last_payment).toEqual({ amount: 60000, type: 'both', payment_type: 'gcash', date_paid: '2026-09-01', next_due_date: '2026-10-01' });
+    expect(body.last_payment).toMatchObject({ amount: 2000, type: 'service_fee', payment_type: 'maya', date_paid: today });
+    // This month's payments only, newest first.
+    expect(body.payments.map((p: { amount: number }) => p.amount)).toEqual([2000, 1000]);
   });
 
   it("serves a driver's face photo only to owners whose shops they delivered for", async () => {

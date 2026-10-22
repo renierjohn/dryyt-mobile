@@ -26,7 +26,11 @@ jest.mock('@/hooks/queries', () => ({
         { id: 1, name: 'Suds', type: 'laundry', store_logo: null, fee_type: 2, fee_flat: 0, fee_percentage: 10, sales: 25050, amount_due: 2600 },
         { id: 2, name: 'Tea Haven', type: 'food', store_logo: 'https://img.test/tea.png', fee_type: 1, fee_flat: 50000, fee_percentage: 0, sales: 0, amount_due: 50000 },
       ],
-      last_payment: { amount: 60000, type: 'both', payment_type: 'gcash', date_paid: '2026-09-01', next_due_date: '2026-10-01' },
+      last_payment: { id: 7, amount: 60000, type: 'both', payment_type: 'gcash', date_paid: '2026-10-05', next_due_date: '2026-11-05' },
+      payments: [
+        { id: 7, amount: 60000, type: 'both', payment_type: 'gcash', date_paid: '2026-10-05', next_due_date: '2026-11-05' },
+        { id: 6, amount: 1500, type: 'service_fee', payment_type: 'cash', date_paid: '2026-10-02', next_due_date: null },
+      ],
     },
     error: null,
     refetch: jest.fn(),
@@ -131,10 +135,19 @@ it("APP Fee shows this month's amount due per store, the last payment, and weekl
   expect([screen.getByTestId('month-store-logo-2').props.source].flat()).toEqual([{ uri: 'https://img.test/tea.png' }]);
 
   const last = within(screen.getByTestId('last-payment'));
-  expect(last.getByText('Date paid Sep 1, 2026 · Service fee & Subscription · ₱600.00')).toBeTruthy();
+  expect(last.getByText('Date: Oct 5, 2026')).toBeTruthy();
+  expect(last.getByText('Service fee & Subscription')).toBeTruthy();
   expect(last.getByText('₱600.00')).toBeTruthy();
   expect(last.getByText('gcash')).toBeTruthy();
-  expect(last.getByText('Next due: Oct 1, 2026')).toBeTruthy();
+  expect(last.getByText('Next due: Nov 5, 2026')).toBeTruthy();
+  // The month's other payment below it, not the latest again.
+  const other = within(screen.getByTestId('payment-6'));
+  expect(other.getByText('Date: Oct 2, 2026')).toBeTruthy();
+  expect(other.getByText('Next due: —')).toBeTruthy();
+  expect(other.getByText('cash')).toBeTruthy();
+  expect(other.getByText('Service fee')).toBeTruthy();
+  expect(other.getByText('₱15.00')).toBeTruthy();
+  expect(screen.queryByTestId('payment-7')).toBeNull();
 
   expect(screen.getAllByTestId('fee-week')).toHaveLength(1);
   const line = within(screen.getByTestId('fee-line-payout-1'));

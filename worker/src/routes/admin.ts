@@ -5,6 +5,7 @@ import type { Context } from 'hono';
 import { requireAdmin, requireAuth, signToken } from '../lib/auth';
 import { APP_FEE_TYPES, DEFAULT_CATEGORY, isVehicleCategory, RATE_TYPES } from '../lib/fees';
 import { fail, parseBody } from '../lib/http';
+import { getOrder } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { STORE_TOTALS, storeRange } from '../lib/store-totals';
 import { verifyTurnstile } from '../lib/turnstile';
@@ -155,6 +156,22 @@ admin.get('/orders', async (c) => {
       .first(),
   ]);
   return c.json({ ...page, ...totals });
+});
+
+/** One pickup order for the cpanel's Items popup: its lines (with the menu photo), the note and the proof of payment. */
+admin.get('/orders/:id', async (c) => {
+  const order = await getOrder(c.env.DB, Number(c.req.param('id')) || 0);
+  if (!order) fail(404, 'Order not found');
+  const { payment_photo_key, ...rest } = order;
+  return c.json({ order: { ...rest, has_payment_photo: payment_photo_key !== null } });
+});
+
+/** The customer's proof of payment photo for a pickup order. */
+admin.get('/orders/:id/payment-photo', async (c) => {
+  const row = await c.env.DB.prepare('SELECT payment_photo_key FROM transactions_pickup WHERE id = ?')
+    .bind(Number(c.req.param('id')) || 0)
+    .first<{ payment_photo_key: string | null }>();
+  return photoResponse(c.env.PROOFS, row?.payment_photo_key, 'no-store');
 });
 
 admin.get('/dropoffs', async (c) => {

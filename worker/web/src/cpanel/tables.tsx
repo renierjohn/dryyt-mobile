@@ -3,6 +3,7 @@ import { api, peso, when } from './api';
 import { defaultRange } from './dates';
 import { AppFee, OwnerStoresCell } from './OwnerStores';
 import { LicenseModal } from './PhotoEditor';
+import { OrderItemsCell } from './OrderItems';
 import { StoreDetailsCell } from './StoreDetails';
 import { StoreOwnerCell } from './StoreOwner';
 import { SubscriptionCell } from './Subscription';
@@ -216,7 +217,15 @@ export function OrdersTable({ onAuthError }: Props) {
 				{ label: 'Store', cell: (r) => person(r.store_name, r.store_type) },
 				{ label: 'Customer', cell: (r) => person(r.customer_name, r.customer_phone) },
 				{ label: 'Driver', cell: (r) => person(r.driver_name) },
-				{ label: 'Items', cell: (r) => peso(r.items_total), className: 'num' },
+				{
+					label: 'Items',
+					cell: (r) => (
+						<OrderItemsCell id={r.id} onAuthError={onAuthError}>
+							{peso(r.items_total)}
+						</OrderItemsCell>
+					),
+					className: 'num',
+				},
 				{ label: 'Fees', cell: (r) => peso(r.total_delivery_fee), className: 'num' },
 				{ label: 'Service fee', cell: (r) => peso(r.service_fee), className: 'num' },
 				{ label: 'Total', cell: (r) => <b>{peso(r.items_total + r.total_delivery_fee)}</b>, className: 'num' },

@@ -294,6 +294,32 @@ describe('app fee proofs from the owner app', () => {
   });
 });
 
+describe('admin order details', () => {
+  it("shows an order's items with menu photos, the note and the proof of payment", async () => {
+    await env.DB.prepare("UPDATE store_menu_items SET image_url = 'https://img.test/tea.jpg' WHERE id = 1").run();
+    const key = `payments/${customer.user.id}/proof-test.jpg`;
+    await env.PROOFS.put(key, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), { httpMetadata: { contentType: 'image/jpeg' } });
+    const order = await env.DB.prepare(
+      `INSERT INTO transactions_pickup (type, customer_id, store_id, status, customer_address, notes, items_total, delivery_fee, payment_ref, payment_photo_key)
+       VALUES ('pickup', ?, 1, 'awaiting_payment', 'x', 'less ice', 36500, 5000, 'GC-1', ?) RETURNING id`,
+    )
+      .bind(customer.user.id, key)
+      .first<{ id: number }>();
+    await env.DB.prepare("INSERT INTO order_items (order_id, menu_item_id, name, price, qty) VALUES (?, 1, 'Wintermelon Milk Tea', 12000, 2)").bind(order!.id).run();
+
+    const { body } = await api(`/admin/orders/${order!.id}`, { token: admin });
+    expect(body.order).toMatchObject({ notes: 'less ice', payment_ref: 'GC-1', has_payment_photo: true });
+    expect(body.order.payment_photo_key).toBeUndefined();
+    expect(body.order.items).toEqual([{ id: expect.any(Number), name: 'Wintermelon Milk Tea', price: 12000, qty: 2, image_url: 'https://img.test/tea.jpg' }]);
+
+    const photo = await SELF.fetch(`https://api.test/admin/orders/${order!.id}/payment-photo`, { headers: { authorization: `Bearer ${admin}` } });
+    expect(photo.status).toBe(200);
+    await photo.arrayBuffer();
+    expect((await api('/admin/orders/999999', { token: admin })).status).toBe(404);
+    expect((await api(`/admin/orders/${order!.id}`, { token: customer.token })).status).toBe(403);
+  });
+});
+
 describe('admin stores owner filter', () => {
   it('lists the owners who have stores and filters the Stores tab by one, or by none', async () => {
     const owner = await registerUser('owner');

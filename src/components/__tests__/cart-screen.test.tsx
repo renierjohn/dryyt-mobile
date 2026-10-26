@@ -7,7 +7,7 @@ import { CartProvider, useCart } from '@/hooks/use-cart';
 jest.mock('expo-router', () => ({ router: { replace: jest.fn(), push: jest.fn() } }));
 const mockCreate = jest.fn();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
-const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; total_delivery_fee: number; token: string } | undefined, variables: undefined as object | undefined };
+const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; options: { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number }[]; token: string } | undefined, variables: undefined as object | undefined };
 jest.mock('@/hooks/queries', () => ({
   useCreateOrder: () => ({ mutate: mockCreate, isPending: false, error: null }),
   useOrderQuote: () => mockQuote,
@@ -106,8 +106,22 @@ it('fetches no road until the delivery fee is computed for the pin', async () =>
   expect(mockQuote.mutate).toHaveBeenCalledWith({ store_id: 1, lat: 14.56, lng: 121.03 });
 });
 
-it('shows the computed fee and total for the current pin', async () => {
-  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
+/** The computed fees: Proceed with a vehicle to see its fee and the payment step. */
+const quoted = {
+  road_km: 3.2,
+  options: [
+    { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 7920 },
+    { vehicle_type: 4, base_fee: 10000, rate_per_km: 2000, total_delivery_fee: 18100 },
+  ],
+  token: 'q-token',
+};
+const chooseMotorcycle = async () => {
+  await fireEvent.press(screen.getByLabelText('Motorcycle, base fare ₱40.00, delivery fee ₱79.20'));
+  await fireEvent.press(screen.getByText('Proceed'));
+};
+
+it('lists every vehicle with its base fare and fee, and Proceed waits for a choice', async () => {
+  mockQuote.data = quoted;
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -115,13 +129,31 @@ it('shows the computed fee and total for the current pin', async () => {
       <Harness />
     </CartProvider>,
   );
+  expect(screen.getByText('Motorcycle')).toBeTruthy();
+  expect(screen.getByText('Car (lightweight)')).toBeTruthy();
+  expect(screen.getByText('Base fare ₱100.00')).toBeTruthy();
+  expect(screen.getByText('₱181.00')).toBeTruthy();
+  expect(screen.getByLabelText('Proceed').props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByText('Items ₱200.00 + delivery fee')).toBeTruthy();
+});
+
+it('shows the computed fee and total for the chosen vehicle', async () => {
+  mockQuote.data = quoted;
+  mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
+  mockQuote.isSuccess = true;
+  await render(
+    <CartProvider>
+      <Harness />
+    </CartProvider>,
+  );
+  await chooseMotorcycle();
   expect(mockRoadRoute).toHaveBeenLastCalledWith({ lat: 14.56, lng: 121.03 });
   expect(screen.getByText('₱79.20')).toBeTruthy();
   expect(screen.getByText('Total ₱279.20')).toBeTruthy();
 });
 
 it("shows the store's payment QR once the fee is computed, and sends the reference number as proof", async () => {
-  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = quoted;
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   await render(
@@ -129,6 +161,7 @@ it("shows the store's payment QR once the fee is computed, and sends the referen
       <Harness />
     </CartProvider>,
   );
+  await chooseMotorcycle();
   // Same as laundry: pick a payment method to see its QR.
   expect(screen.queryByTestId('payment-qr')).toBeNull();
   await fireEvent.press(screen.getByText('GCash 0917'));
@@ -142,13 +175,13 @@ it("shows the store's payment QR once the fee is computed, and sends the referen
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
   expect(mockCreate).toHaveBeenCalledWith(
-    { type: 'pickup', store_id: 1, items: [{ menu_item_id: 1, qty: 2 }], lat: 14.56, lng: 121.03, payment_ref: 'GC-123', payment_photo_key: undefined, quote_token: 'q-token' },
+    { type: 'pickup', store_id: 1, items: [{ menu_item_id: 1, qty: 2 }], lat: 14.56, lng: 121.03, payment_ref: 'GC-123', payment_photo_key: undefined, vehicle_type: 2, quote_token: 'q-token' },
     expect.anything(),
   );
 });
 
 it('sending the proof switches the cart to waiting for the store', async () => {
-  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = quoted;
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   mockCreate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 42 }));
@@ -158,6 +191,7 @@ it('sending the proof switches the cart to waiting for the store', async () => {
       <Harness />
     </CartProvider>,
   );
+  await chooseMotorcycle();
   await fireEvent.press(screen.getByText('GCash 0917'));
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
@@ -188,7 +222,7 @@ it('lets the customer move the pin until the fee is computed, then locks it', as
   );
   expect(mockMapProps.mock.lastCall![0].onPress).toEqual(expect.any(Function));
 
-  mockQuote.data = { road_km: 3.2, total_delivery_fee: 7920, token: 'q-token' };
+  mockQuote.data = quoted;
   mockQuote.variables = { store_id: 1, lat: 14.5, lng: 121.1 };
   mockQuote.isSuccess = true;
   await rerender(

@@ -140,7 +140,7 @@ admin.get('/orders', async (c) => {
   const [page, totals] = await Promise.all([
     listData(
       c,
-      `o.id, o.status, o.customer_address, o.items_total, o.road_km, o.delivery_fee, o.service_fee, o.total_delivery_fee, o.payment_ref, o.created_at, o.updated_at,
+      `o.id, o.status, o.customer_address, o.items_total, o.road_km, o.delivery_fee, o.service_fee, o.total_delivery_fee, o.vehicle_type, o.payment_ref, o.created_at, o.updated_at,
      s.id AS store_id, s.name AS store_name, s.type AS store_type, cu.name AS customer_name, cu.phone AS customer_phone,
      dr.name AS driver_name`,
       from,
@@ -185,7 +185,7 @@ admin.get('/dropoffs', async (c) => {
   const [page, totals] = await Promise.all([
     listData(
       c,
-      `t.id, t.status, t.customer_address, t.road_km, t.delivery_fee, t.service_fee, t.total_delivery_fee, t.laundry_fee, t.created_at,
+      `t.id, t.status, t.customer_address, t.road_km, t.delivery_fee, t.service_fee, t.total_delivery_fee, t.vehicle_type, t.laundry_fee, t.created_at,
      s.id AS store_id, s.name AS store_name, cu.name AS customer_name, cu.phone AS customer_phone, dr.name AS driver_name`,
       from,
       where,
@@ -555,8 +555,8 @@ admin.post('/rates/:id', async (c) => {
 });
 
 /**
- * Deletes a rate nothing references. Bookings price with an area's motorcycle rates, so those can only go once no store
- * is in the area; other vehicles' rates aren't used by bookings yet and can always go.
+ * Deletes a rate nothing references. An area's motorcycle rates are the default vehicle, so those can only go once no
+ * store is in the area; other vehicles' rates can always go (customers just stop seeing that vehicle; bookings keep their fees).
  */
 admin.post('/rates/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));

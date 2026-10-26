@@ -1,16 +1,15 @@
 import { Hono, type Context } from 'hono';
-import { sign, verify } from 'hono/jwt';
 import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
-import { computeFees, DEFAULT_CATEGORY, discountedPrice, type Rate } from '../lib/fees';
+import { DEFAULT_CATEGORY, discountedPrice, isVehicleCategory } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { orderRoom, pickupChanged } from '../lib/pickup-live';
 import { pushToUsers } from '../lib/push';
-import { roadDistanceKm } from '../lib/routing';
-import type { AppEnv, LatLng, StoreType } from '../types';
+import { feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
+import type { AppEnv, StoreType } from '../types';
 
 const pin = { lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) };
 
@@ -30,56 +29,24 @@ const createSchema = z.object({
   // Food is paid upfront to the store's payment QR: a reference number, a photo (from /orders/payment-photo), or both.
   payment_ref: z.string().trim().max(100).default(''),
   payment_photo_key: z.string().max(200).optional(),
+  // The vehicle the customer chose from /orders/quote; it sets the delivery fee and which drivers see the job.
+  vehicle_type: z.number().int().refine(isVehicleCategory, 'Unknown vehicle type').default(DEFAULT_CATEGORY),
   // From /orders/quote for the same store and pin: skips pricing the road again.
-  quote_token: z.string().max(1000).optional(),
+  quote_token: z.string().max(2000).optional(),
 });
 
 const quoteSchema = z.object({ store_id: z.number().int().positive(), ...pin });
 
-/** The store with its group's rate (null fields when the group has none). */
-type Store = { id: number; type: StoreType; lat: number | null; lng: number | null; owner_id: number | null } & { [K in keyof Rate]: Rate[K] | null };
-type Quote = { road_km: number; delivery_fee: number; service_fee: number; total_delivery_fee: number };
-type QuoteClaims = Quote & { store_id: number; lat: number; lng: number; exp: number };
+type Store = { id: number; type: StoreType; group_id: string; lat: number | null; lng: number | null; owner_id: number | null };
 
-/** A quote stays good for Send proof of payment this long. */
-const QUOTE_TTL_SECONDS = 15 * 60;
-// Its own secret, so a quote token can never pass as a session token.
-const quoteSecret = (env: AppEnv['Bindings']) => `${env.JWT_SECRET}:quote`;
-
-/** Same pricing as a drop off: the store group's rate over the road distance from the customer to the store. */
-async function quoteFor(env: AppEnv['Bindings'], store: Store, at: LatLng): Promise<Quote> {
+/** The store's pin, or 400 when it has none yet. */
+function located(store: Store) {
   if (store.lat === null || store.lng === null) fail(400, 'store_id: this store has no map location yet');
-  if (store.base_fee === null || store.rate_per_km === null || store.commission_pct === null) fail(500, 'No rates set for this area');
-  const roadKm = await roadDistanceKm(env, at, { lat: store.lat, lng: store.lng });
-  const fees = computeFees(roadKm, { base_fee: store.base_fee, rate_per_km: store.rate_per_km, commission_pct: store.commission_pct });
-  return { road_km: roadKm, ...fees };
-}
-
-const signQuote = (env: AppEnv['Bindings'], storeId: number, at: LatLng, quote: Quote) =>
-  sign({ ...quote, store_id: storeId, lat: at.lat, lng: at.lng, exp: Math.floor(Date.now() / 1000) + QUOTE_TTL_SECONDS } satisfies QuoteClaims, quoteSecret(env), 'HS256');
-
-/** The quote signed for this store and pin, or null (missing, expired, tampered, or for another pin). */
-async function verifiedQuote(env: AppEnv['Bindings'], token: string | undefined, storeId: number, at: LatLng): Promise<Quote | null> {
-  if (!token) return null;
-  try {
-    const q = (await verify(token, quoteSecret(env), 'HS256')) as unknown as QuoteClaims;
-    if (q.store_id !== storeId || q.lat !== at.lat || q.lng !== at.lng) return null;
-    // Tokens signed before total_delivery_fee existed get priced again.
-    if (typeof q.total_delivery_fee !== 'number') return null;
-    return { road_km: q.road_km, delivery_fee: q.delivery_fee, service_fee: q.service_fee, total_delivery_fee: q.total_delivery_fee };
-  } catch {
-    return null;
-  }
+  return { ...store, lat: store.lat, lng: store.lng };
 }
 
 const findStore = (db: D1Database, id: number) =>
-  db
-    .prepare(
-      `SELECT s.id, s.type, s.lat, s.lng, s.owner_id, r.base_fee, r.rate_per_km, r.commission_pct
-       FROM stores s LEFT JOIN rates r ON r.group_id = s.group_id AND r.type = 'pickup' AND r.category = ? WHERE s.id = ?`,
-    )
-    .bind(DEFAULT_CATEGORY, id)
-    .first<Store>();
+  db.prepare('SELECT id, type, group_id, lat, lng, owner_id FROM stores WHERE id = ?').bind(id).first<Store>();
 
 type Line = { menuItemId: number; name: string; price: number; qty: number };
 
@@ -105,10 +72,10 @@ orders.post('/quote', requireRole('customer'), async (c) => {
   const input = await parseBody(c, quoteSchema);
   const store = await findStore(c.env.DB, input.store_id);
   if (!store) fail(404, 'Store not found');
-  // The customer sees one delivery fee; the split is for drivers.
+  // One price per vehicle the area has a rate for; the customer picks one when ordering.
   const at = { lat: input.lat, lng: input.lng };
-  const quote = await quoteFor(c.env, store, at);
-  return c.json({ quote: { road_km: quote.road_km, total_delivery_fee: quote.total_delivery_fee, token: await signQuote(c.env, store.id, at, quote) } });
+  const quote = await quoteFor(c.env, 'pickup', located(store), at);
+  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'pickup', store.id, at, quote)) });
 });
 
 /** Proof of payment photo, uploaded before the order exists; the order then references the returned key. */
@@ -145,7 +112,7 @@ orders.post('/', requireRole('customer'), async (c) => {
   const [fees, photo, lines] = await Promise.all([
     !at
       ? { road_km: null, delivery_fee: Number(c.env.DELIVERY_FEE), service_fee: 0, total_delivery_fee: Number(c.env.DELIVERY_FEE) }
-      : verifiedQuote(c.env, input.quote_token, store.id, at).then((q) => q ?? quoteFor(c.env, store, at)),
+      : feesFor(c.env, 'pickup', located(store), at, input.vehicle_type, input.quote_token),
     store.type === 'food' && input.payment_photo_key ? c.env.PROOFS.head(input.payment_photo_key) : true,
     store.type === 'food' ? priceItems(db, store.id, input.items) : ([] as Line[]),
   ]);
@@ -159,8 +126,8 @@ orders.post('/', requireRole('customer'), async (c) => {
     db
       .prepare(
         `INSERT INTO transactions_pickup (type, customer_id, store_id, status, customer_address, customer_lat, customer_lng, notes, items_total, road_km,
-           delivery_fee, service_fee, total_delivery_fee, payment_ref, payment_photo_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           delivery_fee, service_fee, total_delivery_fee, vehicle_type, payment_ref, payment_photo_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         input.type,
@@ -176,6 +143,7 @@ orders.post('/', requireRole('customer'), async (c) => {
         fees.delivery_fee,
         fees.service_fee,
         fees.total_delivery_fee,
+        input.vehicle_type,
         input.payment_ref,
         input.payment_photo_key ?? null,
       ),

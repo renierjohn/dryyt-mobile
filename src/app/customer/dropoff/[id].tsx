@@ -11,6 +11,7 @@ import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { VehicleRow } from '@/components/vehicle-row';
 import { Spacing } from '@/constants/theme';
 import { useCreateDropoff, useDropoff, useDropoffAction, useRoadRoute } from '@/hooks/queries';
 import { useSocket } from '@/hooks/use-socket';
@@ -128,7 +129,7 @@ export default function DropoffDetail() {
               ? `${drivers.length} driver${drivers.length > 1 ? 's' : ''} nearby. Green is within 10 km, amber 10–20 km.`
               : 'Looking for drivers near you…'}
           </ThemedText>
-          <FeeRow fee={d.total_delivery_fee} />
+          <FeeRow fee={d.total_delivery_fee} vehicle={d.vehicle_type} />
         </>
       )}
 
@@ -138,7 +139,7 @@ export default function DropoffDetail() {
             <ThemedText type="smallBold">{d.driver_name} accepted your drop off</ThemedText>
             <DriverDetails driver={d} photoPath={`/dropoffs/${d.id}/driver-photo`} />
           </Card>
-          <FeeRow fee={d.total_delivery_fee} />
+          <FeeRow fee={d.total_delivery_fee} vehicle={d.vehicle_type} />
         </>
       )}
 
@@ -172,9 +173,11 @@ export default function DropoffDetail() {
   );
 }
 
-function FeeRow({ fee }: { fee: number }) {
+/** The booked vehicle and its delivery fee, before the drop off reaches the shop. */
+function FeeRow({ fee, vehicle }: { fee: number; vehicle: number }) {
   return (
     <Card>
+      <VehicleRow code={vehicle} />
       <View style={styles.row}>
         <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
           Delivery fee

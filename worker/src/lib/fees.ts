@@ -13,6 +13,14 @@ export type VehicleCategory = keyof typeof VEHICLE_CATEGORIES;
 export const isVehicleCategory = (n: number): n is VehicleCategory => n in VEHICLE_CATEGORIES;
 /** Motorcycle: bookings use it until customers can pick a vehicle. */
 export const DEFAULT_CATEGORY: VehicleCategory = 2;
+/** SQL for a driver's vehicle code from driver_data `dd`: drivers who haven't picked one count as motorcycle. */
+export const driverVehicleSql = (dd: string) => `COALESCE(${dd}.vehicle_type, ${DEFAULT_CATEGORY})`;
+
+/** The vehicle a driver takes bookings for. */
+export async function driverVehicle(db: D1Database, userId: number) {
+  const row = await db.prepare(`SELECT ${driverVehicleSql('dd')} AS v FROM users u LEFT JOIN driver_data dd ON dd.user_id = u.id WHERE u.id = ?`).bind(userId).first<{ v: number }>();
+  return row?.v ?? DEFAULT_CATEGORY;
+}
 
 /**
  * Every computed amount is rounded up to a whole peso (centavos always 00). Rounds to whole centavos first,

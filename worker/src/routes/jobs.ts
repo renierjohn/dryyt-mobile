@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
+import { driverVehicle } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { pickupChanged } from '../lib/pickup-live';
@@ -16,7 +17,8 @@ const jobs = new Hono<AppEnv>();
 jobs.use('*', requireAuth, requireRole('driver'));
 
 jobs.get('/available', async (c) => {
-  const pending = await listOrders(c.env.DB, "o.status = 'pending' ORDER BY o.id");
+  // Only the jobs booked for this driver's vehicle.
+  const pending = await listOrders(c.env.DB, "o.status = 'pending' AND o.vehicle_type = ? ORDER BY o.id", await driverVehicle(c.env.DB, c.get('user').id));
   return c.json({ jobs: pending.map(hidePhone) });
 });
 
@@ -36,6 +38,10 @@ jobs.post('/:id/accept', async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
   const driverId = c.get('user').id;
+  const vehicle = await driverVehicle(db, driverId);
+  const job = await db.prepare('SELECT vehicle_type FROM transactions_pickup WHERE id = ?').bind(id).first<{ vehicle_type: number }>();
+  if (!job) fail(404, 'Job not found');
+  if (job.vehicle_type !== vehicle) fail(409, 'This job is booked for another vehicle');
   const busy = await db.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ? AND busy = 0').bind(driverId).run();
   if (busy.meta.changes === 0) fail(409, 'Finish your active job first');
   const free = () => db.prepare('UPDATE drivers SET busy = 0 WHERE user_id = ?').bind(driverId).run();

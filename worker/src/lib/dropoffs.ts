@@ -18,6 +18,8 @@ export type DropoffRow = {
   service_fee: number;
   total_delivery_fee: number;
   laundry_fee: number | null;
+  /** The vehicle the customer booked (rates.category code). */
+  vehicle_type: number;
   created_at: string;
   updated_at: string;
   store_name: string;

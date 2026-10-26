@@ -105,7 +105,7 @@ describe('admin rates', () => {
     await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 1').run();
     await api('/admin/rates', { token: admin, body: { group_id: 'default', type: 'dropoff', base_fee: 9000, rate_per_km: 1000, commission_pct: 10 } });
     const quote = await api('/orders/quote', { token: customer.token, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
-    expect(quote.body.quote.total_delivery_fee).toBe(8000); // pickup rate unchanged: 40 + 3.2 km × 10, + 10%
+    expect(quote.body.quote.options[0].total_delivery_fee).toBe(8000); // pickup rate unchanged: 40 + 3.2 km × 10, + 10%
   });
 
   it('rejects bad input and non-admins', async () => {

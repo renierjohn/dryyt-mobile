@@ -1,12 +1,19 @@
 import type { NewRequest } from '../do/dispatch';
 import type { AuthUser, Bindings } from '../types';
 import type { DropoffRow } from './dropoffs';
+import { driverVehicleSql } from './fees';
 
-/** Which Dispatch group (and, for customers, which drop off) the user may join. */
-export async function dispatchAccess(db: D1Database, user: AuthUser): Promise<{ group: string; transactionId?: number } | null> {
+/** Which Dispatch group (and, for customers, which drop off; for drivers, their vehicle) the user may join. */
+export async function dispatchAccess(
+  db: D1Database,
+  user: AuthUser,
+): Promise<{ group: string; transactionId?: number; vehicleType?: number } | null> {
   if (user.role === 'driver') {
-    const d = await db.prepare('SELECT group_id FROM drivers WHERE user_id = ? AND online = 1').bind(user.id).first<{ group_id: string }>();
-    return d ? { group: d.group_id } : null;
+    const d = await db
+      .prepare(`SELECT d.group_id, ${driverVehicleSql('dd')} AS vehicle_type FROM drivers d LEFT JOIN driver_data dd ON dd.user_id = d.user_id WHERE d.user_id = ? AND d.online = 1`)
+      .bind(user.id)
+      .first<{ group_id: string; vehicle_type: number }>();
+    return d ? { group: d.group_id, vehicleType: d.vehicle_type } : null;
   }
   if (user.role === 'customer') {
     const t = await db
@@ -53,6 +60,7 @@ export function newRequestFrom(row: DropoffRow, blocked: number[]): NewRequest {
     shop: { lat: row.shop_lat, lng: row.shop_lng },
     deliveryFee: row.delivery_fee,
     totalDeliveryFee: row.total_delivery_fee,
+    vehicleType: row.vehicle_type,
     blocked,
   };
 }

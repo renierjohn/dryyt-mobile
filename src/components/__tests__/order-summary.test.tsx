@@ -6,7 +6,7 @@ jest.mock('../icon', () => ({ Icon: () => null }));
 
 const order = {
   id: 7, type: 'pickup' as const, customer_id: 1, driver_id: null, store_id: 1, status: 'pending' as const,
-  customer_address: '1 Customer St', notes: '', items_total: 36500, road_km: null, delivery_fee: 5000, total_delivery_fee: 5000, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
+  customer_address: '1 Customer St', notes: '', items_total: 36500, road_km: null, delivery_fee: 5000, total_delivery_fee: 5000, vehicle_type: 2, created_at: '', updated_at: '', payment_ref: '', payment_photo_key: null, service_fee: 0,
   customer_lat: null, customer_lng: null, store_lat: null, store_lng: null, driver_lat: null, driver_lng: null, driver_loc_at: null,
   driver_has_face: false, driver_has_id: false, driver_photo_version: '-', driver_notes: '', driver_verified: false,
   store_name: 'Tea Haven', store_logo: null, store_address: '12 Mabini St', store_type: 'food' as const, customer_name: 'Ana',
@@ -23,6 +23,12 @@ it('shows each item with its photo, or a placeholder', async () => {
   expect(screen.getByTestId('order-item-photo-2-placeholder')).toBeTruthy();
   expect(screen.getByText('2 × Wintermelon Milk Tea')).toBeTruthy();
   expect(screen.getByText('₱240.00')).toBeTruthy();
+});
+
+it('shows the vehicle the customer booked', async () => {
+  await render(<OrderSummary order={{ ...order, vehicle_type: 4 }} />);
+  expect(screen.getByText('Vehicle')).toBeTruthy();
+  expect(screen.getByText('Car (lightweight)')).toBeTruthy();
 });
 
 it('puts the total below a line, after the items', async () => {

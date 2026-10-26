@@ -8,6 +8,7 @@ import { StoreDetailsCell } from './StoreDetails';
 import { StoreOwnerCell } from './StoreOwner';
 import { SubscriptionCell } from './Subscription';
 import { useApi, type Page } from './useList';
+import { VEHICLE_LABEL } from './vehicles';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
@@ -217,6 +218,7 @@ export function OrdersTable({ onAuthError }: Props) {
 				{ label: 'Store', cell: (r) => person(r.store_name, r.store_type) },
 				{ label: 'Customer', cell: (r) => person(r.customer_name, r.customer_phone) },
 				{ label: 'Driver', cell: (r) => person(r.driver_name) },
+				{ label: 'Vehicle', cell: (r) => VEHICLE_LABEL[r.vehicle_type] },
 				{
 					label: 'Items',
 					cell: (r) => (
@@ -252,6 +254,7 @@ export function DropoffsTable({ onAuthError }: Props) {
 				{ label: 'Shop', cell: (r) => r.store_name },
 				{ label: 'Customer', cell: (r) => person(r.customer_name, r.customer_phone) },
 				{ label: 'Driver', cell: (r) => person(r.driver_name) },
+				{ label: 'Vehicle', cell: (r) => VEHICLE_LABEL[r.vehicle_type] },
 				{ label: 'Km', cell: (r) => r.road_km?.toFixed(1), className: 'num' },
 				{ label: 'Delivery', cell: (r) => peso(r.total_delivery_fee), className: 'num' },
 				{ label: 'Service fee', cell: (r) => peso(r.service_fee), className: 'num' },
@@ -292,9 +295,6 @@ function BlockButton({ id, blocked, onAuthError }: { id: number; blocked: number
 		</>
 	);
 }
-
-/** driver_data.vehicle_type codes, same as worker/src/lib/fees.ts VEHICLE_CATEGORIES. */
-const VEHICLE_LABEL: Record<number, string> = { 1: 'Bicycle', 2: 'Motorcycle', 3: 'Tricycle', 4: 'Car (lightweight)' };
 
 /** Drivers tab "License" cell: opens the photo editor and verified switch; shows the verified state it last set. */
 function LicenseCell({ driver, onAuthError }: { driver: Row; onAuthError: (e: unknown) => void }) {

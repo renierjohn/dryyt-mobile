@@ -53,6 +53,8 @@ export type NewOrder = {
   /** Food is paid upfront: a reference number, a photo key from useUploadPaymentPhoto, or both. */
   payment_ref?: string;
   payment_photo_key?: string;
+  /** The vehicle chosen from useOrderQuote's options. */
+  vehicle_type?: number;
   /** From useOrderQuote for the same store and pin, so the server doesn't price the road again. */
   quote_token?: string;
 };
@@ -88,12 +90,21 @@ export function usePlaceOrder() {
   });
 }
 
-export type DeliveryQuote = { road_km: number; total_delivery_fee: number; token: string };
+/** One vehicle's price for the trip: its base fare, per-km rate, and the delivery fee the customer pays. */
+export type VehicleFee = { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number };
+/** Every vehicle the area has a rate for; `token` books at these prices. */
+export type DeliveryQuote = { road_km: number; options: VehicleFee[]; token: string };
 
-/** Delivery fee from a pin to the store, priced like a drop off. */
+/** Each vehicle's delivery fee from a pin to the store, priced like a drop off. */
 export const useOrderQuote = () =>
   useMutation({
     mutationFn: (input: { store_id: number } & LatLng) => api<{ quote: DeliveryQuote }>('/orders/quote', { body: input }).then((r) => r.quote),
+  });
+
+/** Each vehicle's delivery fee from a pin to the laundry shop, before booking a drop off. */
+export const useDropoffQuote = () =>
+  useMutation({
+    mutationFn: (input: { store_id: number } & LatLng) => api<{ quote: DeliveryQuote }>('/dropoffs/quote', { body: input }).then((r) => r.quote),
   });
 
 export const useStores = (type: StoreType) =>
@@ -274,7 +285,7 @@ export function useReleaseJob() {
   });
 }
 
-export type NewDropoff = { store_id: number; lat: number; lng: number; address?: string };
+export type NewDropoff = { store_id: number; lat: number; lng: number; address?: string; vehicle_type?: number; quote_token?: string };
 export type DropoffAction = { action: 'cancel' | 'driver-cancel' | 'confirm-driver' | 'reject-driver' | 'picked-up' | 'drop' | 'payment'; body?: unknown };
 
 const invalidateDropoffs = (qc: ReturnType<typeof useQueryClient>) =>

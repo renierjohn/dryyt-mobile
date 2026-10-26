@@ -20,6 +20,28 @@ describe('drop offs', () => {
     expect(row).toEqual({ delivery_fee: 7200, service_fee: 800 });
   });
 
+  it('quotes every vehicle the area has a rate for and books at the chosen one', async () => {
+    const { storeId, group } = await makeShop();
+    await env.DB.prepare("INSERT INTO rates (group_id, type, category, base_fee, rate_per_km, commission_pct) VALUES (?, 'dropoff', 3, 6000, 1500, 10)")
+      .bind(group)
+      .run();
+    const customer = await registerUser('customer');
+    const quote = await api('/dropoffs/quote', { token: customer.token, body: { store_id: storeId, ...HOME } });
+    // Tricycle: 60 + 3.2 km × 15 = 108, + 10% = 118.80, rounded up to 119.
+    expect(quote.body.quote).toEqual({
+      road_km: 3.2,
+      options: [
+        { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000 },
+        { vehicle_type: 3, base_fee: 6000, rate_per_km: 1500, total_delivery_fee: 11900 },
+      ],
+      token: expect.any(String),
+    });
+
+    expect((await createDropoff(customer.token, { store_id: storeId, vehicle_type: 4, quote_token: quote.body.quote.token })).status).toBe(400);
+    const res = await createDropoff(customer.token, { store_id: storeId, vehicle_type: 3, quote_token: quote.body.quote.token });
+    expect(res.body.dropoff).toMatchObject({ vehicle_type: 3, total_delivery_fee: 11900 });
+  });
+
   it('saves the pinned coordinates as the address when none is given', async () => {
     const { storeId } = await makeShop();
     const customer = await registerUser('customer');

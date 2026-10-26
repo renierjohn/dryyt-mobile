@@ -39,7 +39,7 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
   const cart = useCart();
   const createOrder = useCreateOrder();
   const pin = useDeliveryPin(store.id);
-  const { at, fee, quote } = pin;
+  const { at, fee, vehicle, quote } = pin;
 
   const sendProof = (proof: PaymentProof) =>
     at &&
@@ -51,6 +51,7 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
         lat: at.lat,
         lng: at.lng,
         ...proof,
+        vehicle_type: vehicle ?? undefined,
         quote_token: quote.data?.token,
       },
       { onSuccess: (order) => cart.setOrderId(order.id) },

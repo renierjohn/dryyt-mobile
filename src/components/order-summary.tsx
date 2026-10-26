@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { DishPhoto } from '@/components/dish-photo';
 import { Icon } from '@/components/icon';
+import { VehicleRow } from '@/components/vehicle-row';
 import { StatusBadge } from '@/components/status-badge';
 import { StoreLogo } from '@/components/store-logo';
 import { ThemedText } from '@/components/themed-text';
@@ -95,6 +96,7 @@ export function OrderSummary({
         ))}
       {order.notes && !hideNotes ? <ThemedText type="small">Notes: {order.notes}</ThemedText> : null}
       <View testID="order-total-separator" style={[styles.separator, { backgroundColor: theme.border }]} />
+      <VehicleRow code={order.vehicle_type} />
       {showFees ? (
         <>
           {orderTotal && (

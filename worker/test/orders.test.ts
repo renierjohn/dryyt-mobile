@@ -67,7 +67,10 @@ describe('POST /orders', () => {
     const pinned = { ...foodOrder, customer_address: undefined, notes: undefined, lat: 14.56, lng: 121.03 };
 
     const quote = await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
-    expect(quote).toEqual({ status: 200, body: { quote: { road_km: 3.2, total_delivery_fee: 8000, token: expect.any(String) } } });
+    expect(quote).toEqual({
+      status: 200,
+      body: { quote: { road_km: 3.2, options: [{ vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000 }], token: expect.any(String) } },
+    });
 
     const res = await placeOrder({ token: customer, body: pinned });
     expect(res.status).toBe(201);
@@ -82,7 +85,36 @@ describe('POST /orders', () => {
       store_lat: 14.5547,
       store_lng: 121.0244,
       notes: '',
+      vehicle_type: 2,
     });
+  });
+
+  it('prices with the vehicle the customer chose, and only drivers with that vehicle see the job', async () => {
+    await env.DB.prepare('UPDATE stores SET lat = 14.5547, lng = 121.0244 WHERE id = 1').run();
+    await env.DB.prepare(
+      "INSERT INTO rates (group_id, type, category, base_fee, rate_per_km, commission_pct) VALUES ('default', 'pickup', 4, 10000, 2000, 10)",
+    ).run();
+    const pin = { lat: 14.56, lng: 121.03 };
+    const quote = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote;
+    // Car: 100 + 3.2 km × 20 = 164, + 10% = 180.40, rounded up to 181.
+    expect(quote.options.map((o: { vehicle_type: number; total_delivery_fee: number }) => [o.vehicle_type, o.total_delivery_fee])).toEqual([
+      [2, 8000],
+      [4, 18100],
+    ]);
+
+    const pinned = { ...foodOrder, customer_address: undefined, ...pin, quote_token: quote.token };
+    const car = await placeOrder({ token: customer, body: { ...pinned, vehicle_type: 4 } });
+    expect(car.body.order).toMatchObject({ vehicle_type: 4, total_delivery_fee: 18100 });
+    expect((await placeOrder({ token: customer, body: { ...pinned, vehicle_type: 3 } })).status).toBe(400); // no tricycle rate
+
+    const moto = await registerUser('driver');
+    const carDriver = await registerUser('driver');
+    await env.DB.prepare('INSERT INTO driver_data (user_id, vehicle_type) VALUES (?, 4)').bind(carDriver.user.id).run();
+    const ids = async (token: string) => (await api('/jobs/available', { token })).body.jobs.map((j: { id: number }) => j.id);
+    expect(await ids(moto.token)).not.toContain(car.body.order.id);
+    expect(await ids(carDriver.token)).toContain(car.body.order.id);
+    expect((await api(`/jobs/${car.body.order.id}/accept`, { token: moto.token, method: 'POST' })).status).toBe(409);
+    expect((await api(`/jobs/${car.body.order.id}/accept`, { token: carDriver.token, method: 'POST' })).status).toBe(200);
   });
 
   it('reuses the quote for the same store and pin instead of pricing the road again', async () => {
@@ -92,7 +124,7 @@ describe('POST /orders', () => {
     const token = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.token as string;
     // A new rate after the quote: only an order priced again picks it up.
     await env.DB.prepare("UPDATE rates SET base_fee = 9000 WHERE group_id = 'default'").run();
-    const repriced = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.total_delivery_fee as number;
+    const repriced = (await api('/orders/quote', { token: customer, body: { store_id: 1, ...pin } })).body.quote.options[0].total_delivery_fee as number;
     expect(repriced).not.toBe(8000);
 
     const fee = async (body: Record<string, unknown>) => (await placeOrder({ token: customer, body })).body.order.total_delivery_fee;

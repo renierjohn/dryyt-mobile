@@ -75,6 +75,26 @@ describe('dispatch', () => {
     expect((await sock.next('requests')).items).toEqual([]);
   });
 
+  it('offers the request only to drivers with the vehicle the customer booked', async () => {
+    const { storeId, group } = await makeShop();
+    await env.DB.prepare("INSERT INTO rates (group_id, type, category, base_fee, rate_per_km, commission_pct) VALUES (?, 'dropoff', 1, 2000, 500, 10)")
+      .bind(group)
+      .run();
+    const customer = await registerUser('customer');
+    const id = (await createDropoff(customer.token, { store_id: storeId, vehicle_type: 1 })).body.dropoff.id as number;
+
+    const moto = await onlineDriver(group, near); // no vehicle picked: motorcycle
+    expect(moto.requests).toEqual([]);
+    moto.sock.send({ t: 'accept', transaction_id: id });
+    expect(await moto.sock.next('taken')).toMatchObject({ transaction_id: id });
+
+    const bike = await makeDriver(group);
+    await env.DB.prepare('INSERT INTO driver_data (user_id, vehicle_type) VALUES (?, 1)').bind(bike.user.id).run();
+    const sock = await openSocket(bike.token, 'dispatch');
+    sock.send({ t: 'loc', ...near });
+    expect((await sock.next('requests')).items).toEqual([expect.objectContaining({ transaction_id: id })]);
+  });
+
   it('lets only one of two drivers accept', async () => {
     const { group, customer, id } = await searching();
     const customerSock = await openSocket(customer.token, 'dispatch');

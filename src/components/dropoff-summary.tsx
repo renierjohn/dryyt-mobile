@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Card } from '@/components/card';
 import { PhotoViewer } from '@/components/photo-viewer';
 import { ThemedText } from '@/components/themed-text';
+import { VehicleRow } from '@/components/vehicle-row';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { dateTime, peso } from '@/lib/format';
 import type { Dropoff } from '@/lib/types';
@@ -31,6 +32,7 @@ export function DropoffSummary({ dropoff: d }: { dropoff: Dropoff }) {
       <ThemedText type="small" themeColor="textSecondary">
         From {d.customer_address}
       </ThemedText>
+      <VehicleRow code={d.vehicle_type} />
       {d.weight_kg !== null && <Row label="Weight" value={`${d.weight_kg} kg`} />}
       {d.delivery_fee !== undefined && <Row label="Delivery fee" value={peso(d.delivery_fee)} />}
       {d.service_fee !== undefined && <Row label="Service fee" value={peso(d.service_fee)} />}

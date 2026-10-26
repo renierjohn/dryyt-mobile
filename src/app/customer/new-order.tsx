@@ -144,7 +144,7 @@ function LaundryPickup({ storeId, name, storeAddress }: { storeId: number; name:
   const submit = () =>
     pin.at &&
     createOrder.mutate(
-      { type: 'pickup', store_id: storeId, items: [], lat: pin.at.lat, lng: pin.at.lng, notes: notes.trim(), quote_token: pin.quote.data?.token },
+      { type: 'pickup', store_id: storeId, items: [], lat: pin.at.lat, lng: pin.at.lng, notes: notes.trim(), vehicle_type: pin.vehicle ?? undefined, quote_token: pin.quote.data?.token },
       { onSuccess: (order) => router.replace({ pathname: '/customer/order/[id]', params: { id: String(order.id) } }) },
     );
   return (

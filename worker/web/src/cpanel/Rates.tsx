@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, peso } from './api';
+import { VEHICLE_LABEL as CATEGORY_LABEL } from './vehicles';
 
 /** Same lists as worker/src/lib/fees.ts RATE_TYPES and VEHICLE_CATEGORIES. */
 const TYPES = ['dropoff', 'pickup'] as const;
 const CATEGORIES = [2, 1, 3, 4] as const;
 const TYPE_LABEL: Record<string, string> = { dropoff: 'Drop off', pickup: 'Pickup' };
-const CATEGORY_LABEL: Record<number, string> = { 1: 'Bicycle', 2: 'Motorcycle', 3: 'Tricycle', 4: 'Car (lightweight)' };
 
 type Rate = {
 	id?: number;
@@ -257,7 +257,7 @@ export default function Rates({ onAuthError }: { onAuthError: (e: unknown) => vo
 			</div>
 			<p className="cp-muted cp-note">
 				Fee = base fee + distance × per-km rate, plus the service fee %. Each amount is rounded up to a whole peso. Changes apply to new
-				bookings right away; orders already placed keep their fees. Stores use the rate of their area (group); pickups and drop offs each have their own rate per vehicle. Bookings use the motorcycle rate for now.
+				bookings right away; orders already placed keep their fees. Stores use the rate of their area (group); pickups and drop offs each have their own rate per vehicle. Customers see every vehicle the area has a rate for and pick one; only drivers with that vehicle get the booking.
 			</p>
 			{error && <p className="cp-error">{error}</p>}
 			{!rates && !error && <p className="cp-muted">Loading…</p>}

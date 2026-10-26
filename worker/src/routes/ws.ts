@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { requireAuth } from '../lib/auth';
+import { driverVehicle } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { dispatchAccess, dispatchFor, tripAccess, tripFor } from '../lib/rooms';
 import { boardAccess, orderAccess, orderIdOf, orderRoom, pickupBoard } from '../lib/pickup-live';
@@ -39,6 +40,7 @@ ws.get('/dispatch', async (c) => {
 
   const headers = new Headers({ upgrade: 'websocket', 'x-user-id': String(user.id), 'x-role': user.role });
   if (access.transactionId) headers.set('x-transaction-id', String(access.transactionId));
+  if (access.vehicleType) headers.set('x-vehicle-type', String(access.vehicleType));
   return dispatchFor(c.env, access.group).fetch('https://dispatch/connect', { headers });
 });
 
@@ -47,7 +49,9 @@ ws.get('/pickups', async (c) => {
   const ticket = await consumeTicket(c.env.DB, c.req.query('ticket') ?? '', 'pickups');
   if (!ticket) fail(401, 'Invalid or expired ticket');
   if (!(await boardAccess(c.env.DB, { id: ticket.user_id, role: ticket.role }))) fail(403, 'You cannot join this room');
-  return pickupBoard(c.env).fetch('https://pickups/connect', { headers: { upgrade: 'websocket' } });
+  // Drivers see only the jobs booked for their vehicle.
+  const vehicleType = String(await driverVehicle(c.env.DB, ticket.user_id));
+  return pickupBoard(c.env).fetch('https://pickups/connect', { headers: { upgrade: 'websocket', 'x-vehicle-type': vehicleType } });
 });
 
 ws.get('/order/:id', async (c) => {

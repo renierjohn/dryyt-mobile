@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 import { LOCATION_MIN_INTERVAL_MS, PAYMENT_AUTO_CONFIRM_MS, PAYMENT_REMINDER_MS, PAYMENT_REMINDERS } from '../lib/dropoff-config';
+import { DEFAULT_CATEGORY, VEHICLE_CATEGORIES } from '../lib/fees';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { pushToUsers } from '../lib/push';
 import type { Bindings, LatLng } from '../types';
@@ -30,24 +31,28 @@ export class PickupBoard extends DurableObject<Bindings> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
   }
 
-  /** Socket upgrade. routes/ws.ts has already checked the ticket and that the driver is online for pickup. */
-  async fetch(): Promise<Response> {
+  /** Socket upgrade. routes/ws.ts has already checked the ticket and that the driver is online for pickup, and set their vehicle. */
+  async fetch(request: Request): Promise<Response> {
     const [client, server] = Object.values(new WebSocketPair());
-    this.ctx.acceptWebSocket(server);
-    send(server, await this.jobs());
+    const vehicle = Number(request.headers.get('x-vehicle-type')) || DEFAULT_CATEGORY;
+    // The tag picks the sockets each vehicle's job list goes to.
+    this.ctx.acceptWebSocket(server, [`v:${vehicle}`]);
+    send(server, await this.jobs(vehicle));
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  /** The pending jobs changed: send everyone the new list. */
+  /** The pending jobs changed: send each driver the new list for their vehicle. */
   async refresh() {
-    const sockets = this.ctx.getWebSockets();
-    if (sockets.length === 0) return;
-    const msg = await this.jobs();
-    for (const ws of sockets) send(ws, msg);
+    for (const code of Object.keys(VEHICLE_CATEGORIES).map(Number)) {
+      const sockets = this.ctx.getWebSockets(`v:${code}`);
+      if (sockets.length === 0) continue;
+      const msg = await this.jobs(code);
+      for (const ws of sockets) send(ws, msg);
+    }
   }
 
-  private async jobs(): Promise<Message> {
-    const pending = await listOrders(this.env.DB, "o.status = 'pending' ORDER BY o.id");
+  private async jobs(vehicle: number): Promise<Message> {
+    const pending = await listOrders(this.env.DB, "o.status = 'pending' AND o.vehicle_type = ? ORDER BY o.id", vehicle);
     return { t: 'jobs', jobs: pending.map(hidePhone) };
   }
 

@@ -51,6 +51,8 @@ export type Order = {
   service_fee: number;
   /** What the customer pays for delivery: delivery_fee plus service_fee. */
   total_delivery_fee: number;
+  /** The vehicle the customer booked (see lib/vehicles). */
+  vehicle_type: number;
   /** Road distance customer to store; null for typed-address (flat-fee) orders. */
   road_km: number | null;
   created_at: string;
@@ -116,6 +118,8 @@ export type Dropoff = {
   delivery_fee?: number;
   service_fee?: number;
   total_delivery_fee: number;
+  /** The vehicle the customer booked (see lib/vehicles). */
+  vehicle_type: number;
   laundry_fee: number | null;
   created_at: string;
   updated_at: string;

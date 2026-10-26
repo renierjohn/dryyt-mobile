@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
 import { CONFIRM_TIMEOUT_MS, DRIVER_STALE_MS, LOCATION_MIN_INTERVAL_MS, REJECT_COOLDOWN_MS, SEARCH_TIMEOUT_MS } from '../lib/dropoff-config';
+import { DEFAULT_CATEGORY, driverVehicleSql } from '../lib/fees';
 import { distanceColour, geohash, haversineKm, MAX_KM, nearbyCells } from '../lib/geo';
 import { firstName, maskPhone } from '../lib/privacy';
 import { pushToUsers } from '../lib/push';
@@ -21,13 +22,15 @@ export type NewRequest = {
   shop: LatLng;
   deliveryFee: number;
   totalDeliveryFee: number;
+  /** The vehicle the customer booked: only drivers with it see the request. */
+  vehicleType: number;
   /** Drivers this shop blocked, captured when the request is created. */
   blocked: number[];
 };
 
 type DispatchRequest = NewRequest & { status: 'searching' | 'driver_accepted'; driverId?: number; deadline: number };
 
-type DriverAttachment = { role: 'driver'; userId: number; loc?: LatLng; ts?: number };
+type DriverAttachment = { role: 'driver'; userId: number; vehicleType: number; loc?: LatLng; ts?: number };
 type CustomerAttachment = { role: 'customer'; userId: number; transactionId: number };
 type Attachment = DriverAttachment | CustomerAttachment;
 
@@ -63,7 +66,8 @@ export class Dispatch extends DurableObject<Bindings> {
 
     if (request.headers.get('x-role') === 'driver') {
       this.ctx.acceptWebSocket(server, ['driver', `u:${userId}`]);
-      server.serializeAttachment({ role: 'driver', userId } satisfies DriverAttachment);
+      const vehicleType = Number(request.headers.get('x-vehicle-type')) || DEFAULT_CATEGORY;
+      server.serializeAttachment({ role: 'driver', userId, vehicleType } satisfies DriverAttachment);
     } else {
       const transactionId = Number(request.headers.get('x-transaction-id'));
       this.ctx.acceptWebSocket(server, ['customer', `tx:${transactionId}`]);
@@ -329,9 +333,24 @@ export class Dispatch extends DurableObject<Bindings> {
     return best;
   }
 
-  /** Blocked by the shop, or recently turned down by this customer. */
+  /**
+   * Blocked by the shop, recently turned down by this customer, or connected with another vehicle than the one booked.
+   * pushIdleDrivers checks the vehicle of drivers with no socket in SQL.
+   */
   private excluded(r: NewRequest, driverId: number) {
+    const vehicle = this.vehicleOf(driverId);
+    // Requests saved before vehicleType existed were booked as motorcycle.
+    if (vehicle !== undefined && vehicle !== (r.vehicleType ?? DEFAULT_CATEGORY)) return true;
     return r.blocked.includes(driverId) || (this.cooldowns[`${r.customerId}:${driverId}`] ?? 0) > Date.now();
+  }
+
+  /** A connected driver's vehicle, or undefined with no socket. */
+  private vehicleOf(userId: number) {
+    for (const ws of this.ctx.getWebSockets(`u:${userId}`)) {
+      const att = ws.deserializeAttachment() as Attachment;
+      if (att.role === 'driver') return att.vehicleType ?? DEFAULT_CATEGORY;
+    }
+    return undefined;
   }
 
   private holding(userId: number) {
@@ -404,10 +423,10 @@ export class Dispatch extends DurableObject<Bindings> {
   /** Online, free drivers in this group whose app is closed (no socket), last seen within MAX_KM or never located. */
   private async pushIdleDrivers(r: DispatchRequest) {
     const { results } = await this.env.DB.prepare(
-      `SELECT d.user_id, d.lat, d.lng FROM drivers d JOIN users u ON u.id = d.user_id
-       WHERE d.group_id = ? AND d.online = 1 AND d.busy = 0 AND u.push_token IS NOT NULL`,
+      `SELECT d.user_id, d.lat, d.lng FROM drivers d JOIN users u ON u.id = d.user_id LEFT JOIN driver_data dd ON dd.user_id = d.user_id
+       WHERE d.group_id = ? AND d.online = 1 AND d.busy = 0 AND u.push_token IS NOT NULL AND ${driverVehicleSql('dd')} = ?`,
     )
-      .bind(r.group)
+      .bind(r.group, r.vehicleType ?? DEFAULT_CATEGORY)
       .all<{ user_id: number; lat: number | null; lng: number | null }>();
     const ids = results
       .filter((d) => this.ctx.getWebSockets(`u:${d.user_id}`).length === 0 && !this.excluded(r, d.user_id))

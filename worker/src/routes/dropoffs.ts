@@ -3,19 +3,26 @@ import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
 import { getDropoff, listDropoffs, viewFor } from '../lib/dropoffs';
-import { computeFees, DEFAULT_CATEGORY, type Rate } from '../lib/fees';
+import { DEFAULT_CATEGORY, isVehicleCategory } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { pushToUsers } from '../lib/push';
+import { feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
 import { blockedDrivers, dispatchFor, newRequestFrom, tripFor } from '../lib/rooms';
-import { roadDistanceKm } from '../lib/routing';
 import type { AppEnv } from '../types';
 
-const createSchema = z.object({
+const quoteSchema = z.object({
   store_id: z.number().int().positive(),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
+});
+
+const createSchema = quoteSchema.extend({
   address: z.string().trim().max(200).optional(),
+  // The vehicle the customer chose from /dropoffs/quote; it sets the delivery fee and which drivers see the request.
+  vehicle_type: z.number().int().refine(isVehicleCategory, 'Unknown vehicle type').default(DEFAULT_CATEGORY),
+  // From /dropoffs/quote for the same shop and pin: books at the prices the customer saw.
+  quote_token: z.string().max(2000).optional(),
 });
 
 
@@ -53,28 +60,31 @@ async function respond(c: Context<AppEnv>, id: number) {
 const dropoffs = new Hono<AppEnv>();
 dropoffs.use('*', requireAuth);
 
+/** Each vehicle's delivery fee from the pin to the shop, before booking. */
+dropoffs.post('/quote', requireRole('customer'), async (c) => {
+  const input = await parseBody(c, quoteSchema);
+  const store = await shopFor(c, input.store_id);
+  const at = { lat: input.lat, lng: input.lng };
+  const quote = await quoteFor(c.env, 'dropoff', store, at);
+  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'dropoff', store.id, at, quote)) });
+});
+
 dropoffs.post('/', requireRole('customer'), async (c) => {
   const input = await parseBody(c, createSchema);
   const db = c.env.DB;
 
   const store = await shopFor(c, input.store_id);
-
-  const rate = await db
-    .prepare("SELECT base_fee, rate_per_km, commission_pct FROM rates WHERE group_id = ? AND type = 'dropoff' AND category = ?")
-    .bind(store.group_id, DEFAULT_CATEGORY)
-    .first<Rate>();
-  if (!rate) fail(500, 'No rates set for this area');
-
-  const roadKm = await roadDistanceKm(c.env, input, { lat: store.lat, lng: store.lng });
-  const fees = computeFees(roadKm, rate);
+  const at = { lat: input.lat, lng: input.lng };
+  const fees = await feesFor(c.env, 'dropoff', store, at, input.vehicle_type, input.quote_token);
+  const roadKm = fees.road_km;
 
   let id: number;
   try {
     const row = await db
       .prepare(
         `INSERT INTO transactions_dropoff (room_id, customer_id, store_id, customer_lat, customer_lng, customer_address,
-           shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+           shop_lat, shop_lng, road_km, delivery_fee, service_fee, total_delivery_fee, vehicle_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
       .bind(
         crypto.randomUUID(),
@@ -89,6 +99,7 @@ dropoffs.post('/', requireRole('customer'), async (c) => {
         fees.delivery_fee,
         fees.service_fee,
         fees.total_delivery_fee,
+        input.vehicle_type,
       )
       .first<{ id: number }>();
     id = row!.id;

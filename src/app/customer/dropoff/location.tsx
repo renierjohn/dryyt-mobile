@@ -9,6 +9,7 @@ import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { VehicleOptions } from '@/components/vehicle-options';
 import { useCreateDropoff, useDropoffQuote, useStore } from '@/hooks/queries';
+import { useSignedIn } from '@/hooks/use-auth';
 import { useCurrentLocation } from '@/hooks/use-location';
 import type { LatLng } from '@/lib/types';
 
@@ -16,6 +17,7 @@ export default function DropoffLocation() {
   const storeId = Number(useLocalSearchParams<{ storeId: string }>().storeId);
   const store = useStore(storeId);
   const here = useCurrentLocation();
+  const signedIn = useSignedIn();
   const quote = useDropoffQuote();
   const create = useCreateDropoff();
   const [pin, setPin] = useState<LatLng | null>(null);
@@ -63,7 +65,7 @@ export default function DropoffLocation() {
           title="Find a driver"
           disabled={!at}
           loading={quote.isPending}
-          onPress={() => at && quote.mutate({ store_id: storeId, lat: at.lat, lng: at.lng })}
+          onPress={signedIn(() => at && quote.mutate({ store_id: storeId, lat: at.lat, lng: at.lng }))}
         />
       )}
     </Screen>

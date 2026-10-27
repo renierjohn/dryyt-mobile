@@ -15,13 +15,16 @@ import { Stepper } from '@/components/stepper';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
+import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { useSocket } from '@/hooks/use-socket';
 import { discountedPrice, peso } from '@/lib/format';
 
 export default function CartScreen() {
   const cart = useCart();
+  const signedIn = useAuth().state.status === 'signedIn';
 
+  if (!signedIn && cart.store) return <SignInFirst />;
   if (!cart.store) {
     return (
       <Screen edges={[]}>
@@ -33,6 +36,25 @@ export default function CartScreen() {
   // Proof sent: wait here for the owner's Done Pay, then place the order.
   if (cart.orderId !== null) return <AwaitingPayment orderId={cart.orderId} />;
   return <Checkout store={cart.store} />;
+}
+
+/**
+ * A guest's cart: opens Sign in on top of it once. Signing in closes Sign in and lands back here, now as the checkout;
+ * a guest who backs out gets a button to try again. The cart is kept either way.
+ */
+function SignInFirst() {
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    router.push('/sign-in');
+  }, []);
+  return (
+    <Screen edges={[]}>
+      <ThemedText themeColor="textSecondary">Sign in to continue with your order.</ThemedText>
+      <Button title="Sign in" onPress={() => router.push('/sign-in')} />
+    </Screen>
+  );
 }
 
 function Checkout({ store }: { store: { id: number; name: string } }) {

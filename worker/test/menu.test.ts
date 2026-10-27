@@ -10,8 +10,8 @@ beforeEach(async () => {
 });
 
 describe('popular menu', () => {
-  it('requires auth', async () => {
-    expect((await api('/menu/popular')).status).toBe(401);
+  it('is public, for guests on the home screen', async () => {
+    expect((await api('/menu/popular')).status).toBe(200);
   });
 
   it('sorts by popularity, then best seller, then newest; food only', async () => {

@@ -154,7 +154,8 @@ export const HISTORY_MIN_GAP_MS = 60_000;
  * No polling: loads when the screen is focused or `refresh()` is called, at most once per HISTORY_MIN_GAP_MS.
  * `nextAt` is when the next load is allowed (epoch ms).
  */
-export const useHistory = () => {
+/** `enabled` false (a guest): never loads. */
+export const useHistory = (enabled = true) => {
   const qc = useQueryClient();
   const history = useInfiniteQuery({
     queryKey: ['history'],
@@ -167,11 +168,12 @@ export const useHistory = () => {
   const { refetch } = history;
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     const state = qc.getQueryState(['history']);
     const last = Math.max(state?.dataUpdatedAt ?? 0, state?.errorUpdatedAt ?? 0);
     if (state?.fetchStatus === 'fetching' || Date.now() - last < HISTORY_MIN_GAP_MS) return;
     await refetch();
-  }, [qc, refetch]);
+  }, [qc, refetch, enabled]);
 
   useFocusEffect(
     useCallback(() => {

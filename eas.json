@@ -5,15 +5,18 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "bun": "1.4.3"
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal",
       "bun": "1.4.3"
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://dryyt.com"

@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 
-import { requireAuth } from '../lib/auth';
 import { fail, parseId } from '../lib/http';
 import { listMenu } from '../lib/menu';
 import { toStore, type StoreRow } from '../lib/stores';
 import type { AppEnv } from '../types';
 
+// Public: guests browse stores on the home screen before signing in.
 const stores = new Hono<AppEnv>();
-stores.use('*', requireAuth);
 
 stores.get('/', async (c) => {
   const type = c.req.query('type');

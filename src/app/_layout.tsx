@@ -41,7 +41,8 @@ function RootNavigator() {
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
       </Stack.Protected>
-      <Stack.Protected guard={role === 'customer'}>
+      {/* Guests too: they browse the customer home and sign in to order. */}
+      <Stack.Protected guard={role === 'customer' || role === null}>
         <Stack.Screen name="customer" />
       </Stack.Protected>
       <Stack.Protected guard={role === 'driver'}>

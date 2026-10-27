@@ -16,14 +16,15 @@ import { useHistory, usePopularMenu } from '@/hooks/queries';
 
 export default function CustomerHome() {
   const { state } = useAuth();
-  const name = state.status === 'signedIn' ? state.user.name : '';
-  const history = useHistory();
+  const signedIn = state.status === 'signedIn';
+  const history = useHistory(signedIn);
   const popular = usePopularMenu({ limit: 6 });
-  const recent = history.data?.pages[0]?.items.slice(0, 3) ?? [];
+  // Guests have no orders.
+  const recent = signedIn ? (history.data?.pages[0]?.items.slice(0, 3) ?? []) : [];
 
   return (
     <View style={styles.fill}>
-      <Screen edges={[]} onRefresh={() => Promise.all([history.refresh(), popular.refetch()])} header={<HeaderBand title={`Hi, ${name}`} subtitle="What do you need today?" />}>
+      <Screen edges={[]} onRefresh={() => Promise.all([history.refresh(), popular.refetch()])} header={<HeaderBand title={signedIn ? `Hi, ${state.user.name}` : 'Hi there'} subtitle="What do you need today?" />}>
         <View style={styles.tiles}>
           {PICKUP_ENABLED && (
             <ServiceTile

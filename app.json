@@ -77,7 +77,16 @@
         }
       ],
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "@react-native-firebase/app",
+      [
+        "./withFirebaseBom.js",
+        {
+          "bom": "33.16.0"
+        }
+      ],
+      "@react-native-firebase/auth",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,

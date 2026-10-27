@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
 
-import { requireAuth } from '../lib/auth';
 import { fail } from '../lib/http';
 import { toItem, type MenuRow } from '../lib/menu';
 import type { AppEnv, PopularItem } from '../types';
 
+// Public: guests see popular items on the home screen before signing in.
 const menu = new Hono<AppEnv>();
-menu.use('*', requireAuth);
 
 /**
  * Food items customers order most, across all stores; best sellers then newest break ties (and fill in before any orders).

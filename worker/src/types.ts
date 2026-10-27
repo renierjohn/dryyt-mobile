@@ -7,7 +7,7 @@ export type StoreType = 'food' | 'laundry';
 export type OrderType = 'pickup';
 export type OrderStatus = 'awaiting_fee' | 'to_pay' | 'awaiting_payment' | 'payment_confirmed' | 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
 
-export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; EXPO_ACCESS_TOKEN?: string; TURNSTILE_SECRET?: string; TURNSTILE_HOSTNAMES?: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PICKUPS: DurableObjectNamespace<PickupBoard>; ORDER_ROOM: DurableObjectNamespace<OrderRoom>; PROOFS: R2Bucket };
+export type Bindings = { DB: D1Database; JWT_SECRET: string; DELIVERY_FEE: string; PICKUP_ENABLED: string; OSRM_URL: string; OSRM_USER_AGENT: string; ORS_URL: string; ORS_API_KEY?: string; EXPO_ACCESS_TOKEN?: string; TURNSTILE_SECRET?: string; TURNSTILE_HOSTNAMES?: string; FIREBASE_PROJECT_ID: string; DISPATCH: DurableObjectNamespace<Dispatch>; TRIP: DurableObjectNamespace<Trip>; PICKUPS: DurableObjectNamespace<PickupBoard>; ORDER_ROOM: DurableObjectNamespace<OrderRoom>; PROOFS: R2Bucket };
 export type AuthUser = { id: number; role: Role };
 export type AppEnv = { Bindings: Bindings; Variables: { user: AuthUser } };
 

@@ -27,7 +27,9 @@
 		// Fallback when OSRM fails; needs the ORS_API_KEY secret (.dev.vars locally, `wrangler secret put` deployed).
 		"ORS_URL": "https://api.openrouteservice.org",
 		// Frontend hostnames the cpanel Turnstile check accepts; TURNSTILE_SECRET is a secret (`wrangler secret put`).
-		"TURNSTILE_HOSTNAMES": "dryyt.com,www.dryyt.com"
+		"TURNSTILE_HOSTNAMES": "dryyt.com,www.dryyt.com",
+		// Firebase project whose Auth ID tokens /auth/firebase accepts (Google sign-in in the app).
+		"FIREBASE_PROJECT_ID": "dryyt-7b40a"
 	},
 	"durable_objects": {
 		"bindings": [

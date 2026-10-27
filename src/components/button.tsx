@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/icon';
@@ -11,6 +12,8 @@ type Props = {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
   /** Drawn before the title, in the title's colour. */
   icon?: IconName;
+  /** Drawn before the title as is, e.g. a brand logo in its own colours. Wins over `icon`. */
+  leading?: ReactNode;
   /** Just the icon, for narrow slots; `title` is still read out by screen readers. */
   iconOnly?: boolean;
   disabled?: boolean;
@@ -19,7 +22,7 @@ type Props = {
   waiting?: boolean;
 };
 
-export function Button({ title, onPress, variant = 'primary', icon, iconOnly = false, disabled = false, loading = false, waiting = false }: Props) {
+export function Button({ title, onPress, variant = 'primary', icon, leading, iconOnly = false, disabled = false, loading = false, waiting = false }: Props) {
   const theme = useTheme();
   const look = {
     primary: { background: theme.primary, color: theme.onPrimary, border: theme.primary },
@@ -49,7 +52,8 @@ export function Button({ title, onPress, variant = 'primary', icon, iconOnly = f
       ) : (
         <View style={styles.content}>
           {waiting && <ActivityIndicator testID="button-waiting" size="small" color={look.color} />}
-          {icon && !waiting && (
+          {leading && !waiting && <View testID="button-icon">{leading}</View>}
+          {icon && !leading && !waiting && (
             <View testID="button-icon">
               <Icon name={icon} size={iconOnly ? 22 : 18} color={look.color} />
             </View>

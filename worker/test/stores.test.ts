@@ -9,8 +9,8 @@ beforeEach(async () => {
 });
 
 describe('stores', () => {
-  it('requires auth', async () => {
-    expect((await api('/stores')).status).toBe(401);
+  it('is public, for guests on the home screen', async () => {
+    expect((await api('/stores')).status).toBe(200);
   });
 
   it('lists all stores or filters by type', async () => {

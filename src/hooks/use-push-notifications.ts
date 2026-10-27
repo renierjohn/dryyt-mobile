@@ -97,11 +97,13 @@ function open(role: Role, n: Notifications.Notification) {
  * Registration retries each time the app returns to the foreground until it succeeds (e.g. after allowing
  * notifications in Settings); each distinct failure is reported to the worker log as `[push-token] failed`.
  */
-export function usePushNotifications(role: Role) {
+/** `enabled` false (a guest): no token is registered. */
+export function usePushNotifications(role: Role, enabled = true) {
   const qc = useQueryClient();
   const tapped = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
+    if (!enabled) return;
     let registered = false;
     let running = false;
     let asked = false;
@@ -134,7 +136,7 @@ export function usePushNotifications(role: Role) {
       if (state === 'active') attempt();
     });
     return () => sub.remove();
-  }, []);
+  }, [enabled]);
 
   // History is left alone: it loads at most once a minute, on focus or pull.
   useEffect(() => {

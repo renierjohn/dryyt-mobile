@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { VehicleOptions } from '@/components/vehicle-options';
 import { Spacing } from '@/constants/theme';
 import { useOrderQuote, useRoadRoute, useStore, type VehicleFee } from '@/hooks/queries';
+import { useSignedIn } from '@/hooks/use-auth';
 import { useCurrentLocation } from '@/hooks/use-location';
 import { peso } from '@/lib/format';
 import type { LatLng } from '@/lib/types';
@@ -20,6 +21,7 @@ import { vehicleLabel } from '@/lib/vehicles';
  * a vehicle is chosen.
  */
 export function useDeliveryPin(storeId: number) {
+  const signedIn = useSignedIn();
   const quote = useOrderQuote();
   const details = useStore(storeId);
   const here = useCurrentLocation();
@@ -32,7 +34,8 @@ export function useDeliveryPin(storeId: number) {
   const at = locked ?? pin ?? here.loc;
   const fee = quote.data && chosen ? chosen.total_delivery_fee : null;
   const vehicle = quote.data && chosen ? chosen.vehicle_type : null;
-  const compute = () => at && quote.mutate({ store_id: storeId, lat: at.lat, lng: at.lng });
+  // Pricing needs an account: a guest signs in first (food carts already did, at the cart).
+  const compute = signedIn(() => at && quote.mutate({ store_id: storeId, lat: at.lat, lng: at.lng }));
   return { at, shop, quoted: locked !== null, fee, vehicle, quote, details, here, setPin, compute, choose: setChosen };
 }
 

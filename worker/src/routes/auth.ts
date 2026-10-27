@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { signToken } from '../lib/auth';
 import { fail, parseBody } from '../lib/http';
+import { verifyFirebaseToken } from '../lib/firebase';
 import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppEnv, User } from '../types';
 
@@ -54,6 +55,36 @@ auth.post('/register', async (c) => {
 auth.post('/login', async (c) => {
   const user = await checkLogin(c.env.DB, await parseBody(c, loginSchema));
   return c.json({ token: await signToken(user, c.env.JWT_SECRET), user });
+});
+
+const firebaseSchema = z.object({ id_token: z.string().min(1).max(5000) });
+
+/**
+ * Google or Facebook sign-in through Firebase Auth. One account per email (Firebase's default, see
+ * support.google.com/firebase/answer/9134820): a verified email that already has a Dryyt account signs into it, whatever
+ * its role; a new email becomes a customer with no password (random hash) and no phone until they add one.
+ * An unverified email (most Facebook logins) may only create a new account: signing into an existing one with it
+ * would let anyone who typed that address into their Facebook take the account over.
+ */
+auth.post('/firebase', async (c) => {
+  const { id_token } = await parseBody(c, firebaseSchema);
+  const { email, emailVerified, name } = await verifyFirebaseToken(c.env, id_token);
+  const db = c.env.DB;
+
+  const existing = await db.prepare('SELECT id, email, name, phone, role, blocked FROM users WHERE email = ?').bind(email).first<User & { blocked: number }>();
+  if (existing) {
+    if (!emailVerified) fail(409, 'This email already has a Dryyt account. Sign in with your email and password, or with Google.');
+    if (existing.blocked === 1) fail(403, 'This account is blocked. Please contact support.');
+    const { blocked: _, ...user } = existing;
+    return c.json({ token: await signToken(user, c.env.JWT_SECRET), user });
+  }
+
+  const user = await db
+    .prepare("INSERT INTO users (email, password_hash, name, phone, role) VALUES (?, ?, ?, '', 'customer') RETURNING id, email, name, phone, role")
+    .bind(email, await hashPassword(crypto.randomUUID() + crypto.randomUUID()), name)
+    .first<User>();
+  if (!user) fail(500, 'Could not create user');
+  return c.json({ token: await signToken(user, c.env.JWT_SECRET), user }, 201);
 });
 
 export default auth;

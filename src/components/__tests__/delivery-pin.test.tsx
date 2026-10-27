@@ -1,11 +1,18 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { DeliveryPinCard, useDeliveryPin } from '@/components/delivery-pin';
 
 let mockLoc: { loc: object | null; error: string | null } = { loc: null, error: null };
 jest.mock('@/hooks/use-location', () => ({ useCurrentLocation: () => ({ ...mockLoc, accuracy: null }) }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockPush(...a) } }));
+let mockSignedIn = true;
+jest.mock('@/hooks/use-auth', () => ({
+  useSignedIn: () => (action: () => void) => () => (mockSignedIn ? action() : mockPush('/sign-in')),
+}));
+const mockMutate = jest.fn();
 jest.mock('@/hooks/queries', () => ({
-  useOrderQuote: () => ({ mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined, variables: undefined }),
+  useOrderQuote: () => ({ mutate: mockMutate, isPending: false, isSuccess: false, error: null, data: undefined, variables: undefined }),
   useStore: () => ({ data: { lat: 14.55, lng: 121.02 }, error: null }),
   useRoadRoute: () => ({ data: undefined }),
 }));
@@ -30,4 +37,17 @@ it('spins before Compute Delivery Fee while finding the location, and stops once
   mockLoc = { loc: null, error: 'Allow location access to use drop off.' };
   await rerender(<Card />);
   expect(screen.queryByTestId('button-waiting')).toBeNull();
+});
+
+it('sends a guest to sign in instead of computing the fee', async () => {
+  mockLoc = { loc: { lat: 14.56, lng: 121.03 }, error: null };
+  mockSignedIn = false;
+  try {
+    await render(<Card />);
+    await fireEvent.press(screen.getByText('Compute Delivery Fee'));
+    expect(mockPush).toHaveBeenCalledWith('/sign-in');
+    expect(mockMutate).not.toHaveBeenCalled();
+  } finally {
+    mockSignedIn = true;
+  }
 });

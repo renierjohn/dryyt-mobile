@@ -3,9 +3,12 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
-    "@expo/ui": "~57.0.25",
+    "@expo/ui": "~57.0.26",
+    "@react-native-firebase/app": "^27.1.0",
+    "@react-native-firebase/auth": "^27.1.0",
+    "@react-native-google-signin/google-signin": "^16.1.5",
     "@tanstack/react-query": "^5.104.1",
-    "expo": "~57.0.30",
+    "expo": "~57.0.31",
     "expo-asset": "~57.0.20",
     "expo-audio": "~57.0.5",
     "expo-constants": "~57.0.22",
@@ -18,9 +21,9 @@
     "expo-image-manipulator": "~57.0.21",
     "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.13",
-    "expo-location": "~57.0.21",
-    "expo-notifications": "~57.0.23",
-    "expo-router": "~57.0.28",
+    "expo-location": "~57.0.22",
+    "expo-notifications": "~57.0.24",
+    "expo-router": "~57.0.29",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
@@ -30,12 +33,14 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-fbsdk-next": "^13.4.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-nitro-image": "^0.15.2",
     "react-native-nitro-modules": "^0.37.1",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-vision-camera": "^5.2.3",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.16.1",
@@ -83,7 +88,8 @@
     ],
     "moduleNameMapper": {
       "^@/assets/(.*)$": "<rootDir>/assets/$1",
-      "\\.css$": "<rootDir>/src/__mocks__/style.js"
+      "\\.css$": "<rootDir>/src/__mocks__/style.js",
+      "^@/lib/social-auth$": "<rootDir>/src/__mocks__/social-auth.js"
     }
   },
   "resolutions": {

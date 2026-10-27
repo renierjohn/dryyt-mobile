@@ -5,6 +5,11 @@ import CartScreen from '@/app/customer/cart';
 import { CartProvider, useCart } from '@/hooks/use-cart';
 
 jest.mock('expo-router', () => ({ router: { replace: jest.fn(), push: jest.fn() } }));
+let mockSignedIn = true;
+jest.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({ state: mockSignedIn ? { status: 'signedIn', user: { name: 'Ana' } } : { status: 'signedOut' } }),
+  useSignedIn: () => (action: () => void) => action,
+}));
 const mockCreate = jest.fn();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
 const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; options: { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number }[]; token: string } | undefined, variables: undefined as object | undefined };
@@ -48,6 +53,27 @@ const waitingOrder = {
   id: 42, type: 'pickup', store_id: 1, store_type: 'food', store_name: 'Tea Haven', store_address: '12 Mabini St', customer_address: 'Pinned location',
   notes: '', items: [], items_total: 20000, delivery_fee: 7920, total_delivery_fee: 7920, payment_ref: 'GC-123', payment_photo_key: null,
 };
+
+it('sends a guest to sign in once, and keeps a button to try again', async () => {
+  mockSignedIn = false;
+  try {
+    const { router } = jest.requireMock('expo-router');
+    router.push.mockClear();
+    await render(
+      <CartProvider>
+        <Harness />
+      </CartProvider>,
+    );
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith('/sign-in');
+    expect(screen.getByText('Sign in to continue with your order.')).toBeTruthy();
+    expect(screen.queryByText('Compute Delivery Fee')).toBeNull();
+    await fireEvent.press(screen.getByText('Sign in'));
+    expect(router.push).toHaveBeenCalledTimes(2);
+  } finally {
+    mockSignedIn = true;
+  }
+});
 
 function Harness({ orderId }: { orderId?: number }) {
   const cart = useCart();

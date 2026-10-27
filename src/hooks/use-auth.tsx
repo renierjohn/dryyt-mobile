@@ -1,6 +1,8 @@
+import { router } from 'expo-router';
 import { createContext, use, useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { api, setAuthToken, setUnauthorizedHandler } from '@/lib/api';
+import { signOutOfSocial } from '@/lib/social-auth';
 import { queryClient } from '@/lib/query-client';
 import { clearOnline, clearSession, loadSession, saveSession, type Session } from '@/lib/session-storage';
 import type { User } from '@/lib/types';
@@ -29,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // auth header now, before it's cleared below; a 401 reply can't loop back here because the token is gone by then.
     api('/me/push-token', { method: 'DELETE' }).catch(() => {});
     setAuthToken(null);
+    void signOutOfSocial();
     await clearSession();
     await clearOnline().catch(() => {});
     queryClient.clear();
@@ -51,6 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
   return <AuthContext value={{ state, signIn, signOut }}>{children}</AuthContext>;
+}
+
+/**
+ * Wraps an action that needs an account: a guest is sent to Sign in instead, and lands back on this screen once signed
+ * in (Sign in closes itself), with what they entered kept, to tap again.
+ */
+export function useSignedIn() {
+  const { state } = useAuth();
+  const signedIn = state.status === 'signedIn';
+  return useCallback(
+    (action: () => void) => () => {
+      if (signedIn) action();
+      else router.push('/sign-in');
+    },
+    [signedIn],
+  );
 }
 
 export function useAuth() {

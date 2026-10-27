@@ -1,6 +1,6 @@
 import { env, runInDurableObject, SELF } from 'cloudflare:test';
 
-import { api, registerUser } from '../helpers';
+import { api, registerUser, verifyDriver } from '../helpers';
 import { openSocket } from './socket';
 
 /** Customer location ~1 km from the test shop. */
@@ -22,9 +22,10 @@ export async function makeShop({ ownerId }: { ownerId?: number } = {}) {
   return { storeId: store!.id, group };
 }
 
-/** A driver who is online in `group`. */
+/** A verified driver who is online in `group`. */
 export async function makeDriver(group: string) {
   const driver = await registerUser('driver');
+  await verifyDriver(driver.user.id);
   await env.DB.prepare('UPDATE drivers SET group_id = ?, online = 1 WHERE user_id = ?').bind(group, driver.user.id).run();
   return driver;
 }

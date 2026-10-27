@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 
 import type { AppEnv, AuthUser, Bindings } from '../types';
+import { verifiedDriverSql } from './verified';
 
 export const pickupBoard = (env: Bindings) => env.PICKUPS.get(env.PICKUPS.idFromName('all'));
 export const orderRoom = (env: Bindings, orderId: number) => env.ORDER_ROOM.get(env.ORDER_ROOM.idFromName(`order-${orderId}`));
@@ -13,10 +14,12 @@ export function pickupChanged(c: Context<AppEnv>, orderId: number, { board = tru
   c.executionCtx.waitUntil(work().catch((err) => console.error('pickup live update failed', err)));
 }
 
-/** Drivers online for pickup may join the job board. */
+/** Verified drivers online for pickup may join the job board. */
 export async function boardAccess(db: D1Database, user: AuthUser) {
   if (user.role !== 'driver') return false;
-  return Boolean(await db.prepare('SELECT 1 FROM drivers WHERE user_id = ? AND pickup_online = 1').bind(user.id).first());
+  return Boolean(
+    await db.prepare(`SELECT 1 FROM drivers WHERE user_id = ? AND pickup_online = 1 AND ${verifiedDriverSql('drivers.user_id')}`).bind(user.id).first(),
+  );
 }
 
 /** The order's customer from placing it (laundry) or Send proof of payment (food) until delivered; its driver while they have it. */

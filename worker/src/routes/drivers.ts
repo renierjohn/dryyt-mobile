@@ -6,6 +6,7 @@ import { listDropoffs, viewFor } from '../lib/dropoffs';
 import { isVehicleCategory } from '../lib/fees';
 import { fail, parseBody } from '../lib/http';
 import { driverPhotoVersion, photoResponse, readPhoto } from '../lib/photos';
+import { isVerifiedDriver, requireVerifiedDriver } from '../lib/verified';
 import type { AppEnv } from '../types';
 
 const onlineSchema = z.object({ online: z.boolean() });
@@ -59,6 +60,7 @@ drivers.get('/me', async (c) => {
     .prepare('SELECT online, busy, pickup_online FROM drivers WHERE user_id = ?')
     .bind(user.id)
     .first<{ online: number; busy: number; pickup_online: number }>();
+  const verified = await isVerifiedDriver(db, user.id);
   const [job] = await listDropoffs(
     db,
     "t.driver_id = ? AND t.status IN ('driver_accepted', 'en_route_pickup', 'en_route_shop', 'dropped_off') ORDER BY t.status = 'dropped_off', t.id DESC LIMIT 1",
@@ -70,13 +72,22 @@ drivers.get('/me', async (c) => {
     .bind(user.id)
     .first<{ id: number }>();
   return c.json({
-    driver: { online: state?.online === 1, busy: state?.busy === 1, pickup_online: state?.pickup_online === 1, pickup_job_id: pickup?.id ?? null },
+    // Unverified drivers are never online, whatever the column says (e.g. an admin took the badge away).
+    driver: {
+      online: verified && state?.online === 1,
+      busy: state?.busy === 1,
+      pickup_online: verified && state?.pickup_online === 1,
+      pickup_job_id: pickup?.id ?? null,
+      verified,
+    },
     job: job ? viewFor(job, user) : null,
   });
 });
 
+/** Going online needs the verified badge; going offline never does. */
 drivers.post('/me/online', async (c) => {
   const { online } = await parseBody(c, onlineSchema);
+  if (online) await requireVerifiedDriver(c.env.DB, c.get('user').id);
   await c.env.DB.prepare("UPDATE drivers SET online = ?, updated_at = datetime('now') WHERE user_id = ?")
     .bind(online ? 1 : 0, c.get('user').id)
     .run();
@@ -86,6 +97,7 @@ drivers.post('/me/online', async (c) => {
 /** "Online for Pickup": only these drivers get the live pickup job board. */
 drivers.post('/me/pickup-online', async (c) => {
   const { online } = await parseBody(c, onlineSchema);
+  if (online) await requireVerifiedDriver(c.env.DB, c.get('user').id);
   await c.env.DB.prepare("UPDATE drivers SET pickup_online = ?, updated_at = datetime('now') WHERE user_id = ?")
     .bind(online ? 1 : 0, c.get('user').id)
     .run();

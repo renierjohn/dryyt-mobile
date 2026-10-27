@@ -6,18 +6,21 @@ const mockSetPickup = jest.fn();
 const mockSocketRoom = jest.fn();
 let mockPickupOnline = false;
 let mockPickupJob: number | null = null;
+let mockVerified = true;
+const mockSetOnline = jest.fn();
+const mockNavigate = jest.fn();
 const job = { id: 3, status: 'pending', store_name: 'Burger Barn', customer_address: '1 Customer St', store_type: 'food', items: [], items_total: 20000, delivery_fee: 7200, service_fee: 800, total_delivery_fee: 8000, notes: '' };
 
 jest.mock('@/constants/features', () => ({ PICKUP_ENABLED: true }));
 jest.mock('@/hooks/queries', () => ({
-  useDriverMe: () => ({ data: { driver: { online: false, busy: false, pickup_online: mockPickupOnline, pickup_job_id: mockPickupJob }, job: null }, refetch: jest.fn() }),
+  useDriverMe: () => ({ data: { driver: { online: false, busy: false, pickup_online: mockPickupOnline, pickup_job_id: mockPickupJob, verified: mockVerified }, job: null }, refetch: jest.fn() }),
   useSetPickupOnline: () => ({ mutate: mockSetPickup, isPending: false, error: null }),
   useAvailableJobs: (online: boolean) => ({ data: online ? [job] : undefined, isPending: !online, error: null, refetch: jest.fn() }),
   useActiveJob: () => {
     throw new Error('the Available screen reads busy from /drivers/me, not /jobs/active');
   },
   useAcceptJob: () => ({ mutate: jest.fn(), isPending: false, error: null }),
-  useSetOnline: () => ({ mutate: jest.fn(), isPending: false }),
+  useSetOnline: () => ({ mutate: mockSetOnline, isPending: false, error: null }),
   useSavedOnline: () => ({ data: false }),
 }));
 jest.mock('@/hooks/use-socket', () => ({
@@ -26,6 +29,7 @@ jest.mock('@/hooks/use-socket', () => ({
     return { connected: room !== null, send: jest.fn() };
   },
 }));
+jest.mock('expo-router', () => ({ router: { navigate: (...a: unknown[]) => mockNavigate(...a) } }));
 jest.mock('@/hooks/use-new-job-sound', () => ({ useNewJobSound: () => {} }));
 jest.mock('@/components/driver/dropoff-requests', () => ({ DropoffRequests: () => null }));
 jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ setQueryData: jest.fn() }) }));
@@ -37,6 +41,25 @@ jest.mock('react-native-safe-area-context', () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPickupJob = null;
+  mockVerified = true;
+});
+
+it("doesn't let an unverified driver go online or accept jobs, and points them to Profile", async () => {
+  mockVerified = false;
+  mockPickupOnline = true;
+  await render(<AvailableJobs />);
+  expect(screen.getByText('Get verified to take jobs')).toBeTruthy();
+  const [dropoffs, pickups] = screen.getAllByRole('switch');
+  // Disabled: toggling does nothing.
+  await fireEvent(dropoffs, 'valueChange', true);
+  await fireEvent(pickups, 'valueChange', true);
+  expect(mockSetOnline).not.toHaveBeenCalled();
+  expect(mockSetPickup).not.toHaveBeenCalled();
+  expect(pickups.props.value).toBe(false);
+  expect(screen.queryByText('Accept job')).toBeNull();
+  expect(mockSocketRoom).toHaveBeenLastCalledWith(null);
+  await fireEvent.press(screen.getByText('Open Profile'));
+  expect(mockNavigate).toHaveBeenCalledWith('/driver/profile');
 });
 
 it('hides pickup jobs and stays off the job board until Online for Pickup is on', async () => {

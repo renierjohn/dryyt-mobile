@@ -133,6 +133,8 @@ describe("customer view of the driver's verification", () => {
 
   it('shows the assigned driver photos, plate and badge while deciding and on the trip', async () => {
     const { driver, customer, id } = await acceptedDropoff();
+    // Take the badge back so the details can still be filled in (verified details are locked).
+    await env.DB.prepare('UPDATE driver_data SET status = 0 WHERE user_id = ?').bind(driver.user.id).run();
     await upload('face', driver.token);
     await api('/drivers/me/verification', { token: driver.token, body: { notes: 'ABC 1234' } });
     await verify(driver.user.id);

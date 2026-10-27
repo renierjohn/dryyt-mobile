@@ -420,11 +420,11 @@ export class Dispatch extends DurableObject<Bindings> {
     this.toCustomer(r.id, { t: 'driver_accepted', transaction_id: r.id, driver, total_delivery_fee: r.totalDeliveryFee });
   }
 
-  /** Online, free drivers in this group whose app is closed (no socket), last seen within MAX_KM or never located. */
+  /** Verified, online, free drivers in this group whose app is closed (no socket), last seen within MAX_KM or never located. */
   private async pushIdleDrivers(r: DispatchRequest) {
     const { results } = await this.env.DB.prepare(
       `SELECT d.user_id, d.lat, d.lng FROM drivers d JOIN users u ON u.id = d.user_id LEFT JOIN driver_data dd ON dd.user_id = d.user_id
-       WHERE d.group_id = ? AND d.online = 1 AND d.busy = 0 AND u.push_token IS NOT NULL AND ${driverVehicleSql('dd')} = ?`,
+       WHERE d.group_id = ? AND d.online = 1 AND d.busy = 0 AND dd.status = 1 AND u.push_token IS NOT NULL AND ${driverVehicleSql('dd')} = ?`,
     )
       .bind(r.group, r.vehicleType ?? DEFAULT_CATEGORY)
       .all<{ user_id: number; lat: number | null; lng: number | null }>();

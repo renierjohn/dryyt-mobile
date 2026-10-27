@@ -89,7 +89,7 @@ describe('dispatch', () => {
     expect(await moto.sock.next('taken')).toMatchObject({ transaction_id: id });
 
     const bike = await makeDriver(group);
-    await env.DB.prepare('INSERT INTO driver_data (user_id, vehicle_type) VALUES (?, 1)').bind(bike.user.id).run();
+    await env.DB.prepare('UPDATE driver_data SET vehicle_type = 1 WHERE user_id = ?').bind(bike.user.id).run();
     const sock = await openSocket(bike.token, 'dispatch');
     sock.send({ t: 'loc', ...near });
     expect((await sock.next('requests')).items).toEqual([expect.objectContaining({ transaction_id: id })]);

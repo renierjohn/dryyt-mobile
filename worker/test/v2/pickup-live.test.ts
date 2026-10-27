@@ -2,7 +2,7 @@ import { env, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test'
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { OrderRoom } from '../../src/do/pickups';
-import { api, registerUser } from '../helpers';
+import { api, registerUser, registerVerifiedDriver } from '../helpers';
 import { closeAll, openSocket } from './socket';
 
 afterEach(closeAll);
@@ -10,7 +10,7 @@ afterEach(closeAll);
 const order = { type: 'pickup', store_id: 2, items: [{ menu_item_id: 5, qty: 1 }], customer_address: '1 Customer St, Makati' };
 
 async function pickupDriver() {
-  const driver = await registerUser('driver');
+  const driver = await registerVerifiedDriver();
   await api('/drivers/me/pickup-online', { token: driver.token, body: { online: true } });
   return driver;
 }

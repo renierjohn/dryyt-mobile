@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api, placeOrder, registerUser } from './helpers';
+import { api, placeOrder, registerUser, registerVerifiedDriver } from './helpers';
 
 let customer: string;
 let other: string;
@@ -107,9 +107,9 @@ describe('POST /orders', () => {
     expect(car.body.order).toMatchObject({ vehicle_type: 4, total_delivery_fee: 18100 });
     expect((await placeOrder({ token: customer, body: { ...pinned, vehicle_type: 3 } })).status).toBe(400); // no tricycle rate
 
-    const moto = await registerUser('driver');
-    const carDriver = await registerUser('driver');
-    await env.DB.prepare('INSERT INTO driver_data (user_id, vehicle_type) VALUES (?, 4)').bind(carDriver.user.id).run();
+    const moto = await registerVerifiedDriver();
+    const carDriver = await registerVerifiedDriver();
+    await env.DB.prepare('UPDATE driver_data SET vehicle_type = 4 WHERE user_id = ?').bind(carDriver.user.id).run();
     const ids = async (token: string) => (await api('/jobs/available', { token })).body.jobs.map((j: { id: number }) => j.id);
     expect(await ids(moto.token)).not.toContain(car.body.order.id);
     expect(await ids(carDriver.token)).toContain(car.body.order.id);

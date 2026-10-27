@@ -44,3 +44,15 @@ export async function placeOrder<T = any>(opts: Omit<Options, 'method'> & { body
   }
   return res;
 }
+
+/** A driver with the verified badge, who can go online and take jobs. */
+export async function registerVerifiedDriver() {
+  const driver = await registerUser('driver');
+  await verifyDriver(driver.user.id);
+  return driver;
+}
+
+/** Gives a driver the verified badge (driver_data.status = 1), needed to go online and take jobs. */
+export async function verifyDriver(userId: number) {
+  await env.DB.prepare('INSERT INTO driver_data (user_id, status) VALUES (?, 1) ON CONFLICT (user_id) DO UPDATE SET status = 1').bind(userId).run();
+}

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
-import { api, placeOrder, registerUser } from './helpers';
+import { api, placeOrder, registerUser, registerVerifiedDriver } from './helpers';
 
 const popularity = async (id: number) =>
   (await env.DB.prepare('SELECT popularity FROM store_menu_items WHERE id = ?').bind(id).first<{ popularity: number }>())!.popularity;
@@ -63,7 +63,7 @@ describe('menu popularity', () => {
 
   async function deliveredOrder(items: { menu_item_id: number; qty: number }[]) {
     const customer = (await registerUser('customer')).token;
-    const driver = (await registerUser('driver')).token;
+    const driver = (await registerVerifiedDriver()).token;
     const id = (await placeOrder({ token: customer, body: { type: 'pickup', store_id: 2, items, customer_address: '1 Customer St, Makati' } })).body.order.id;
     await api(`/jobs/${id}/accept`, { token: driver, method: 'POST' });
     await api(`/jobs/${id}/status`, { token: driver, body: { status: 'picked_up' } });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { requireAuth, requireRole } from '../lib/auth';
 import { driverVehicle } from '../lib/fees';
+import { requireVerifiedDriver } from '../lib/verified';
 import { fail, parseBody, parseId } from '../lib/http';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { pickupChanged } from '../lib/pickup-live';
@@ -38,6 +39,7 @@ jobs.post('/:id/accept', async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
   const driverId = c.get('user').id;
+  await requireVerifiedDriver(db, driverId);
   const vehicle = await driverVehicle(db, driverId);
   const job = await db.prepare('SELECT vehicle_type FROM transactions_pickup WHERE id = ?').bind(id).first<{ vehicle_type: number }>();
   if (!job) fail(404, 'Job not found');

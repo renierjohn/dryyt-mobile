@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { api, placeOrder as postOrder, registerUser } from './helpers';
+import { api, placeOrder as postOrder, registerUser, registerVerifiedDriver } from './helpers';
 
 let customer: string;
 let driver: string;
@@ -9,8 +9,8 @@ let driver2: string;
 
 beforeEach(async () => {
   customer = (await registerUser('customer')).token;
-  driver = (await registerUser('driver')).token;
-  driver2 = (await registerUser('driver')).token;
+  driver = (await registerVerifiedDriver()).token;
+  driver2 = (await registerVerifiedDriver()).token;
 });
 
 async function placeOrder(): Promise<number> {
@@ -25,6 +25,14 @@ const accept = (id: number, token: string) => api(`/jobs/${id}/accept`, { token,
 const advance = (id: number, token: string, status: string) => api(`/jobs/${id}/status`, { token, body: { status } });
 
 describe('jobs', () => {
+  it('an unverified driver cannot accept a job', async () => {
+    const id = await placeOrder();
+    const unverified = (await registerUser('driver')).token;
+    const res = await api(`/jobs/${id}/accept`, { token: unverified, method: 'POST' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Get verified/);
+  });
+
   it('lists pending orders for drivers only', async () => {
     const id = await placeOrder();
     const res = await api('/jobs/available', { token: driver });

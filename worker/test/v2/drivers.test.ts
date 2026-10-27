@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { api, placeOrder, registerUser } from '../helpers';
+import { api, placeOrder, registerUser, registerVerifiedDriver } from '../helpers';
 import { acceptedDropoff } from './helpers';
 import { closeAll } from './socket';
 
@@ -20,10 +20,28 @@ async function pickupOrder() {
 
 describe('drivers', () => {
   it('toggles online and reports no job', async () => {
-    const driver = await registerUser('driver');
-    expect((await api('/drivers/me', { token: driver.token })).body).toEqual({ driver: { online: false, busy: false, pickup_online: false, pickup_job_id: null }, job: null });
+    const driver = await registerVerifiedDriver();
+    expect((await api('/drivers/me', { token: driver.token })).body).toEqual({
+      driver: { online: false, busy: false, pickup_online: false, pickup_job_id: null, verified: true },
+      job: null,
+    });
     expect((await api('/drivers/me/online', { token: driver.token, body: { online: true } })).body).toEqual({ online: true });
     expect((await api('/drivers/me', { token: driver.token })).body.driver.online).toBe(true);
+  });
+
+  it("an unverified driver can't go online for drop offs or pickups, but can always go offline", async () => {
+    const driver = await registerUser('driver');
+    for (const path of ['/drivers/me/online', '/drivers/me/pickup-online']) {
+      const res = await api(path, { token: driver.token, body: { online: true } });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Get verified/);
+      expect((await api(path, { token: driver.token, body: { online: false } })).status).toBe(200);
+    }
+    // Online from before (or the badge was taken away): reported offline, and kept out of dispatch.
+    await env.DB.prepare('UPDATE drivers SET online = 1, pickup_online = 1 WHERE user_id = ?').bind(driver.user.id).run();
+    expect((await api('/drivers/me', { token: driver.token })).body.driver).toMatchObject({ online: false, pickup_online: false, verified: false });
+    expect((await api('/ws/ticket', { token: driver.token, body: { room: 'dispatch' } })).status).toBe(403);
+    expect((await api('/ws/ticket', { token: driver.token, body: { room: 'pickups' } })).status).toBe(403);
   });
 
   it('reports the active drop off with the fee split', async () => {
@@ -53,7 +71,7 @@ describe('drivers', () => {
   });
 
   it('marks v1 drivers busy until delivered or released', async () => {
-    const driver = await registerUser('driver');
+    const driver = await registerVerifiedDriver();
     const first = await pickupOrder();
     await api(`/jobs/${first}/accept`, { token: driver.token, method: 'POST' });
     expect(await busyOf(driver.user.id)).toBe(1);

@@ -26,8 +26,10 @@ export default function AvailableJobs() {
   const live = useRef(false);
   const me = useDriverMe(() => dispatchLive.current || live.current);
   const setPickupOnline = useSetPickupOnline();
+  // Unverified drivers can't go online or accept jobs (the server refuses too). Unknown until /drivers/me answers.
+  const verified = me.data?.driver.verified ?? false;
   // The requested value while saving.
-  const pickupOnline = PICKUP_ENABLED && (setPickupOnline.isPending ? setPickupOnline.variables : (me.data?.driver.pickup_online ?? false));
+  const pickupOnline = PICKUP_ENABLED && verified && (setPickupOnline.isPending ? setPickupOnline.variables : (me.data?.driver.pickup_online ?? false));
   const jobs = useAvailableJobs(pickupOnline, () => live.current);
   // Online for pickup: the job board pushes every change instead of polling.
   const { connected } = useSocket(pickupOnline && me.data?.driver.pickup_online ? 'pickups' : null, (msg) => {
@@ -41,7 +43,7 @@ export default function AvailableJobs() {
   const setOnline = useSetOnline();
   const saved = useSavedOnline();
   // Server value once it answers, the phone's saved copy before that; the requested value while saving.
-  const online = setOnline.isPending ? setOnline.variables : (me.data?.driver.online ?? saved.data ?? false);
+  const online = verified && (setOnline.isPending ? setOnline.variables : (me.data?.driver.online ?? saved.data ?? false));
   const job = me.data?.job ?? null;
   const onDropoff = job !== null && job.status !== 'dropped_off';
   const onPickup = (me.data?.driver.pickup_job_id ?? null) !== null;
@@ -50,15 +52,25 @@ export default function AvailableJobs() {
   return (
     <Screen onRefresh={() => Promise.all([me.refetch(), pickupOnline && jobs.refetch()])}>
       <ThemedText type="subtitle">Available jobs</ThemedText>
+      {me.data && !verified && (
+        <Card>
+          <ThemedText type="smallBold">Get verified to take jobs</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Add your face photo, license, plate number and vehicle in Profile. You can go online once an admin verifies you.
+          </ThemedText>
+          <Button title="Open Profile" variant="secondary" onPress={() => router.navigate('/driver/profile')} />
+        </Card>
+      )}
       <Card>
         <View style={styles.row}>
           <ThemedText type="smallBold">Online for drop offs</ThemedText>
-          <Switch value={online} disabled={setOnline.isPending} onValueChange={(v) => setOnline.mutate(v)} />
+          <Switch value={online} disabled={!verified || setOnline.isPending} onValueChange={(v) => (verified ? setOnline.mutate(v) : undefined)} />
         </View>
         <ThemedText type="small" themeColor="textSecondary">
           Keep Dryyt open while online so customers can see you.
         </ThemedText>
       </Card>
+      <ErrorText error={setOnline.error} />
       {online && !onPickup && (!job || job.status === 'driver_accepted' || job.status === 'dropped_off') && (
         <DropoffRequests acceptedAt={job?.status === 'driver_accepted' ? job.updated_at : null} onLive={(c) => (dispatchLive.current = c)} />
       )}
@@ -71,7 +83,11 @@ export default function AvailableJobs() {
           <Card>
             <View style={styles.row}>
               <ThemedText type="smallBold">Online for Pickup</ThemedText>
-              <Switch value={pickupOnline} disabled={setPickupOnline.isPending} onValueChange={(v) => setPickupOnline.mutate(v)} />
+              <Switch
+                value={pickupOnline}
+                disabled={!verified || setPickupOnline.isPending}
+                onValueChange={(v) => (verified ? setPickupOnline.mutate(v) : undefined)}
+              />
             </View>
             <ThemedText type="small" themeColor="textSecondary">
               New pickup jobs appear here as soon as customers place them.
@@ -92,7 +108,7 @@ export default function AvailableJobs() {
               <OrderSummary order={job} showFees youEarn />
               <Button
                 title="Accept job"
-                disabled={busy}
+                disabled={busy || !verified}
                 loading={accept.isPending && accept.variables === job.id}
                 onPress={() => accept.mutate(job.id, { onSuccess: () => router.navigate('/driver/active') })}
               />

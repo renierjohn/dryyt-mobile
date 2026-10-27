@@ -164,7 +164,11 @@ export type DispatchRequest = {
 export type NearbyDriver = { lat: number; lng: number; colour: DistanceColour };
 
 /** `online`: for drop offs; `pickup_online`: for pickup jobs; `pickup_job_id`: the pickup order they're on, if any. */
-export type DriverMe = { driver: { online: boolean; busy: boolean; pickup_online: boolean; pickup_job_id: number | null }; job: Dropoff | null };
+export type DriverMe = {
+  /** `verified`: the driver has the verified badge; without it they can't go online or accept jobs. */
+  driver: { online: boolean; busy: boolean; pickup_online: boolean; pickup_job_id: number | null; verified: boolean };
+  job: Dropoff | null;
+};
 
 /** `verified` is set by a developer only. */
 export type DriverVerification = {

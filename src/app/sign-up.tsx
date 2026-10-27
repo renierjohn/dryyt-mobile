@@ -21,6 +21,9 @@ export default function SignUp() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  // Shown once the second field has something in it, so it doesn't nag while the first is still being typed.
+  const mismatch = confirm !== '' && confirm !== password;
   const register = useMutation({
     mutationFn: () => api<Session>('/auth/register', { body: { role, name, phone, email, password } }),
     onSuccess: signIn,
@@ -44,8 +47,15 @@ export default function SignUp() {
       <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" />
       <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
       <TextField label="Password (8+ characters)" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
+      <TextField label="Confirm password" value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" />
+      {mismatch && <ErrorText error={new Error('Passwords do not match')} />}
       <ErrorText error={register.error} />
-      <Button title="Create account" onPress={() => register.mutate()} loading={register.isPending} />
+      <Button
+        title="Create account"
+        onPress={() => register.mutate()}
+        loading={register.isPending}
+        disabled={password === '' || confirm !== password}
+      />
       <Link href="/sign-in">
         <ThemedText type="linkPrimary">Already have an account? Sign in</ThemedText>
       </Link>

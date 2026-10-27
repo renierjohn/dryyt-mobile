@@ -331,12 +331,13 @@
     <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /stores?type=laundry</code></span></td>
     <td><span class="t r"><b>R</b>stores</span></td><td>—</td></tr>
 
-  <tr><td class="n">2</td><td>Customer</td><td>Set pin, request a driver. Worker gets road km (OSRM, else OpenRouteService, else straight line × 1.3 — booking never fails on routing), prices it from <code>rates</code>, hands the request to Dispatch, pushes idle drivers.</td>
+  <tr><td class="n">2</td><td>Customer</td><td>Set pin, tap Find a driver (a guest is sent to Sign in first). Worker gets road km (OSRM, else OpenRouteService, else straight line × 1.3 — booking never fails on routing) and prices every vehicle the area has a <code>rates</code> row for; the app lists each with its icon, base fare and fee and locks the pin. The customer picks one and taps Proceed: the drop off is booked at that vehicle's fee (from the signed 15 min quote <code>token</code>, else priced again) with its <code>vehicle_type</code>, handed to Dispatch, and idle drivers with that vehicle are pushed.</td>
     <td class="stack">
-      <span><span class="p https">HTTPS</span> <code>POST /dropoffs</code></span>
+      <span><span class="p https">HTTPS</span> <code>POST /dropoffs/quote</code></span>
+      <span><span class="p https">HTTPS</span> <code>POST /dropoffs</code> <code>{vehicle_type, quote_token}</code></span>
       <span><span class="p https">HTTPS</span> OSRM <code>/route</code> → ORS <code>/v2/directions</code></span>
       <span><span class="p rpc">RPC</span> <code>Dispatch.newRequest</code></span>
-      <span><span class="p push">PUSH</span> online, not-busy drivers without a socket (channel <code>new-dropoff</code>, Dryyt chime)</span></td>
+      <span><span class="p push">PUSH</span> verified, online, not-busy drivers with that vehicle and no socket (channel <code>new-dropoff</code>, Dryyt chime)</span></td>
     <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>rates</span><span class="t r"><b>R</b>driver_blocks</span><span class="t w"><b>W</b>transactions</span><span class="t r"><b>R</b>drivers</span><span class="t r"><b>R</b>users.push_token</span></td>
     <td><code>searching</code></td></tr>
 
@@ -347,7 +348,7 @@
       <span><span class="p wss">WSS</span> ← <code>drivers</code></span></td>
     <td><span class="t w"><b>W</b>ws_tickets</span> (insert, then consumed)</td><td>—</td></tr>
 
-  <tr><td class="n">4</td><td>Driver</td><td>Go online, open dispatch socket, stream location</td>
+  <tr><td class="n">4</td><td>Driver</td><td>Go online (verified drivers only: 403 otherwise, and the app greys the switch and points to Profile), open dispatch socket (ticket refused unless verified), stream location. The socket carries the driver's vehicle; they only see requests booked for it.</td>
     <td class="stack">
       <span><span class="p https">HTTPS</span> <code>POST /drivers/me/online</code></span>
       <span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span>
@@ -474,13 +475,13 @@
   <tr><td class="n">1</td><td>Customer</td><td>Browse stores and menu</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>GET /stores?type=</code></span><span><span class="p https">HTTPS</span> <code>GET /stores/:id</code></span></td>
     <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>store_menu_items</span></td><td>—</td></tr>
-  <tr><td class="n">2</td><td>Customer</td><td>Delivery fee for a pinned spot: road km × the store group's <code>rates</code>, same as a drop off (typed address only → flat <code>DELIVERY_FEE</code>). Returns a signed <code>token</code> (15 min) for that store and pin</td>
+  <tr><td class="n">2</td><td>Customer</td><td>Compute Delivery Fee for a pinned spot (a laundry guest is sent to Sign in first; food guests at the cart): road km × each vehicle's <code>rates</code> row for the store's area, same as a drop off (typed address only → flat <code>DELIVERY_FEE</code>). Returns <code>options</code> (vehicle, base fare, fee) and a signed <code>token</code> (15 min) for that store and pin; the customer picks a vehicle and taps Proceed</td>
     <td><span class="p https">HTTPS</span> <code>POST /orders/quote</code></td>
     <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>rates</span></td><td>—</td></tr>
   <tr><td class="n">3</td><td>Customer</td><td>Food: pay to the store's payment QR, upload a photo of the payment (optional if a reference number is given)</td>
     <td><span class="p https">HTTPS</span> <code>POST /orders/payment-photo</code> → <span class="p r2">R2</span> put <code>payments/&lt;user&gt;/…</code></td>
     <td>—</td><td>—</td></tr>
-  <tr><td class="n">4</td><td>Customer</td><td>Create the order. Items priced server-side (discounts applied). Food needs items and a reference number or photo; laundry has no items (cash on delivery). With the step 2 <code>quote_token</code> for the same store and pin, the quoted fee is reused (no routing call); otherwise priced again. Fees, R2 photo check and item prices run in parallel. Food: owner pushed; the customer joins the order room and <code>OrderRoom.awaitPayment</code> starts the payment alarms (owner reminded every 1 min, 10 times; auto-accept at 11 min). Laundry: straight to the board.</td>
+  <tr><td class="n">4</td><td>Customer</td><td>Create the order. Items priced server-side (discounts applied). Food needs items and a reference number or photo; laundry has no items (cash on delivery). Carries the chosen <code>vehicle_type</code>. With the step 2 <code>quote_token</code> for the same store and pin, that vehicle's quoted fee is reused (no routing call); otherwise priced again. Fees, R2 photo check and item prices run in parallel. Food: owner pushed; the customer joins the order room and <code>OrderRoom.awaitPayment</code> starts the payment alarms (owner reminded every 1 min, 10 times; auto-accept at 11 min). Laundry: straight to the board.</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /orders</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.awaitPayment</code> (food)</span><span><span class="p push">PUSH</span> owner "New order" (food, channel <code>owner-order-v2</code>)</span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code> (laundry)</span></td>
     <td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>store_menu_items</span><span class="t r"><b>R</b>rates</span><span class="t w"><b>W</b>orders</span><span class="t w"><b>W</b>order_items</span></td><td>food <code>awaiting_payment</code><br>laundry <code>pending</code></td></tr>
   <tr><td class="n">5</td><td>Owner</td><td>See orders and the payment proof (Orders tab)</td>
@@ -492,10 +493,10 @@
   <tr><td class="n">7</td><td>Customer</td><td>Place order: releases it to drivers (the customer is already in the order room)</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /orders/:id/place</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
     <td><span class="t w"><b>W</b>orders</span></td><td><code>pending</code></td></tr>
-  <tr><td class="n">8</td><td>Driver</td><td>Go Online for Pickup and join the live board: pending jobs on connect and on every change (customer phone hidden; new-job sound)</td>
+  <tr><td class="n">8</td><td>Driver</td><td>Go Online for Pickup (verified drivers only) and join the live board: pending jobs booked for the driver's vehicle, on connect and on every change (customer phone hidden; new-job sound)</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /drivers/me/pickup-online</code></span><span><span class="p https">HTTPS</span> <code>POST /ws/ticket</code></span><span><span class="p wss">WSS</span> <code>/ws/pickups</code> → <code>jobs</code></span></td>
     <td><span class="t w"><b>W</b>drivers.pickup_online</span><span class="t r"><b>R</b>orders</span><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>users</span></td><td>—</td></tr>
-  <tr><td class="n">9</td><td>Driver</td><td>Accept (one active job across Pickup + Drop off); the driver joins the order room</td>
+  <tr><td class="n">9</td><td>Driver</td><td>Accept (verified only, the job's vehicle must match the driver's: 403 / 409 otherwise; one active job across Pickup + Drop off); the driver joins the order room</td>
     <td class="stack"><span><span class="p https">HTTPS</span> <code>POST /jobs/:id/accept</code></span><span><span class="p rpc">RPC</span> <code>PickupBoard.refresh</code></span><span><span class="p rpc">RPC</span> <code>OrderRoom.update</code> → <span class="p wss">WSS</span> <code>order</code></span></td>
     <td><span class="t w"><b>W</b>drivers.busy=1</span><span class="t w"><b>W</b>orders.driver_id</span></td><td><code>accepted</code></td></tr>
   <tr><td class="n">10</td><td>Driver</td><td>Picked up at store → delivered to customer. While <code>picked_up</code> the driver sends <code>loc</code> (≤ 1 per 2 s): relayed to the customer's map and kept in the room; saved on the order at most every 30 s (for <code>GET /orders/:id</code> after a reload). Delivered frees the driver, counts the items into <code>popularity</code>, and closes the room.</td>
@@ -520,6 +521,7 @@
 <table>
   <tr><th>Step</th><th>Protocol · route</th><th>Tables</th></tr>
   <tr><td>Register (drivers also get a <code>drivers</code> row)</td><td><span class="p https">HTTPS</span> <code>POST /auth/register</code></td><td><span class="t w"><b>W</b>users</span><span class="t w"><b>W</b>drivers</span></td></tr>
+  <tr><td>Guest (not signed in): opens the customer Home with Home + Login tabs (no Orders, Profile, recent orders or push). <code>GET /stores</code>, <code>/stores/:id</code> and <code>/menu/popular</code> are public. Cart, Find a driver and Compute Delivery Fee send them to Sign in, then back to the same screen.</td><td><span class="p https">HTTPS</span> <code>GET /stores</code> · <code>/menu/popular</code></td><td><span class="t r"><b>R</b>stores</span><span class="t r"><b>R</b>store_menu_items</span></td></tr>
   <tr><td>Login → JWT</td><td><span class="p https">HTTPS</span> <code>POST /auth/login</code></td><td><span class="t r"><b>R</b>users</span></td></tr>
   <tr><td>Current user</td><td><span class="p https">HTTPS</span> <code>GET /me</code></td><td><span class="t r"><b>R</b>users</span></td></tr>
   <tr><td>Save Expo push token (on every tab-layout mount). One phone = one token: it's removed from any other account in the same batch. Logged as <code>[push-token] received</code> / <code>rejected</code> / <code>saved {updated, takenFromOthers}</code>.</td><td><span class="p https">HTTPS</span> <code>POST /me/push-token</code></td><td><span class="t w"><b>W</b>users.push_token</span></td></tr>
@@ -574,22 +576,22 @@
   <tr><td><code>users</code></td><td>All accounts. <code>role</code> ∈ customer | driver | owner. <code>push_token</code> = Expo push token of the phone the user last signed in on; never shared between accounts, cleared on sign out.</td></tr>
   <tr><td><code>stores</code></td><td>Shops (<code>type</code> food | laundry). <code>owner_id</code> → owner user, <code>lat/lng</code> for routing, <code>group_id</code> → pricing in <code>rates</code>.</td></tr>
   <tr><td><code>store_menu_items</code></td><td>Items/prices per store (Pickup): <code>discount_percent</code>, <code>image_url</code>, <code>popularity</code> (items delivered).</td></tr>
-  <tr><td><code>drivers</code></td><td>Live driver state, 1:1 with driver user: <code>online</code> (drop offs), <code>pickup_online</code> (pickup board), <code>busy</code>, last <code>lat/lng</code>, <code>group_id</code>.</td></tr>
-  <tr><td><code>driver_data</code></td><td>Driver profile, 1:1 with a driver user (triggers reject non-drivers): <code>photo_face</code>, <code>photo_id</code> (R2 keys), <code>notes</code> (license plate), <code>status</code> 0|1 (1 = verified, set by developer script only; locks photos and plate), <code>earnings</code> (centavos, += <code>delivery_fee</code> on owner confirm). Migrations 0006, 0007.</td></tr>
+  <tr><td><code>drivers</code></td><td>Live driver state, 1:1 with driver user: <code>online</code> (drop offs), <code>pickup_online</code> (pickup board), <code>busy</code>, last <code>lat/lng</code>, <code>group_id</code>. Online only counts while <code>driver_data.status = 1</code>; <code>GET /drivers/me</code> reports <code>verified</code>.</td></tr>
+  <tr><td><code>driver_data</code></td><td>Driver profile, 1:1 with a driver user (triggers reject non-drivers): <code>photo_face</code>, <code>photo_id</code> (R2 keys), <code>notes</code> (license plate), <code>status</code> 0|1 (1 = verified, set by developer script or cpanel; locks photos and plate; needed to go online and accept jobs), <code>vehicle_type</code>, <code>earnings</code> (centavos, += <code>delivery_fee</code> on owner confirm). Migrations 0006, 0007.</td></tr>
 </table>
 
 <h3 id="tables-pickup">Pickup</h3>
 <table>
   <tr><th>Table</th><th>Purpose</th></tr>
-  <tr><td><code>orders</code></td><td>Pickup order. <code>items_total</code>; <code>delivery_fee</code> = what the customer pays for delivery, <code>service_fee</code> = the app's cut (0 for flat-fee orders; the driver's share is the difference). <code>payment_ref</code>, <code>payment_photo_key</code> (R2 <code>payments/…</code>, food). <code>customer_lat/lng</code> (pinned spot), <code>driver_lat/lng</code>, <code>driver_loc_at</code> (last location while <code>picked_up</code>). <code>driver_paid_at</code> (owner paid the driver). Migrations 0014–0018. Unique index: one active job per driver.</td></tr>
+  <tr><td><code>orders</code></td><td>Pickup order. <code>items_total</code>; <code>delivery_fee</code> = what the customer pays for delivery, <code>service_fee</code> = the app's cut (0 for flat-fee orders; the driver's share is the difference). <code>payment_ref</code>, <code>payment_photo_key</code> (R2 <code>payments/…</code>, food). <code>customer_lat/lng</code> (pinned spot), <code>driver_lat/lng</code>, <code>driver_loc_at</code> (last location while <code>picked_up</code>). <code>driver_paid_at</code> (owner paid the driver). <code>vehicle_type</code> = vehicle the customer chose (0032). Migrations 0014–0018, 0032. Unique index: one active job per driver.</td></tr>
   <tr><td><code>order_items</code></td><td>Line items, <code>name</code>/<code>price</code> snapshotted at order time.</td></tr>
 </table>
 
 <h3 id="tables-dropoff">Drop off</h3>
 <table>
   <tr><th>Table</th><th>Purpose</th></tr>
-  <tr><td><code>rates</code></td><td>Pricing per <code>group_id</code>: <code>base_fee</code>, <code>rate_per_km</code>, <code>commission_pct</code>.</td></tr>
-  <tr><td><code>transactions</code></td><td>A drop-off job. <code>room_id</code> = Trip room. Customer + shop coords, <code>road_km</code>. Fees: <code>delivery_fee</code> (driver), <code>service_fee</code> (developer), <code>total_delivery_fee</code> (customer sees only this), <code>laundry_fee</code>. Unique indexes: one active job per driver and per customer.</td></tr>
+  <tr><td><code>rates</code></td><td>Pricing per <code>group_id</code>, service (<code>type</code> pickup | dropoff) and vehicle (<code>category</code> 1 bicycle · 2 motorcycle · 3 tricycle · 4 car): <code>base_fee</code>, <code>rate_per_km</code>, <code>commission_pct</code>. Quotes list one option per vehicle the area has a rate for.</td></tr>
+  <tr><td><code>transactions</code></td><td>A drop-off job. <code>room_id</code> = Trip room. Customer + shop coords, <code>road_km</code>. Fees: <code>delivery_fee</code> (driver), <code>service_fee</code> (developer), <code>total_delivery_fee</code> (customer sees only this), <code>laundry_fee</code>. <code>vehicle_type</code> = vehicle the customer chose (0032). Unique indexes: one active job per driver and per customer.</td></tr>
   <tr><td><code>owner_transactions</code></td><td>Owner intake: <code>weight_kg</code>, <code>laundry_fee</code>, <code>notes</code>, <code>proof_photo_key</code> (R2). Status pending | ok.</td></tr>
   <tr><td><code>payouts</code></td><td>Owed by the store after confirm: one <code>driver</code> + one <code>developer</code> row. Status pending | paid.</td></tr>
   <tr><td><code>driver_blocks</code></td><td>Drivers a store blocked; dispatch skips them.</td></tr>
@@ -718,12 +720,12 @@
 <table>
   <tr><th>Rule</th><th>Where</th><th>Detail</th></tr>
   <tr><td>Candidate search</td><td><code>Dispatch.nearbyDrivers</code></td><td>Geohash precision-5 cells (~5 km), 11×11 cells around the customer, then exact haversine ≤ 20 km. Result sorted nearest first.</td></tr>
-  <tr><td>Eligibility</td><td><code>nearbyDrivers</code>, <code>driversFor</code>, <code>requestsFor</code></td><td>Socket connected to Dispatch, location &lt; 30 s old, not holding another request, not in the shop's <code>driver_blocks</code>, not in a reject cooldown for this customer (<code>Dispatch.excluded</code>). Online toggle + not <code>busy</code> is enforced when connecting / accepting.</td></tr>
+  <tr><td>Eligibility</td><td><code>nearbyDrivers</code>, <code>driversFor</code>, <code>requestsFor</code></td><td>Socket connected to Dispatch, location &lt; 30 s old, not holding another request, not in the shop's <code>driver_blocks</code>, not in a reject cooldown for this customer, driver's vehicle = the request's <code>vehicle_type</code> (<code>Dispatch.excluded</code>; no vehicle set counts as motorcycle). Verified + online toggle + not <code>busy</code> is enforced when connecting / accepting.</td></tr>
   <tr><td>Driver's list order</td><td><code>requestsFor</code></td><td>All searching requests within 20 km, sorted by <code>distance_km</code> ascending, each tagged green/amber.</td></tr>
   <tr><td>Customer's view</td><td><code>driversFor</code></td><td>Positions + colour only (no names) for eligible drivers within 20 km.</td></tr>
   <tr><td>Accept guard</td><td><code>Dispatch.accept</code></td><td>Rejected as <code>taken</code> if the driver is &gt; 20 km away, blocked or cooling down, or the request isn't searching; error if the driver has no location yet.</td></tr>
-  <tr><td>App closed</td><td><code>pushIdleDrivers</code></td><td>Online, not-busy drivers with a push token and no socket get a push if their last D1 location is ≤ 20 km away, or unknown.</td></tr>
-  <tr><td>Fee</td><td><code>computeFees</code></td><td>Uses <b>road</b> km customer → shop (OSRM → OpenRouteService → straight line × 1.3), not the driver's distance. Every driver sees the same fee for a request.</td></tr>
+  <tr><td>App closed</td><td><code>pushIdleDrivers</code></td><td>Verified, online, not-busy drivers with the request's vehicle, a push token and no socket get a push if their last D1 location is ≤ 20 km away, or unknown.</td></tr>
+  <tr><td>Fee</td><td><code>computeFees</code></td><td>Uses <b>road</b> km customer → shop (OSRM → OpenRouteService → straight line × 1.3) and the rate of the vehicle the customer chose, not the driver's distance. Every driver (all with that vehicle) sees the same fee for a request.</td></tr>
 </table>
 
 <!-- ---------------------------------------------------------------- -->

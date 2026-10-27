@@ -214,12 +214,14 @@
     <table>
       <tr><th>Endpoint</th><th>Who</th><th>Rule</th></tr>
       <tr><td><code>POST /auth/register</code> · <code>/auth/login</code></td><td>anyone</td><td>Email + password (PBKDF2), returns 30-day JWT</td></tr>
-      <tr><td><code>GET /stores</code> · <code>/stores/:id</code></td><td>signed in</td><td>Store list / menu</td></tr>
+      <tr><td><code>GET /stores</code> · <code>/stores/:id</code> · <code>/menu/popular</code></td><td>anyone</td><td>Store list / menu; public so guests can browse Home before signing in</td></tr>
+      <tr><td><code>POST /orders/quote</code> · <code>/dropoffs/quote</code></td><td>customer</td><td>One fee per vehicle the area has a rate for (base fare + fee), signed 15 min token</td></tr>
       <tr><td><code>POST /orders</code></td><td>customer</td><td>Food needs ≥1 item; drop off must target laundry</td></tr>
       <tr><td><code>GET /orders</code> · <code>/orders/:id</code></td><td>owner / driver</td><td>Others' orders → 403</td></tr>
       <tr><td><code>POST /orders/:id/cancel</code></td><td>owner</td><td>Only while pending, else 409</td></tr>
-      <tr><td><code>GET /jobs/available</code></td><td>driver</td><td>Pending orders, customer phone hidden</td></tr>
-      <tr><td><code>POST /jobs/:id/accept</code></td><td>driver</td><td>Atomic; 409 if taken or driver busy</td></tr>
+      <tr><td><code>GET /jobs/available</code></td><td>driver</td><td>Pending orders booked for the driver's vehicle, customer phone hidden</td></tr>
+      <tr><td><code>POST /jobs/:id/accept</code></td><td>verified driver</td><td>Atomic; 403 if not verified; 409 if taken, driver busy or another vehicle</td></tr>
+      <tr><td><code>POST /drivers/me/online</code> · <code>/pickup-online</code></td><td>verified driver</td><td>Going online 403 until verified; going offline always allowed</td></tr>
       <tr><td><code>POST /jobs/:id/release</code></td><td>assigned driver</td><td>accepted → pending</td></tr>
       <tr><td><code>POST /jobs/:id/status</code></td><td>assigned driver</td><td>accepted → picked_up → delivered only</td></tr>
       <tr><td><code>GET /jobs/active</code> · <code>/jobs/history</code></td><td>driver</td><td>Current job / delivered jobs</td></tr>

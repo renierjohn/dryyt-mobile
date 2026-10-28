@@ -70,6 +70,7 @@
     "test:watch": "jest --watch",
     "check": "expo lint && tsc --noEmit && npx expo-doctor && expo config --type prebuild > /dev/null",
     "verify": "expo lint && tsc --noEmit && expo install --check && npx expo-doctor && expo config --type prebuild > /dev/null && expo export -p android --output-dir .expo/export-check > /dev/null",
+    "verify-files": "rm -rf /tmp/eas-archive && bunx eas-cli build:inspect --profile development --platform android --stage archive --output /tmp/eas-archive",
     "e2e": "maestro test .maestro",
     "build:dev": "eas build --profile development --platform android",
     "build:preview": "eas build --profile preview --platform android",

@@ -59,7 +59,8 @@ export function Button({ title, onPress, variant = 'primary', icon, leading, ico
             </View>
           )}
           {!iconOnly && (
-            <ThemedText type="smallBold" style={{ color: look.color }} numberOfLines={1}>
+            // Two lines, not one: Android can measure bold text a little short, which cut the end off long titles.
+            <ThemedText type="smallBold" style={[styles.title, { color: look.color }]} numberOfLines={2}>
               {title}
             </ThemedText>
           )}
@@ -78,6 +79,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, maxWidth: '100%' },
+  title: { flexShrink: 1, textAlign: 'center' },
   iconOnly: { paddingHorizontal: Spacing.one },
 });

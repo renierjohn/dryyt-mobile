@@ -77,7 +77,10 @@
     "build:dev": "eas build --profile development --platform android",
     "build:preview": "eas build --profile preview --platform android",
     "build:prod": "eas build --profile production --platform android",
-    "apk-server": "bun scripts/apk-server.ts"
+    "gradle:dev": "cd android && ./gradlew assembleDebug",
+    "gradle:preview": "cd android && ./gradlew assembleRelease",
+    "gradle:release": "cd android && EXPO_PUBLIC_API_URL=https://dryyt.com ./gradlew bundleRelease",
+    "apk-server":"bun scripts/apk-server.ts"
   },
   "private": true,
   "packageManager": "bun@1.4.3",

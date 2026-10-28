@@ -51,6 +51,33 @@ describe('auth', () => {
     expect(res.body.user).toMatchObject({ id: user.id, role: 'driver' });
   });
 
+  it('changes my email and phone from PATCH /me, then signs in with the new email', async () => {
+    const { token, user } = await registerUser('customer');
+    const res = await api('/me', { method: 'PATCH', token, body: { email: ' New.Me@Test.com ', phone: ' 09998887777 ' } });
+    expect(res).toEqual({ status: 200, body: { user: { ...user, email: 'new.me@test.com', phone: '09998887777' } } });
+    expect((await api('/me', { token })).body.user).toMatchObject({ email: 'new.me@test.com', phone: '09998887777' });
+    expect((await api('/auth/login', { body: { email: 'new.me@test.com', password: 'password123' } })).status).toBe(200);
+  });
+
+  it("won't take another account's email, but keeps my own", async () => {
+    const other = await registerUser('customer');
+    const { token, user } = await registerUser('customer');
+    const otherEmail = (await api('/me', { token: other.token })).body.user.email;
+    expect(await api('/me', { method: 'PATCH', token, body: { email: otherEmail, phone: user.phone } })).toEqual({
+      status: 409,
+      body: { error: 'Email is already registered' },
+    });
+    const mine = (await api('/me', { token })).body.user.email;
+    expect((await api('/me', { method: 'PATCH', token, body: { email: mine, phone: '09170000000' } })).status).toBe(200);
+  });
+
+  it('rejects a bad email or phone, and a guest', async () => {
+    const { token, user } = await registerUser('customer');
+    expect((await api('/me', { method: 'PATCH', token, body: { email: 'nope', phone: user.phone } })).status).toBe(400);
+    expect((await api('/me', { method: 'PATCH', token, body: { email: 'a@test.com', phone: '123' } })).status).toBe(400);
+    expect((await api('/me', { method: 'PATCH', body: { email: 'a@test.com', phone: user.phone } })).status).toBe(401);
+  });
+
   it('rejects missing or invalid tokens', async () => {
     expect(await api('/me')).toEqual({ status: 401, body: { error: 'Not signed in' } });
     const res = await api('/me', { token: 'garbage' });

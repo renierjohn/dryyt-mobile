@@ -7,13 +7,14 @@ import { verifyFirebaseToken } from '../lib/firebase';
 import { hashPassword, verifyPassword } from '../lib/password';
 import type { AppEnv, User } from '../types';
 
-const email = z.string().trim().toLowerCase().email('Enter a valid email');
+export const email = z.string().trim().toLowerCase().email('Enter a valid email');
+export const phone = z.string().trim().min(7, 'Phone is required');
 
 const registerSchema = z.object({
   email,
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().trim().min(1, 'Name is required'),
-  phone: z.string().trim().min(7, 'Phone is required'),
+  phone,
   role: z.enum(['customer', 'driver', 'owner']),
 });
 

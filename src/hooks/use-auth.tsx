@@ -13,6 +13,8 @@ type AuthContextValue = {
   state: AuthState;
   signIn: (session: Session) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Saves edited account details (same token) so they survive a restart. */
+  updateUser: (user: User) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -38,6 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'signedOut' });
   }, []);
 
+  const updateUser = useCallback(async (user: User) => {
+    const session = await loadSession();
+    if (session) await saveSession({ ...session, user });
+    setState({ status: 'signedIn', user });
+  }, []);
+
   useEffect(() => {
     setUnauthorizedHandler(() => void signOut());
     loadSession()
@@ -53,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [signOut]);
 
-  return <AuthContext value={{ state, signIn, signOut }}>{children}</AuthContext>;
+  return <AuthContext value={{ state, signIn, signOut, updateUser }}>{children}</AuthContext>;
 }
 
 /**

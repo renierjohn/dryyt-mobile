@@ -1,15 +1,21 @@
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { ErrorText } from '@/components/error-text';
 import { DriverVerification, VerifiedBadge } from '@/components/driver/driver-verification';
 import { OwnerStores } from '@/components/owner-stores';
 import { Screen } from '@/components/screen';
+import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useDriverVerification } from '@/hooks/queries';
 import { useAuth } from '@/hooks/use-auth';
+import { api } from '@/lib/api';
+import type { User } from '@/lib/types';
 import { vehicleLabel } from '@/lib/vehicles';
 
 export function ProfileScreen() {
@@ -17,6 +23,7 @@ export function ProfileScreen() {
   if (state.status !== 'signedIn') return null;
   const { user } = state;
   const driver = user.role === 'driver';
+  const [editing, setEditing] = useState(false);
 
   return (
     <Screen>
@@ -30,15 +37,52 @@ export function ProfileScreen() {
           <ThemedText themeColor="textSecondary">{{ customer: 'Customer', driver: 'Driver', owner: 'Shop owner' }[user.role]}</ThemedText>
         </View>
       </View>
-      <Card>
-        <InfoRow label="Email" value={user.email} />
-        <InfoRow label="Phone" value={user.phone} />
-        {driver && <VehicleRow />}
-      </Card>
+      {editing ? (
+        <ContactForm user={user} onDone={() => setEditing(false)} />
+      ) : (
+        <Card>
+          <InfoRow label="Email" value={user.email} />
+          <InfoRow label="Phone" value={user.phone} />
+          {driver && <VehicleRow />}
+          {user.role === 'customer' && (
+            <Button title="Edit email and phone" variant="secondary" icon={{ ios: 'pencil', android: 'edit', web: 'edit' }} onPress={() => setEditing(true)} />
+          )}
+        </Card>
+      )}
       {driver && <DriverVerification />}
       {user.role === 'owner' && <OwnerStores />}
       <Button title="Sign out" variant="outline" onPress={signOut} />
     </Screen>
+  );
+}
+
+/** Email and phone, saved to the account and to this phone's session. */
+function ContactForm({ user, onDone }: { user: User; onDone: () => void }) {
+  const { updateUser } = useAuth();
+  const [email, setEmail] = useState(user.email);
+  const [phone, setPhone] = useState(user.phone);
+  const save = useMutation({
+    mutationFn: () => api<{ user: User }>('/me', { method: 'PATCH', body: { email, phone } }),
+    onSuccess: async (res) => {
+      await updateUser(res.user);
+      onDone();
+    },
+  });
+
+  return (
+    <Card>
+      <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+      <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" />
+      <ErrorText error={save.error} />
+      <View style={styles.actions}>
+        <View style={styles.grow}>
+          <Button title="Cancel" variant="outline" onPress={onDone} disabled={save.isPending} />
+        </View>
+        <View style={styles.grow}>
+          <Button title="Save" onPress={() => save.mutate()} loading={save.isPending} disabled={email.trim() === '' || phone.trim() === ''} />
+        </View>
+      </View>
+    </Card>
   );
 }
 
@@ -69,4 +113,5 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
+  actions: { flexDirection: 'row', gap: Spacing.two },
 });

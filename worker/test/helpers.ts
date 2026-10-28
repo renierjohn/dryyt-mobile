@@ -1,6 +1,6 @@
 import { env, SELF } from 'cloudflare:test';
 
-type Options = { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown; token?: string };
+type Options = { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; token?: string };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function api<T = any>(path: string, opts: Options = {}) {

@@ -26,7 +26,7 @@ export const apiUrl = (path: string) => `${API_URL}${path}`;
 export const wsUrl = (path: string) => `${API_URL.replace(/^http/, 'ws')}${path}`;
 export const authHeaders = (): Record<string, string> => (authToken ? { authorization: `Bearer ${authToken}` } : {});
 
-type Options = { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown };
+type Options = { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown };
 
 export function api<T>(path: string, { method, body }: Options = {}): Promise<T> {
   return request<T>(path, {

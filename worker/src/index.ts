@@ -11,7 +11,7 @@ import { cachedPhotoResponse } from './lib/photos';
 import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
 import admin from './routes/admin';
-import auth from './routes/auth';
+import auth, { email, phone } from './routes/auth';
 import drivers from './routes/drivers';
 import history from './routes/history';
 import dropoffs from './routes/dropoffs';
@@ -57,6 +57,22 @@ app.route('/admin', admin);
 app.get('/me', requireAuth, async (c) => {
   const user = await c.env.DB.prepare('SELECT id, email, name, phone, role FROM users WHERE id = ?')
     .bind(c.get('user').id)
+    .first<User>();
+  if (!user) fail(401, 'Session expired, please sign in again');
+  return c.json({ user });
+});
+
+const contactSchema = z.object({ email, phone: phone.max(30) });
+
+/** The signed-in user changes their own email and phone. The email stays one per account, as at sign up. */
+app.patch('/me', requireAuth, async (c) => {
+  const { id } = c.get('user');
+  const input = await parseBody(c, contactSchema);
+  const db = c.env.DB;
+  const taken = await db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(input.email, id).first();
+  if (taken) fail(409, 'Email is already registered');
+  const user = await db.prepare('UPDATE users SET email = ?, phone = ? WHERE id = ? RETURNING id, email, name, phone, role')
+    .bind(input.email, input.phone, id)
     .first<User>();
   if (!user) fail(401, 'Session expired, please sign in again');
   return c.json({ user });

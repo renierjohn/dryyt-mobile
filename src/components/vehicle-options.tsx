@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
-import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
+import { VehicleBadge } from '@/components/vehicle-badge';
 import { Spacing } from '@/constants/theme';
 import type { VehicleFee } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { peso } from '@/lib/format';
-import { vehicleIcon, vehicleLabel } from '@/lib/vehicles';
+import { vehicleLabel } from '@/lib/vehicles';
 
 /**
  * One row per vehicle the area has a rate for: its base fare and the delivery fee for this trip. The customer picks
@@ -48,7 +48,7 @@ export function VehicleOptions({
               <View style={[styles.radio, { borderColor: active ? theme.primary : theme.border }]}>
                 {active && <View style={[styles.dot, { backgroundColor: theme.primary }]} />}
               </View>
-              <Icon name={vehicleIcon(o.vehicle_type)} size={28} color={active ? theme.primary : theme.textSecondary} />
+              <VehicleBadge code={o.vehicle_type} size={40} />
               <View style={styles.grow}>
                 <ThemedText type="smallBold">{vehicleLabel(o.vehicle_type)}</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">

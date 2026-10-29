@@ -44,7 +44,7 @@ const renderStore = () =>
 
 beforeEach(() => jest.clearAllMocks());
 
-it('asks for the note only after the delivery fee is computed, then sends the order to the shop', async () => {
+it('asks for the note only after the delivery fee is computed, focused, then sends the order to the shop', async () => {
   mockPin = { at: { lat: 14.56, lng: 121.03 }, fee: null, quote: {} };
   const { rerender } = await renderStore();
   expect(screen.queryByText('Note')).toBeNull();
@@ -56,6 +56,7 @@ it('asks for the note only after the delivery fee is computed, then sends the or
       <StorePage />
     </CartProvider>,
   );
+  expect(screen.getByPlaceholderText(/claim ticket/).props.autoFocus).toBe(true);
   await fireEvent.changeText(screen.getByPlaceholderText(/claim ticket/), ' 2 bags, ticket #42 ');
   await fireEvent.press(screen.getByText('Send to shop'));
   expect(mockCreate.mock.calls[0][0]).toEqual({

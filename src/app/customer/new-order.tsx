@@ -173,6 +173,8 @@ function LaundryPickup({ storeId, name, storeAddress }: { storeId: number; name:
             value={notes}
             onChangeText={setNotes}
             multiline
+            // Shown once the delivery fee is chosen: the note is the next thing to fill in.
+            autoFocus
           />
           <ThemedText type="small" themeColor="textSecondary">
             The shop sets the laundry fee next. You pay the shop before a driver is booked.

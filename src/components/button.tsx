@@ -20,11 +20,11 @@ type Props = {
   loading?: boolean;
   /** Waiting on something else first (e.g. the location): a spinner before the title, and disabled. */
   waiting?: boolean;
-  /** Square corners instead of a pill. */
-  square?: boolean;
+  /** A text field's corners instead of a pill, to sit beside one. */
+  fieldCorners?: boolean;
 };
 
-export function Button({ title, onPress, variant = 'primary', icon, leading, iconOnly = false, disabled = false, loading = false, waiting = false, square = false }: Props) {
+export function Button({ title, onPress, variant = 'primary', icon, leading, iconOnly = false, disabled = false, loading = false, waiting = false, fieldCorners = false }: Props) {
   const theme = useTheme();
   const look = {
     primary: { background: theme.primary, color: theme.onPrimary, border: theme.primary },
@@ -42,7 +42,7 @@ export function Button({ title, onPress, variant = 'primary', icon, leading, ico
       style={({ pressed }) => [
         styles.button,
         iconOnly && styles.iconOnly,
-        square && styles.square,
+        fieldCorners && styles.fieldCorners,
         {
           // Primary darkens while pressed; the lighter variants fade instead.
           backgroundColor: pressed && variant === 'primary' ? theme.primaryPressed : look.background,
@@ -85,5 +85,6 @@ const styles = StyleSheet.create({
   content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, maxWidth: '100%' },
   title: { flexShrink: 1, textAlign: 'center' },
   iconOnly: { paddingHorizontal: Spacing.one },
-  square: { borderRadius: 0 },
+  // Same radius as TextField's input.
+  fieldCorners: { borderRadius: 12 },
 });

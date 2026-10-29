@@ -13,11 +13,11 @@ it('calls onPress for every variant', async () => {
   }
 });
 
-it('draws a pill by default and square corners when asked', async () => {
+it("draws a pill by default and a text field's corners when asked", async () => {
   await render(<Button title="Pill" onPress={() => {}} />);
   expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Pill' }).props.style).borderRadius).toBe(999);
-  await render(<Button title="Box" square onPress={() => {}} />);
-  expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Box' }).props.style).borderRadius).toBe(0);
+  await render(<Button title="Box" fieldCorners onPress={() => {}} />);
+  expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Box' }).props.style).borderRadius).toBe(12);
 });
 
 it('ignores presses while disabled', async () => {

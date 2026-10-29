@@ -106,7 +106,7 @@ export function JobChat({
             <ThemedText type="small" themeColor="textSecondary" style={styles.grow}>
               {left} of {CHAT_MAX_EACH} messages left
             </ThemedText>
-            <Button title="Send" square onPress={submit} disabled={!connected || text.trim() === ''} />
+            <Button title="Send" fieldCorners onPress={submit} disabled={!connected || text.trim() === ''} />
           </View>
         </>
       ) : (

@@ -13,6 +13,13 @@ it('calls onPress for every variant', async () => {
   }
 });
 
+it('draws a pill by default and square corners when asked', async () => {
+  await render(<Button title="Pill" onPress={() => {}} />);
+  expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Pill' }).props.style).borderRadius).toBe(999);
+  await render(<Button title="Box" square onPress={() => {}} />);
+  expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Box' }).props.style).borderRadius).toBe(0);
+});
+
 it('ignores presses while disabled', async () => {
   const onPress = jest.fn();
   await render(<Button title="Go" disabled onPress={onPress} />);

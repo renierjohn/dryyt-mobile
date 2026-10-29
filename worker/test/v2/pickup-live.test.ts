@@ -125,6 +125,76 @@ describe('order room', () => {
   });
 });
 
+describe('order chat', () => {
+  async function acceptedOrder() {
+    const customer = await registerUser('customer');
+    const driver = await pickupDriver();
+    const id = await placed(customer.token);
+    await api(`/orders/${id}/place`, { token: customer.token, method: 'POST' });
+    await api(`/jobs/${id}/accept`, { token: driver.token, method: 'POST' });
+    return { customer, driver, id };
+  }
+
+  it('relays messages both ways once the driver accepts, and replays them on reconnect', async () => {
+    const { customer, driver, id } = await acceptedOrder();
+    const customerSock = await openSocket(customer.token, `order-${id}`);
+    const driverSock = await openSocket(driver.token, `order-${id}`);
+    expect(await customerSock.next('chat')).toEqual({ t: 'chat', messages: [] });
+    await driverSock.next('chat');
+
+    customerSock.send({ t: 'chat', text: '  Gate is blue  ' });
+    expect((await driverSock.next('chat')).messages).toEqual([{ from: 'customer', text: 'Gate is blue', at: expect.any(Number) }]);
+    await customerSock.next('chat');
+    driverSock.send({ t: 'chat', text: 'On my way' });
+    const both = (await customerSock.next('chat')).messages.map((m: { from: string; text: string }) => [m.from, m.text]);
+    expect(both).toEqual([['customer', 'Gate is blue'], ['driver', 'On my way']]);
+
+    customerSock.close();
+    expect((await (await openSocket(customer.token, `order-${id}`)).next('chat')).messages).toHaveLength(2);
+  });
+
+  it('takes up to 10 messages each, of up to 100 characters', async () => {
+    const { customer, driver, id } = await acceptedOrder();
+    const customerSock = await openSocket(customer.token, `order-${id}`);
+    const driverSock = await openSocket(driver.token, `order-${id}`);
+    await customerSock.next('chat');
+    await driverSock.next('chat');
+
+    customerSock.send({ t: 'chat', text: 'x'.repeat(101) });
+    expect(await customerSock.next('chat_error')).toEqual({ t: 'chat_error', error: 'Messages can be up to 100 characters' });
+    customerSock.send({ t: 'chat', text: '   ' });
+    expect(await customerSock.next('chat_error')).toEqual({ t: 'chat_error', error: 'Type a message first' });
+
+    for (let i = 1; i <= 10; i++) {
+      customerSock.send({ t: 'chat', text: 'x'.repeat(100) });
+      expect((await customerSock.next('chat')).messages).toHaveLength(i);
+    }
+    customerSock.send({ t: 'chat', text: 'one more' });
+    expect(await customerSock.next('chat_error')).toEqual({ t: 'chat_error', error: 'You can send up to 10 messages' });
+    // The driver still has their own 10.
+    driverSock.send({ t: 'chat', text: 'ok' });
+    for (let i = 0; i < 11; i++) await driverSock.next('chat');
+    expect((await customerSock.next('chat')).messages).toHaveLength(11);
+  });
+
+  it('starts fresh for the next driver after a release, and ignores chat before a driver has the job', async () => {
+    const { customer, driver, id } = await acceptedOrder();
+    const customerSock = await openSocket(customer.token, `order-${id}`);
+    await customerSock.next('chat');
+    customerSock.send({ t: 'chat', text: 'Hello' });
+    expect((await customerSock.next('chat')).messages).toHaveLength(1);
+
+    await api(`/jobs/${id}/release`, { token: driver.token, method: 'POST' });
+    expect((await customerSock.next('order')).order.status).toBe('pending');
+    customerSock.send({ t: 'chat', text: 'Anyone?' });
+    await expect(customerSock.next(['chat', 'chat_error'], 30)).rejects.toThrow();
+
+    const next = await pickupDriver();
+    await api(`/jobs/${id}/accept`, { token: next.token, method: 'POST' });
+    expect((await (await openSocket(next.token, `order-${id}`)).next('chat')).messages).toEqual([]);
+  });
+});
+
 describe('waiting for Done Pay', () => {
   const statusOf = async (id: number) => (await env.DB.prepare('SELECT status FROM transactions_pickup WHERE id = ?').bind(id).first<{ status: string }>())!.status;
   const roomOf = (id: number) => env.ORDER_ROOM.get(env.ORDER_ROOM.idFromName(`order-${id}`));

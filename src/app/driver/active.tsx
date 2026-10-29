@@ -6,12 +6,13 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { DropoffTrip } from '@/components/driver/dropoff-trip';
-import { PICKUP_ENABLED } from '@/constants/features';
+import { JobChat, useJobChat } from '@/components/job-chat';
 import { OrderSummary } from '@/components/order-summary';
 import { OrderTripMap } from '@/components/order-trip-map';
 import { Screen } from '@/components/screen';
 import { StatusTimeline } from '@/components/status-timeline';
 import { ThemedText } from '@/components/themed-text';
+import { PICKUP_ENABLED } from '@/constants/features';
 import { useActiveJob, useAdvanceJob, useDriverMe, useReleaseJob } from '@/hooks/queries';
 import { useWatchLocation } from '@/hooks/use-location';
 import { useSocket } from '@/hooks/use-socket';
@@ -52,10 +53,11 @@ function PickupJob() {
   const job = active.data;
   const [here, setHere] = useState<LatLng | null>(null);
   // The order's room while the job is ours: status changes arrive here (e.g. the customer cancels).
+  const chat = useJobChat();
   const { connected, send } = useSocket(
     job ? `order-${job.id}` : null,
     (msg) => {
-      if (msg.t !== 'order') return;
+      if (chat.onMessage(msg) || msg.t !== 'order') return;
       const mine = msg.order.status === 'accepted' || msg.order.status === 'picked_up';
       qc.setQueryData(['jobs', 'active'], mine ? msg.order : null);
       // Ended (delivered or cancelled): the Available screen's busy check reads /drivers/me.
@@ -113,6 +115,7 @@ function PickupJob() {
           {job.customer_name} · {job.customer_phone}
         </ThemedText>
       </Card>
+      <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />
       <ErrorText error={advance.error ?? release.error} />
       {carrying && customer && (
         <ThemedText themeColor="textSecondary">

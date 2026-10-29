@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
+import { addChat, chatMessages, clearChat } from '../lib/chat';
 import { LOCATION_MIN_INTERVAL_MS, PAYMENT_AUTO_CONFIRM_MS, PAYMENT_REMINDER_MS, PAYMENT_REMINDERS } from '../lib/dropoff-config';
 import { DEFAULT_CATEGORY, VEHICLE_CATEGORIES } from '../lib/fees';
 import { getOrder, hidePhone, listOrders } from '../lib/orders';
@@ -62,6 +63,8 @@ export class PickupBoard extends DurableObject<Bindings> {
 }
 
 type Attachment = { role: 'customer' | 'driver'; ts?: number };
+/** The customer and the driver can chat while the job is the driver's. */
+const CHAT_OPEN: (string | undefined)[] = ['accepted', 'picked_up'];
 /** Food orders waiting for Done Pay: when to remind the owner, and when to accept the payment for them. */
 type PaymentTimers = { remindAt?: number; reminded?: number; confirmAt?: number };
 
@@ -86,6 +89,7 @@ export class OrderRoom extends DurableObject<Bindings> {
     server.serializeAttachment({ role } satisfies Attachment);
     const loc = await this.ctx.storage.get<LatLng>('loc');
     if (role === 'customer' && loc) send(server, { t: 'loc', ...loc });
+    if (CHAT_OPEN.includes(await this.status())) send(server, { t: 'chat', messages: await chatMessages(this.ctx.storage) });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -102,6 +106,8 @@ export class OrderRoom extends DurableObject<Bindings> {
     if (!order) return;
     await this.ctx.storage.put('status', order.status);
     if (order.status !== 'awaiting_payment') await this.stopPaymentTimers();
+    // A released job goes back to the board: the next driver starts a fresh chat.
+    if (!CHAT_OPEN.includes(order.status)) await clearChat(this.ctx.storage);
     const sockets = this.ctx.getWebSockets();
     for (const ws of sockets) send(ws, { t: 'order', order });
     if (order.status === 'delivered' || order.status === 'cancelled') {
@@ -112,14 +118,21 @@ export class OrderRoom extends DurableObject<Bindings> {
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     const att = ws.deserializeAttachment() as Attachment;
-    if (att.role !== 'driver' || typeof data !== 'string') return;
+    if (typeof data !== 'string') return;
     let msg: Message;
     try {
       msg = JSON.parse(data);
     } catch {
       return;
     }
-    if (msg.t !== 'loc' || typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
+    if (msg.t === 'chat') {
+      if (!CHAT_OPEN.includes(await this.status())) return;
+      const result = await addChat(this.ctx.storage, att.role, msg.text);
+      if ('error' in result) send(ws, { t: 'chat_error', error: result.error });
+      else for (const other of this.ctx.getWebSockets()) send(other, { t: 'chat', messages: result });
+      return;
+    }
+    if (att.role !== 'driver' || msg.t !== 'loc' || typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
     const now = Date.now();
     if (att.ts && now - att.ts < LOCATION_MIN_INTERVAL_MS) return;
     ws.serializeAttachment({ ...att, ts: now } satisfies Attachment);

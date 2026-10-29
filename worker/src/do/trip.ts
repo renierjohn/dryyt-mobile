@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
+import { addChat, chatMessages, clearChat } from '../lib/chat';
 import { CUSTOMER_OFFLINE_MS, HEARTBEAT_MS, LOCATION_MIN_INTERVAL_MS, NO_LOCATION_WARN_MS, OWNER_REMINDER_MS } from '../lib/dropoff-config';
 import { pushToUsers } from '../lib/push';
 import type { Bindings, LatLng } from '../types';
@@ -29,9 +30,10 @@ export class Trip extends DurableObject<Bindings> {
     for (const ws of this.ctx.getWebSockets()) this.send(ws, msg);
   }
 
-  /** Laundry is at the shop: stop tracking, remind the owner if they don't confirm. */
+  /** Laundry is at the shop: stop tracking (and the chat), remind the owner if they don't confirm. */
   async finish() {
     await this.ctx.storage.put('tracking', false);
+    await clearChat(this.ctx.storage);
     await this.setTimers({ staleAt: undefined, ownerAt: Date.now() + OWNER_REMINDER_MS });
   }
 
@@ -77,6 +79,7 @@ export class Trip extends DurableObject<Bindings> {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server, [role]);
     server.serializeAttachment({ role, userId: Number(request.headers.get('x-user-id')), since: Date.now() } satisfies Attachment);
+    if (await this.ctx.storage.get<boolean>('tracking')) this.send(server, { t: 'chat', messages: await chatMessages(this.ctx.storage) });
     if (role === 'customer') {
       const loc = await this.ctx.storage.get<LatLng>('loc');
       if (loc) this.send(server, { t: 'loc', ...loc });
@@ -89,14 +92,21 @@ export class Trip extends DurableObject<Bindings> {
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
     const att = ws.deserializeAttachment() as Attachment;
-    if (att.role !== 'driver' || typeof data !== 'string') return;
+    if (typeof data !== 'string') return;
     let msg: Message;
     try {
       msg = JSON.parse(data);
     } catch {
       return;
     }
-    if (msg.t !== 'loc' || typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
+    if (msg.t === 'chat') {
+      if (!(await this.ctx.storage.get<boolean>('tracking'))) return;
+      const result = await addChat(this.ctx.storage, att.role, msg.text);
+      if ('error' in result) this.send(ws, { t: 'chat_error', error: result.error });
+      else await this.notify({ t: 'chat', messages: result });
+      return;
+    }
+    if (att.role !== 'driver' || msg.t !== 'loc' || typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
     const now = Date.now();
     if (att.ts && now - att.ts < LOCATION_MIN_INTERVAL_MS) return;
     ws.serializeAttachment({ ...att, ts: now } satisfies Attachment);

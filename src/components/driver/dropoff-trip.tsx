@@ -7,6 +7,7 @@ import { DropForm } from '@/components/driver/drop-form';
 import { DropoffMap, PinColor, type MapPin } from '@/components/dropoff-map';
 import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
+import { JobChat, useJobChat } from '@/components/job-chat';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { useDropoffAction } from '@/hooks/queries';
@@ -37,9 +38,11 @@ export function DropoffTrip({ job, onLive }: { job: Dropoff; onLive?: (connected
   const [customerOnline, setCustomerOnline] = useState<boolean | null>(null);
   const tracking = job.status === 'en_route_pickup' || job.status === 'en_route_shop';
 
+  const chat = useJobChat();
   const { connected, send } = useSocket(
     tracking ? (job.room_id ?? null) : null,
     (msg) => {
+      if (chat.onMessage(msg)) return;
       if (msg.t === 'status') qc.invalidateQueries({ queryKey: ['driver'] });
       else if (msg.t === 'customer') setCustomerOnline(msg.online === true);
     },
@@ -89,6 +92,7 @@ export function DropoffTrip({ job, onLive }: { job: Dropoff; onLive?: (connected
         <ThemedText type="small">Drop at: {job.store_name}</ThemedText>
         {job.delivery_fee !== undefined && <ThemedText type="small">You earn {peso(job.delivery_fee)} (paid by the shop)</ThemedText>}
       </Card>
+      {tracking && <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />}
       <ErrorText error={action.error} />
       {job.status === 'en_route_pickup' && (
         <>

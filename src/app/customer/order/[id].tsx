@@ -8,6 +8,7 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { DriverDetails } from '@/components/driver-details';
+import { JobChat, useJobChat } from '@/components/job-chat';
 import { LaundryPayment } from '@/components/payment-method';
 import { PaymentWait } from '@/components/payment-wait';
 import { OrderSummary } from '@/components/order-summary';
@@ -36,7 +37,9 @@ export default function OrderScreen() {
   const [driverAt, setDriverAt] = useState<LatLng | null>(null);
   // Live from Send to shop (laundry) or Send proof of payment (food) until delivered (or cancelled): the worker pushes each change and the driver's location.
   const status = order.data?.status;
-  const { connected } = useSocket(status && LIVE_STATUSES.includes(status) ? `order-${id}` : null, (msg) => {
+  const chat = useJobChat();
+  const { connected, send } = useSocket(status && LIVE_STATUSES.includes(status) ? `order-${id}` : null, (msg) => {
+    if (chat.onMessage(msg)) return;
     if (msg.t === 'order') qc.setQueryData(['order', id], msg.order);
     else if (msg.t === 'loc') setDriverAt({ lat: msg.lat, lng: msg.lng });
   });
@@ -98,6 +101,7 @@ export default function OrderScreen() {
           </View>
         </Card>
       ) : null}
+      {(o.status === 'accepted' || o.status === 'picked_up') && <JobChat chat={chat} me="customer" otherName={o.driver_name} send={send} connected={connected} />}
       {o.status === 'awaiting_fee' && (
         <View style={styles.statusRow}>
           <ActivityIndicator />

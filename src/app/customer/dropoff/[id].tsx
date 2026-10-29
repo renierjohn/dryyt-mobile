@@ -9,6 +9,7 @@ import { DriverDetails } from '@/components/driver-details';
 import { DropoffMap, PinColor, type MapPin } from '@/components/dropoff-map';
 import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
+import { JobChat, useJobChat } from '@/components/job-chat';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { VehicleRow } from '@/components/vehicle-row';
@@ -34,7 +35,9 @@ export default function DropoffDetail() {
 
   const d = dropoff.data;
   const room = !d ? null : DISPATCH.includes(d.status) ? 'dispatch' : TRACKING.includes(d.status) ? (d.room_id ?? null) : null;
-  const { connected } = useSocket(room, (msg) => {
+  const chat = useJobChat();
+  const { connected, send } = useSocket(room, (msg) => {
+    if (chat.onMessage(msg)) return;
     if (msg.t === 'drivers') setDrivers(msg.items);
     else if (msg.t === 'loc') {
       setDriverAt({ lat: msg.lat, lng: msg.lng });
@@ -164,6 +167,7 @@ export default function DropoffDetail() {
               </View>
             </View>
           </Card>
+          <JobChat chat={chat} me="customer" otherName={d.driver_name} send={send} connected={connected} />
         </>
       )}
 

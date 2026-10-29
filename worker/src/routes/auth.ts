@@ -9,10 +9,11 @@ import type { AppEnv, User } from '../types';
 
 export const email = z.string().trim().toLowerCase().email('Enter a valid email');
 export const phone = z.string().trim().min(7, 'Phone is required');
+export const password = z.string().min(8, 'Password must be at least 8 characters').max(200);
 
 const registerSchema = z.object({
   email,
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password,
   name: z.string().trim().min(1, 'Name is required'),
   phone,
   role: z.enum(['customer', 'driver', 'owner']),

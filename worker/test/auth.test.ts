@@ -78,6 +78,20 @@ describe('auth', () => {
     expect((await api('/me', { method: 'PATCH', body: { email: 'a@test.com', phone: user.phone } })).status).toBe(401);
   });
 
+  it('sets a new password: the old one stops working and the new one signs in', async () => {
+    const { token } = await registerUser('driver');
+    const { email } = (await api('/me', { token })).body.user;
+    expect(await api('/me/password', { token, body: { password: 'brand-new-pass' } })).toEqual({ status: 200, body: { ok: true } });
+    expect((await api('/auth/login', { body: { email, password: 'password123' } })).status).toBe(401);
+    expect((await api('/auth/login', { body: { email, password: 'brand-new-pass' } })).status).toBe(200);
+  });
+
+  it('rejects a short new password, and a guest', async () => {
+    const { token } = await registerUser('customer');
+    expect((await api('/me/password', { token, body: { password: 'short' } })).status).toBe(400);
+    expect((await api('/me/password', { body: { password: 'long-enough-1' } })).status).toBe(401);
+  });
+
   it('rejects missing or invalid tokens', async () => {
     expect(await api('/me')).toEqual({ status: 401, body: { error: 'Not signed in' } });
     const res = await api('/me', { token: 'garbage' });

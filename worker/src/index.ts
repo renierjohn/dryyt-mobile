@@ -7,11 +7,12 @@ import { z } from 'zod';
 import { requireAuth } from './lib/auth';
 import { fail, parseBody } from './lib/http';
 import { menuImageKey } from './lib/menu';
+import { hashPassword } from './lib/password';
 import { cachedPhotoResponse } from './lib/photos';
 import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
 import admin from './routes/admin';
-import auth, { email, phone } from './routes/auth';
+import auth, { email, password, phone } from './routes/auth';
 import drivers from './routes/drivers';
 import history from './routes/history';
 import dropoffs from './routes/dropoffs';
@@ -76,6 +77,16 @@ app.patch('/me', requireAuth, async (c) => {
     .first<User>();
   if (!user) fail(401, 'Session expired, please sign in again');
   return c.json({ user });
+});
+
+/** The signed-in user sets a new password (also how a Google or Facebook account gets one for email sign in). */
+app.post('/me/password', requireAuth, async (c) => {
+  const input = await parseBody(c, z.object({ password }));
+  const { meta } = await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(await hashPassword(input.password), c.get('user').id)
+    .run();
+  if (meta.changes === 0) fail(401, 'Session expired, please sign in again');
+  return c.json({ ok: true });
 });
 
 const pushTokenSchema = z.object({ token: z.string().startsWith('ExponentPushToken[').max(200) });

@@ -24,6 +24,7 @@ export function ProfileScreen() {
   const { user } = state;
   const driver = user.role === 'driver';
   const [editing, setEditing] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   return (
     <Screen>
@@ -48,6 +49,11 @@ export function ProfileScreen() {
             <Button title="Edit email and phone" variant="secondary" icon={{ ios: 'pencil', android: 'edit', web: 'edit' }} onPress={() => setEditing(true)} />
           )}
         </Card>
+      )}
+      {changingPassword ? (
+        <PasswordForm onDone={() => setChangingPassword(false)} />
+      ) : (
+        <Button title="Change password" variant="secondary" icon={{ ios: 'lock', android: 'lock', web: 'lock' }} onPress={() => setChangingPassword(true)} />
       )}
       {driver && <DriverVerification />}
       {user.role === 'owner' && <OwnerStores />}
@@ -80,6 +86,54 @@ function ContactForm({ user, onDone }: { user: User; onDone: () => void }) {
         </View>
         <View style={styles.grow}>
           <Button title="Save" onPress={() => save.mutate()} loading={save.isPending} disabled={email.trim() === '' || phone.trim() === ''} />
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+/** A new password, typed twice. */
+function PasswordForm({ onDone }: { onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saved, setSaved] = useState(false);
+  // Shown once the second field has something in it, so it doesn't nag while the first is still being typed.
+  const mismatch = confirm !== '' && confirm !== password;
+  const save = useMutation({
+    mutationFn: () => api('/me/password', { body: { password } }),
+    onSuccess: () => setSaved(true),
+  });
+
+  if (saved) {
+    return (
+      <Card>
+        <ThemedText type="smallBold">Password changed</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          Use your new password the next time you sign in.
+        </ThemedText>
+        <Button title="Done" variant="outline" onPress={onDone} />
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <ThemedText type="smallBold">Change password</ThemedText>
+      <TextField label="New password (8+ characters)" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" />
+      <TextField label="Confirm new password" value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" />
+      {mismatch && <ErrorText error={new Error('Passwords do not match')} />}
+      <ErrorText error={save.error} />
+      <View style={styles.actions}>
+        <View style={styles.grow}>
+          <Button title="Cancel" variant="outline" onPress={onDone} disabled={save.isPending} />
+        </View>
+        <View style={styles.grow}>
+          <Button
+            title="Save"
+            onPress={() => save.mutate()}
+            loading={save.isPending}
+            disabled={password.length < 8 || confirm !== password}
+          />
         </View>
       </View>
     </Card>

@@ -308,24 +308,46 @@ dropoffs.get('/:id/driver-photo/:kind', requireRole('customer'), async (c) => {
   return photoResponse(c.env.PROOFS, kind === 'face' ? row.driver_photo_face : row.driver_photo_id);
 });
 
-const paymentSchema = z.object({ paid: z.boolean() });
+/**
+ * The customer pays to the shop's payment QR and sends a reference number or a photo of it (from /orders/payment-photo),
+ * or picks Pay later (`paid: false`, only right after the shop confirms). The shop marks it paid or not paid.
+ */
+const paymentSchema = z.object({
+  paid: z.boolean(),
+  payment_ref: z.string().trim().max(100).default(''),
+  payment_photo_key: z.string().max(200).optional(),
+});
 
 dropoffs.post('/:id/payment', async (c) => {
   const row = await load(c);
-  const { paid } = await parseBody(c, paymentSchema);
+  const input = await parseBody(c, paymentSchema);
   const user = c.get('user');
   if (user.role === 'driver') fail(403, 'Only the customer or the shop can update payment');
-  if (!paid && user.role !== 'owner') fail(403, 'Only the shop can mark a drop off as unpaid');
+  const proof = input.payment_ref !== '' || input.payment_photo_key !== undefined;
+  if (user.role === 'customer' && input.paid && !proof) fail(400, 'Add a reference number or a photo of your payment');
+  if (proof && (user.role !== 'customer' || !input.paid)) fail(400, 'Only a customer paying sends proof of payment');
+  if (input.payment_photo_key && (!input.payment_photo_key.startsWith(`payments/${user.id}/`) || !(await c.env.PROOFS.head(input.payment_photo_key)))) {
+    fail(400, 'payment_photo_key: upload the photo first');
+  }
 
-  const to = paid ? 'completed' : 'payment_pending';
-  const from = paid ? ['owner_confirmed', 'payment_pending'] : ['owner_confirmed', 'completed'];
+  const to = input.paid ? 'completed' : 'payment_pending';
+  // Pay later: the customer moves it to payment pending; only the shop can undo a payment.
+  const from = input.paid ? ['owner_confirmed', 'payment_pending'] : user.role === 'owner' ? ['owner_confirmed', 'completed'] : ['owner_confirmed'];
   const { meta } = await c.env.DB.prepare(
-    "UPDATE transactions_dropoff SET status = ?, updated_at = datetime('now') WHERE id = ? AND status IN (?, ?)",
+    `UPDATE transactions_dropoff SET status = ?, updated_at = datetime('now')${proof ? ', payment_ref = ?, payment_photo_key = ?' : ''}
+     WHERE id = ? AND status IN (${from.map(() => '?').join(', ')})`,
   )
-    .bind(to, row.id, ...from)
+    .bind(to, ...(proof ? [input.payment_ref, input.payment_photo_key ?? null] : []), row.id, ...from)
     .run();
   if (meta.changes === 0) fail(409, `Cannot update payment while the drop off is ${row.status.replaceAll('_', ' ')}`);
   return respond(c, row.id);
+});
+
+/** The customer's photo of their payment, for them and the shop. */
+dropoffs.get('/:id/payment-photo', async (c) => {
+  const row = await load(c);
+  if (c.get('user').role === 'driver') fail(404, 'No photo');
+  return photoResponse(c.env.PROOFS, row.payment_photo_key);
 });
 
 export default dropoffs;

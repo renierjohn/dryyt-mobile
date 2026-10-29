@@ -141,6 +141,9 @@ export type Dropoff = {
   drop_notes: string | null;
   owner_status: 'pending' | 'ok' | null;
   has_proof: boolean;
+  /** The customer's proof of payment: a reference number and/or a photo (fetch via /dropoffs/:id/payment-photo). */
+  payment_ref: string;
+  has_payment_photo: boolean;
 };
 
 export type DistanceColour = 'green' | 'amber';

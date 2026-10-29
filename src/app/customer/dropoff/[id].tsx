@@ -7,9 +7,11 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { DriverDetails } from '@/components/driver-details';
 import { DropoffMap, PinColor, type MapPin } from '@/components/dropoff-map';
+import { DropoffPaymentProof } from '@/components/dropoff-payment-proof';
 import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
 import { JobChat, useJobChat } from '@/components/job-chat';
+import { PaymentMethod } from '@/components/payment-method';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { VehicleRow } from '@/components/vehicle-row';
@@ -32,6 +34,9 @@ export default function DropoffDetail() {
   const [drivers, setDrivers] = useState<NearbyDriver[]>([]);
   const [driverAt, setDriverAt] = useState<LatLng | null>(null);
   const [stale, setStale] = useState(false);
+  // Shop confirmed: Pay now opens the shop's payment methods; Pay later moves the drop off to payment pending, where
+  // they stay hidden until Pay now.
+  const [payingNow, setPayingNow] = useState(false);
 
   const d = dropoff.data;
   const room = !d ? null : DISPATCH.includes(d.status) ? 'dispatch' : TRACKING.includes(d.status) ? (d.room_id ?? null) : null;
@@ -78,7 +83,14 @@ export default function DropoffDetail() {
         return <Button title="Cancel drop off" variant="danger" loading={action.isPending} onPress={() => run({ action: 'cancel' })} />;
       case 'owner_confirmed':
       case 'payment_pending':
-        return <Button title="Done Pay" loading={action.isPending} onPress={() => run({ action: 'payment', body: { paid: true } })} />;
+        return payingNow ? undefined : (
+          <>
+            <Button title="Pay now" onPress={() => setPayingNow(true)} />
+            {d.status === 'owner_confirmed' && (
+              <Button title="Pay later" variant="secondary" loading={action.isPending} onPress={() => run({ action: 'payment', body: { paid: false } })} />
+            )}
+          </>
+        );
       case 'expired':
       case 'cancelled':
         return (
@@ -99,6 +111,7 @@ export default function DropoffDetail() {
   })();
 
   const error = action.error ?? again.error;
+  const paying = (d.status === 'owner_confirmed' || d.status === 'payment_pending') && payingNow && d.laundry_fee !== null;
 
   return (
     <Screen
@@ -172,7 +185,19 @@ export default function DropoffDetail() {
       )}
 
       {AT_SHOP.includes(d.status) && <DropoffSummary dropoff={d} />}
-      {!footer && <ErrorText error={error} />}
+      {AT_SHOP.includes(d.status) && <DropoffPaymentProof dropoff={d} title="Your proof of payment" />}
+      {paying && (
+        <PaymentMethod
+          storeId={d.store_id}
+          storeName={d.store_name}
+          total={d.total_delivery_fee + (d.laundry_fee ?? 0)}
+          onSend={(proof) => run({ action: 'payment', body: { paid: true, ...proof } })}
+          sending={action.isPending}
+          error={action.error}
+        />
+      )}
+      {/* PaymentMethod shows its own, beside Send proof of payment. */}
+      {!footer && !paying && <ErrorText error={error} />}
     </Screen>
   );
 }

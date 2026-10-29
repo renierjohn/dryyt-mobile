@@ -3,6 +3,7 @@ import { ActivityIndicator } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DropoffPaymentProof } from '@/components/dropoff-payment-proof';
 import { DropoffSummary } from '@/components/dropoff-summary';
 import { ErrorText } from '@/components/error-text';
 import { Screen } from '@/components/screen';
@@ -35,6 +36,7 @@ export default function OwnerDropoff() {
           Driver: {d.driver_name} · {d.driver_phone}
         </ThemedText>
       </Card>
+      <DropoffPaymentProof dropoff={d} title="Customer's proof of payment" />
       <ErrorText error={confirm.error ?? payment.error ?? block.error} />
       {d.status === 'dropped_off' && <Button title="Confirm received" loading={confirm.isPending} onPress={() => confirm.mutate(id)} />}
       {(d.status === 'owner_confirmed' || d.status === 'payment_pending') && (

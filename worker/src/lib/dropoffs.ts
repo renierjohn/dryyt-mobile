@@ -34,6 +34,8 @@ export type DropoffRow = {
   weight_kg: number | null;
   drop_notes: string | null;
   proof_photo_key: string | null;
+  payment_ref: string;
+  payment_photo_key: string | null;
   driver_photo_face: string | null;
   driver_photo_id: string | null;
   driver_photo_version: string;
@@ -66,11 +68,12 @@ export async function getDropoff(db: D1Database, id: number) {
 
 /** What `user` may see of a drop off, or null when they have no access. Customers never see the fee split. */
 export function viewFor(row: DropoffRow, user: AuthUser) {
-  const { proof_photo_key, store_owner_id, store_group_id, delivery_fee, service_fee, room_id, ...rest } = row;
+  const { proof_photo_key, payment_photo_key, store_owner_id, store_group_id, delivery_fee, service_fee, room_id, ...rest } = row;
   const { driver_photo_face, driver_photo_id, driver_notes, driver_status, ...base } = rest;
   const shared = {
     ...base,
     has_proof: proof_photo_key !== null,
+    has_payment_photo: payment_photo_key !== null,
     // The assigned driver's verification, so the customer can check who is coming. Photo keys stay server-side.
     driver_has_face: driver_photo_face !== null,
     driver_has_id: driver_photo_id !== null,

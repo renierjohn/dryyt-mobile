@@ -75,15 +75,39 @@ describe('owner', () => {
 
   it('tracks payment both ways', async () => {
     const { owner, customer, driver, id } = await withOwner();
-    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: true })).status).toBe(409); // not confirmed yet
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: true, payment_ref: 'R1' })).status).toBe(409); // not confirmed yet
     await post(`/owner/transactions/${id}/confirm`, owner.token);
 
-    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: false })).status).toBe(403);
     expect((await post(`/dropoffs/${id}/payment`, driver.token, { paid: true })).status).toBe(403);
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: true })).body).toEqual({ error: 'Add a reference number or a photo of your payment' });
 
-    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: true })).body.dropoff.status).toBe('completed');
+    // Pay later, then pay with a reference number.
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: false })).body.dropoff.status).toBe('payment_pending');
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: false })).status).toBe(409);
+    const paid = (await post(`/dropoffs/${id}/payment`, customer.token, { paid: true, payment_ref: ' REF42 ' })).body.dropoff;
+    expect(paid).toMatchObject({ status: 'completed', payment_ref: 'REF42', has_payment_photo: false });
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: false })).status).toBe(409);
     expect((await post(`/dropoffs/${id}/payment`, owner.token, { paid: false })).body.dropoff.status).toBe('payment_pending');
     expect((await post(`/dropoffs/${id}/payment`, owner.token, { paid: true })).body.dropoff.status).toBe('completed');
+  });
+
+  it('takes a photo of the payment and shows it to the shop', async () => {
+    const { owner, customer, driver, id } = await withOwner();
+    await post(`/owner/transactions/${id}/confirm`, owner.token);
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+    const upload = async (token: string) =>
+      ((await (await SELF.fetch('https://api.test/orders/payment-photo', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: jpeg })).json()) as { key: string }).key;
+
+    const someoneElse = await registerUser('customer');
+    expect((await post(`/dropoffs/${id}/payment`, customer.token, { paid: true, payment_photo_key: await upload(someoneElse.token) })).status).toBe(400);
+
+    const paid = (await post(`/dropoffs/${id}/payment`, customer.token, { paid: true, payment_photo_key: await upload(customer.token) })).body.dropoff;
+    expect(paid).toMatchObject({ status: 'completed', payment_ref: '', has_payment_photo: true });
+    expect(paid).not.toHaveProperty('payment_photo_key');
+    const photo = (token: string) => SELF.fetch(`https://api.test/dropoffs/${id}/payment-photo`, { headers: { authorization: `Bearer ${token}` } });
+    const shop = await photo(owner.token);
+    expect(new Uint8Array(await shop.arrayBuffer())).toEqual(jpeg);
+    expect((await photo(driver.token)).status).toBe(404);
   });
 
   it('marks payouts paid', async () => {

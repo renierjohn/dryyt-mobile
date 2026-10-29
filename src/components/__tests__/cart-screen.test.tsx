@@ -224,7 +224,7 @@ it('sending the proof switches the cart to waiting for the store', async () => {
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
 
-  expect(screen.getByText('Waiting for Payment Confirmation')).toBeTruthy();
+  expect(screen.getAllByText('Waiting for Payment Confirmation').length).toBeGreaterThan(0);
   expect(screen.getByTestId('payment-countdown').props.children).toMatch(/^Confirmed automatically in 9:(30|29)$/);
   expect(mockSocketRoom).toHaveBeenLastCalledWith('order-42');
   expect(screen.getByLabelText('Place order').props.accessibilityState.disabled).toBe(true);

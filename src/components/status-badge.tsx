@@ -18,7 +18,8 @@ export function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
   }[tone];
   return (
     <View style={[styles.badge, { backgroundColor: colors.background }]}>
-      <ThemedText type="small" style={[styles.badgeText, { color: colors.text }]}>
+      {/* A real bold face: Android measured weight 600 with another face and clipped the last word ("Waiting for a"). */}
+      <ThemedText type="smallBold" style={[styles.badgeText, { color: colors.text }]}>
         {label}
       </ThemedText>
     </View>
@@ -26,6 +27,7 @@ export function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
 }
 
 const styles = StyleSheet.create({
-  badge: { borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
-  badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  // Shrinks (and wraps) rather than overflowing a row.
+  badge: { flexShrink: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  badgeText: { fontSize: 12, lineHeight: 16 },
 });

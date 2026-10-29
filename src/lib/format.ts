@@ -37,7 +37,7 @@ export function dateTime(d1Utc: string) {
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   awaiting_fee: 'Waiting for the shop to set the laundry fee',
   to_pay: 'Ready to pay',
-  awaiting_payment: 'Waiting for the store to confirm payment',
+  awaiting_payment: 'Waiting for Payment Confirmation',
   payment_confirmed: 'Payment confirmed',
   pending: 'Waiting for a driver',
   accepted: 'Driver accepted',

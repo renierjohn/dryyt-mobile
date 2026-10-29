@@ -77,7 +77,7 @@ it('opens orders waiting for payment by default, and lets them collapse', async 
   expect(screen.getByText('Total Order')).toBeTruthy();
   await fireEvent.press(screen.getByLabelText('Show less of order #4'));
   expect(screen.queryByText('Done Pay')).toBeNull();
-  expect(screen.getByText('Waiting for the store to confirm payment')).toBeTruthy();
+  expect(screen.getByText('Waiting for Payment Confirmation')).toBeTruthy();
 });
 
 it('shows the proof of payment and Done Pay only while the order waits for payment', async () => {

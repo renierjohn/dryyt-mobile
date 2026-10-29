@@ -182,7 +182,7 @@ function LaundryFeeForm({ orderId }: { orderId: number }) {
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: fullyPaid }}
-        accessibilityLabel="Laundry Fully Pay"
+        accessibilityLabel="Laundry Fully Paid"
         onPress={togglePaid}
         hitSlop={8}
         style={[styles.row, styles.check]}>
@@ -195,7 +195,7 @@ function LaundryFeeForm({ orderId }: { orderId: number }) {
           size={26}
           color={fullyPaid ? theme.primary : theme.textSecondary}
         />
-        <ThemedText type="default">Laundry Fully Pay</ThemedText>
+        <ThemedText type="default">Laundry Fully Paid</ThemedText>
       </Pressable>
       <ErrorText error={setFee.error} />
       <Button

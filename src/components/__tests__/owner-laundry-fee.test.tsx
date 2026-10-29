@@ -55,19 +55,19 @@ it('opens a laundry pickup waiting for its fee with the note and fees, and sets 
   expect(mockSetFee).toHaveBeenCalledWith({ id: 9, laundry_fee: 25050 });
 });
 
-it('Laundry Fully Pay locks the fee at 0 and confirms it', async () => {
+it('Laundry Fully Paid locks the fee at 0 and confirms it', async () => {
   mockSetFee.mockClear();
   await render(<Orders />);
   const field = screen.getByPlaceholderText('e.g. 250');
   await fireEvent.changeText(field, '250');
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Laundry Fully Pay' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Laundry Fully Paid' }));
   expect(screen.getByPlaceholderText('e.g. 250').props.value).toBe('0');
   expect(screen.getByPlaceholderText('e.g. 250').props.editable).toBe(false);
   await fireEvent.press(screen.getByText('Confirm'));
   expect(mockSetFee).toHaveBeenCalledWith({ id: 9, laundry_fee: 0 });
 
   // Unchecked: the field opens again, empty.
-  await fireEvent.press(screen.getByRole('checkbox', { name: 'Laundry Fully Pay' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Laundry Fully Paid' }));
   expect(screen.getByPlaceholderText('e.g. 250').props.editable).toBe(true);
   expect(screen.getByPlaceholderText('e.g. 250').props.value).toBe('');
 });

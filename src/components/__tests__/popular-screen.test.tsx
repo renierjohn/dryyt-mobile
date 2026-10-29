@@ -23,7 +23,7 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 const item = (id: number, store_id: number, store_name: string) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, sold_out: false, popularity: 0,
   store_id, store_name, store_logo: null,
 });
 const result = (items: ReturnType<typeof item>[]) => ({

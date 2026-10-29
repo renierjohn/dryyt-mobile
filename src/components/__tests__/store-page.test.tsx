@@ -4,7 +4,7 @@ import StorePage from '@/app/customer/new-order';
 import { CartProvider } from '@/hooks/use-cart';
 
 const mockItem = (id: number, category: string, image_url: string | null = null) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url, category, best_seller: false, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url, category, best_seller: false, sold_out: false, popularity: 0,
 });
 const mockStore = {
   id: 2, name: 'Burger Barn', type: 'food', address: '45 Rizal Ave, Makati', lat: null, lng: null,

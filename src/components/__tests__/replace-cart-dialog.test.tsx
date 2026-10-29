@@ -7,7 +7,7 @@ import type { MenuItem } from '@/lib/types';
 
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
 
-const item: MenuItem = { id: 1, name: 'Tea', price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, popularity: 0 };
+const item: MenuItem = { id: 1, name: 'Tea', price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, sold_out: false, popularity: 0 };
 
 /** Puts one Tea Haven line in the cart, then asks to replace it. */
 function Asker({ onConfirm }: { onConfirm: () => void }) {

@@ -21,7 +21,7 @@ export function MenuItemCard({ item, storeName, onPress, compact = false }: Prop
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: pressed ? 0.7 : 1 }]}>
+      style={({ pressed }) => [styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: item.sold_out ? 0.7 : pressed ? 0.7 : 1 }]}>
       {item.image_url ? (
         <Image source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
       ) : (

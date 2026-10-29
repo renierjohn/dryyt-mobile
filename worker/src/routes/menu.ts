@@ -23,7 +23,7 @@ menu.get('/popular', async (c) => {
   const [items, categories] = await db.batch([
     db
       .prepare(
-        `SELECT m.id, m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller, m.popularity,
+        `SELECT m.id, m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller, m.sold_out, m.popularity,
                 s.id AS store_id, s.name AS store_name, s.store_logo
          FROM store_menu_items m JOIN stores s ON s.id = m.store_id
          WHERE s.type = 'food' AND (?1 = '' OR instr(lower(m.name), lower(?1)) > 0) AND (?2 = '' OR m.category = ?2)

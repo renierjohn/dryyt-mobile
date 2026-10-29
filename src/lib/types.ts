@@ -27,6 +27,8 @@ export type MenuItem = {
   discount_percent: number;
   category: string;
   best_seller: boolean;
+  /** Shown dimmed; can't be added to the cart. */
+  sold_out: boolean;
   /** Units delivered; set by the worker. */
   popularity: number;
 };

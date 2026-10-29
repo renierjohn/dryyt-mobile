@@ -49,6 +49,7 @@ export default function NewOrder() {
   const inThisCart = cart.store?.id === storeId;
 
   const change = (item: MenuItem, delta: number) => {
+    if (item.sold_out && delta > 0) return;
     if (inThisCart && cart.qtyOf(item.id) > 0) return cart.setQty(item.id, cart.qtyOf(item.id) + delta);
     if (delta <= 0) return;
     if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
@@ -92,7 +93,7 @@ export default function NewOrder() {
       }>
       {shown.map((item) => (
         <Card key={item.id} onPress={() => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } })}>
-          <View style={styles.row}>
+          <View style={[styles.row, item.sold_out && styles.soldOut]}>
             {item.image_url ? (
               <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
             ) : (
@@ -104,6 +105,7 @@ export default function NewOrder() {
               <View style={styles.nameRow}>
                 <ThemedText type="small">{item.name}</ThemedText>
                 {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
+                {item.sold_out ? <StatusBadge label="Sold out" tone="muted" /> : null}
               </View>
               <View style={styles.nameRow}>
                 <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
@@ -113,7 +115,10 @@ export default function NewOrder() {
                   </ThemedText>
                 )}
               </View>
-              <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
+              {/* Sold out: only a line already in the cart can still be lowered. */}
+              {!item.sold_out || (inThisCart && cart.qtyOf(item.id) > 0) ? (
+                <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
+              ) : null}
             </View>
           </View>
         </Card>
@@ -128,6 +133,7 @@ const styles = StyleSheet.create({
   itemText: { gap: Spacing.half },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.two },
   struck: { textDecorationLine: 'line-through' },
+  soldOut: { opacity: 0.7 },
   tabs: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderBottomWidth: StyleSheet.hairlineWidth },
   photo: { width: 96, height: 96, borderRadius: 12 },
   placeholder: { alignItems: 'center', justifyContent: 'center' },

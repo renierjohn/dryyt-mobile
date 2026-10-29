@@ -69,6 +69,8 @@ function Form({ storeId, item, menu }: { storeId: number; item?: MenuItem; menu:
         discount_percent: percent,
         image_url: imageUrl,
         best_seller: bestSeller,
+        // Toggled from the menu list.
+        sold_out: item?.sold_out ?? false,
       },
       { onSuccess: () => router.back() },
     );

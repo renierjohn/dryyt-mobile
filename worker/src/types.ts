@@ -49,6 +49,8 @@ export type MenuItem = {
   discount_percent: number;
   category: string;
   best_seller: boolean;
+  /** Shown dimmed; can't be ordered. */
+  sold_out: boolean;
   /** Units delivered; maintained by the worker, never set by owners. */
   popularity: number;
 };

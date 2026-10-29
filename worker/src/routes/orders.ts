@@ -53,14 +53,15 @@ type Line = { menuItemId: number; name: string; price: number; qty: number };
 async function priceItems(db: D1Database, storeId: number, items: { menu_item_id: number; qty: number }[]): Promise<Line[]> {
   const ids = [...new Set(items.map((i) => i.menu_item_id))];
   const { results } = await db
-    .prepare(`SELECT id, name, price, discount_percent FROM store_menu_items WHERE store_id = ? AND id IN (${ids.map(() => '?').join(',')})`)
+    .prepare(`SELECT id, name, price, discount_percent, sold_out FROM store_menu_items WHERE store_id = ? AND id IN (${ids.map(() => '?').join(',')})`)
     .bind(storeId, ...ids)
-    .all<{ id: number; name: string; price: number; discount_percent: number }>();
+    .all<{ id: number; name: string; price: number; discount_percent: number; sold_out: number }>();
   const menu = new Map(results.map((m) => [m.id, m]));
 
   return items.map((i) => {
     const item = menu.get(i.menu_item_id);
     if (!item) fail(400, `Item ${i.menu_item_id} is not on this store's menu`);
+    if (item.sold_out === 1) fail(409, `${item.name} is sold out`);
     return { menuItemId: item.id, name: item.name, price: discountedPrice(item.price, item.discount_percent), qty: i.qty };
   });
 }

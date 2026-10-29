@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import { MenuEditor } from '@/components/menu-editor';
 
 const item = (id: number, image_url: string | null) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url, category: 'Meals', best_seller: false, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url, category: 'Meals', best_seller: false, sold_out: false, popularity: 0,
 });
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
@@ -16,6 +16,7 @@ jest.mock('@/hooks/queries', () => ({
   useStore: () => ({ data: { menu: [item(1, 'https://img.test/1.jpg'), item(2, null)] }, isPending: false, isSuccess: true, error: null }),
   useReorderMenu: () => ({ mutate: jest.fn(), error: null }),
   useDeleteMenuItem: () => ({ mutate: jest.fn(), isPending: false, error: null }),
+  useSaveMenuItem: () => ({ mutate: jest.fn(), isPending: false, isError: false }),
 }));
 
 it("shows each menu item's photo before its name, or a placeholder", async () => {

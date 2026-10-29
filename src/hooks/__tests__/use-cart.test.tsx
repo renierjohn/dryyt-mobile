@@ -5,7 +5,7 @@ import { CartProvider, useCart } from '@/hooks/use-cart';
 import type { MenuItem } from '@/lib/types';
 
 const item = (id: number, price: number, discount_percent = 0): MenuItem => ({
-  id, name: `Item ${id}`, price, discount_percent, image_url: null, category: '', best_seller: false, popularity: 0,
+  id, name: `Item ${id}`, price, discount_percent, image_url: null, category: '', best_seller: false, sold_out: false, popularity: 0,
 });
 const tea = { id: 1, name: 'Tea Haven' };
 const burger = { id: 2, name: 'Burger Barn' };

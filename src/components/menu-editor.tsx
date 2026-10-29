@@ -9,13 +9,13 @@ import { DishPhoto } from '@/components/dish-photo';
 import { SortableList } from '@/components/sortable-list';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
-import { useDeleteMenuItem, useReorderMenu, useStore } from '@/hooks/queries';
+import { useDeleteMenuItem, useReorderMenu, useSaveMenuItem, useStore } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem } from '@/lib/types';
 
-/** Card (80) + gap; each card is clipped to one line of name and one of details so every row fits. */
-const ROW_HEIGHT = 88;
+/** Card (96) + gap; each card is clipped to the Sold Out line, one line of name and one of details so every row fits. */
+const ROW_HEIGHT = 104;
 
 const editItem = (storeId: number, itemId: number | 'new') =>
   router.push({
@@ -60,13 +60,16 @@ export function MenuEditor({ storeId }: { storeId: number }) {
                   </View>,
                 )}
                 {/* The item's photo, or a placeholder so every row lines up. */}
-                <DishPhoto uri={item.image_url} size={48} testID={`menu-photo-${item.id}`} />
+                <View style={item.sold_out && styles.soldOut}>
+                  <DishPhoto uri={item.image_url} size={48} testID={`menu-photo-${item.id}`} />
+                </View>
                 <View style={styles.text}>
-                  <ThemedText type="smallBold" numberOfLines={1}>
+                  <SoldOutCheckbox storeId={storeId} item={item} />
+                  <ThemedText type="smallBold" numberOfLines={1} style={item.sold_out && styles.soldOut}>
                     {item.name}
                     {item.best_seller ? ' · Best seller' : ''}
                   </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={item.sold_out && styles.soldOut}>
                     {[item.category, peso(discountedPrice(item)), item.discount_percent > 0 && `${item.discount_percent}% off`]
                       .filter(Boolean)
                       .join(' · ')}
@@ -94,11 +97,48 @@ export function MenuEditor({ storeId }: { storeId: number }) {
   );
 }
 
+/** Saves right away; customers see a sold out item dimmed and can't add it to the cart. */
+function SoldOutCheckbox({ storeId, item }: { storeId: number; item: MenuItem }) {
+  const save = useSaveMenuItem(storeId, item.id);
+  const theme = useTheme();
+  // Shows the new state while it saves.
+  const checked = save.isPending ? !!save.variables?.sold_out : item.sold_out;
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked, disabled: save.isPending }}
+      accessibilityLabel={`Sold Out: ${item.name}`}
+      disabled={save.isPending}
+      onPress={() => {
+        const { name, price, image_url, discount_percent, category, best_seller } = item;
+        save.mutate({ name, price, image_url, discount_percent, category, best_seller, sold_out: !item.sold_out });
+      }}
+      hitSlop={8}
+      style={styles.check}>
+      <Icon
+        name={
+          checked
+            ? { ios: 'checkmark.square.fill', android: 'check_box', web: 'check_box' }
+            : { ios: 'square', android: 'check_box_outline_blank', web: 'check_box_outline_blank' }
+        }
+        size={18}
+        color={checked ? theme.primary : theme.textSecondary}
+      />
+      <ThemedText type="small" themeColor={checked ? undefined : 'textSecondary'}>
+        Sold Out
+      </ThemedText>
+      {save.isError && <Icon name={{ ios: 'exclamationmark.circle', android: 'error', web: 'error' }} size={16} color={Brand.danger} />}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   section: { gap: Spacing.two },
   card: { height: ROW_HEIGHT - Spacing.two, justifyContent: 'center' },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   text: { flex: 1 },
+  check: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, alignSelf: 'flex-start' },
+  soldOut: { opacity: 0.7 },
   /** Fills the card's height on the left edge: a big, easy target. */
   handle: {
     alignSelf: 'stretch',

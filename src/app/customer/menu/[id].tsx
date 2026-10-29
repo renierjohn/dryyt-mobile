@@ -41,6 +41,7 @@ export default function MenuItemScreen() {
   // Back to the store page if it's in the stack (opened from the store), else open it (opened from Popular).
   const backToStore = () => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
   const add = () => {
+    if (item.sold_out) return;
     if (cart.add(item, shop, qty) === 'needs-replace') {
       cart.confirmReplace(() => {
         cart.replace(item, shop, qty);
@@ -67,11 +68,12 @@ export default function MenuItemScreen() {
             />
           </View>
           <View testID="footer-add" style={styles.add}>
-            <Button title={`Add to cart · ${peso(discountedPrice(item) * qty)}`} onPress={add} />
+            <Button title={item.sold_out ? 'Sold out' : `Add to cart · ${peso(discountedPrice(item) * qty)}`} disabled={item.sold_out} onPress={add} />
           </View>
         </View>
       }>
       <Stack.Screen options={{ title: item.name }} />
+      <View style={[styles.dish, item.sold_out && styles.soldOut]}>
       {item.image_url ? (
         <Image source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
       ) : (
@@ -85,6 +87,7 @@ export default function MenuItemScreen() {
             <ThemedText type="linkPrimary">{shop.name}</ThemedText>
           </Pressable>
           {item.best_seller && <StatusBadge label="Best seller" tone="info" />}
+          {item.sold_out && <StatusBadge label="Sold out" tone="muted" />}
         </View>
         <ThemedText type="subtitle">{item.name}</ThemedText>
         {item.category ? (
@@ -103,6 +106,8 @@ export default function MenuItemScreen() {
           )}
         </View>
       </View>
+      </View>
+      {!item.sold_out && (
       <View style={styles.stepper}>
         <StepButton symbol="−" onPress={() => setQty((q) => Math.max(1, q - 1))} />
         <ThemedText type="subtitle" style={styles.count}>
@@ -110,6 +115,7 @@ export default function MenuItemScreen() {
         </ThemedText>
         <StepButton symbol="+" onPress={() => setQty((q) => Math.min(50, q + 1))} />
       </View>
+      )}
       <MenuItemRow
         title={`More from ${shop.name}`}
         items={related}
@@ -135,6 +141,9 @@ function StepButton({ symbol, onPress }: { symbol: string; onPress: () => void }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  /** Photo and info; same gap as the screen's. */
+  dish: { gap: Spacing.three },
+  soldOut: { opacity: 0.7 },
   // 20% / 80%.
   footer: { flexDirection: 'row', gap: Spacing.two },
   back: { flex: 1 },

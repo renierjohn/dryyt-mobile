@@ -170,7 +170,7 @@ describe('owner menu', () => {
     });
 
     const menu = (await api(`/stores/${storeId}`, { token })).body.store.menu;
-    expect(menu).toEqual([{ ...item, id: itemId, best_seller: false, image_url: null, popularity: 0 }]);
+    expect(menu).toEqual([{ ...item, id: itemId, best_seller: false, sold_out: false, image_url: null, popularity: 0 }]);
 
     expect(
       (
@@ -198,6 +198,23 @@ describe('owner menu', () => {
     });
     expect(order.status).toBe(201);
     expect(order.body.order.items_total).toBe(24000);
+  });
+
+  it("won't order a sold out item", async () => {
+    const storeId = (await api('/owner/stores', { token, body: { ...shop, type: 'food' } })).body.store.id;
+    const saved = await api(`/owner/stores/${storeId}/menu`, { token, body: { ...item, sold_out: true } });
+    expect(saved.body.item.sold_out).toBe(true);
+    const customer = (await registerUser('customer')).token;
+    const order = await placeOrder({
+      token: customer,
+      body: {
+        type: 'pickup',
+        store_id: storeId,
+        items: [{ menu_item_id: saved.body.item.id, qty: 1 }],
+        customer_address: '123 Some Street',
+      },
+    });
+    expect(order.status).toBe(409);
   });
 
   it('rejects laundry shops, bad input and other owners', async () => {

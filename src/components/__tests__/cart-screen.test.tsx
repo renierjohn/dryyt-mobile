@@ -47,7 +47,7 @@ jest.mock('react-native-safe-area-context', () => {
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
 });
 
-const item = { id: 1, name: 'Milk Tea', price: 10000, image_url: 'https://img.test/tea.jpg', discount_percent: 0, category: 'Drinks', best_seller: false, popularity: 0 };
+const item = { id: 1, name: 'Milk Tea', price: 10000, image_url: 'https://img.test/tea.jpg', discount_percent: 0, category: 'Drinks', best_seller: false, sold_out: false, popularity: 0 };
 
 const waitingOrder = {
   id: 42, type: 'pickup', store_id: 1, store_type: 'food', store_name: 'Tea Haven', store_address: '12 Mabini St', customer_address: 'Pinned location',

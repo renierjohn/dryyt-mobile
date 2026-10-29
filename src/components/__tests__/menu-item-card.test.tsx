@@ -5,7 +5,7 @@ import { MenuItemCard } from '../menu-item-card';
 jest.mock('../icon', () => ({ Icon: () => null }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
-const item = { id: 6, name: 'Cheeseburger', price: 17000, discount_percent: 20, image_url: null, category: '', best_seller: false, popularity: 5 };
+const item = { id: 6, name: 'Cheeseburger', price: 17000, discount_percent: 20, image_url: null, category: '', best_seller: false, sold_out: false, popularity: 5 };
 
 it('shows the discounted price, the original struck through, and the store', async () => {
   const onPress = jest.fn();

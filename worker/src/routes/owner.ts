@@ -35,6 +35,7 @@ const menuItemSchema = z.object({
   discount_percent: z.number().int().min(0).max(100).default(0),
   category: z.string().trim().max(50).default(''),
   best_seller: z.boolean().default(false),
+  sold_out: z.boolean().default(false),
 });
 
 /** Every item id on the menu, in the new order. */
@@ -190,10 +191,10 @@ owner.post('/stores/:id/menu', async (c) => {
   const storeId = await myFoodStore(c);
   const m = await parseBody(c, menuItemSchema);
   const row = await c.env.DB.prepare(
-    `INSERT INTO store_menu_items (store_id, name, price, image_url, discount_percent, category, best_seller, sort_order)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM store_menu_items WHERE store_id = ?1)) RETURNING id`,
+    `INSERT INTO store_menu_items (store_id, name, price, image_url, discount_percent, category, best_seller, sold_out, sort_order)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM store_menu_items WHERE store_id = ?1)) RETURNING id`,
   )
-    .bind(storeId, m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller ? 1 : 0)
+    .bind(storeId, m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller ? 1 : 0, m.sold_out ? 1 : 0)
     .first<{ id: number }>();
   return c.json({ item: await getMenuItem(c.env.DB, storeId, row!.id) }, 201);
 });
@@ -238,9 +239,9 @@ owner.post('/stores/:id/menu/:itemId', async (c) => {
   const m = await parseBody(c, menuItemSchema);
   const before = await getMenuItem(c.env.DB, storeId, itemId);
   const { meta } = await c.env.DB.prepare(
-    'UPDATE store_menu_items SET name = ?, price = ?, image_url = ?, discount_percent = ?, category = ?, best_seller = ? WHERE id = ? AND store_id = ?',
+    'UPDATE store_menu_items SET name = ?, price = ?, image_url = ?, discount_percent = ?, category = ?, best_seller = ?, sold_out = ? WHERE id = ? AND store_id = ?',
   )
-    .bind(m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller ? 1 : 0, itemId, storeId)
+    .bind(m.name, m.price, m.image_url, m.discount_percent, m.category, m.best_seller ? 1 : 0, m.sold_out ? 1 : 0, itemId, storeId)
     .run();
   if (meta.changes === 0) fail(404, 'Menu item not found');
   dropImage(c, before?.image_url, m.image_url);

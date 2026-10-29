@@ -6,7 +6,7 @@ jest.mock('../icon', () => ({ Icon: () => null }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
 const make = (id: number) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: false, sold_out: false, popularity: 0,
   store_id: 1, store_name: 'Tea Haven', store_logo: null,
 });
 

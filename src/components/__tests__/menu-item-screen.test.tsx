@@ -6,7 +6,7 @@ import MenuItemScreen from '@/app/customer/menu/[id]';
 import { CartProvider } from '@/hooks/use-cart';
 
 const mockDish = (id: number) => ({
-  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: id === 1, popularity: 0,
+  id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url: null, category: '', best_seller: id === 1, sold_out: false, popularity: 0,
 });
 // Menu as the worker returns it: already in the owner's sort_order (not id order).
 const mockMenu = [3, 1, 9, 4, 8, 2, 7, 5, 6].map(mockDish);

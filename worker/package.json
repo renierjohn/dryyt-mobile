@@ -22,6 +22,7 @@
     "mock:driver": "node scripts/dropoff/mock-driver.js",
     "mock:standby": "node scripts/dropoff/mock-driver-standby.js",
     "mock:owner": "node scripts/dropoff/mock-owner.js",
+    "mock:driver-owner": "node scripts/dropoff/mock-driver-owner.js",
     "mock:store-owner": "node scripts/pickup-food/mock-store-owner.js",
     "mock:customer-driver-pickup-food": "node scripts/pickup-food/mock-customer-driver-pickup-food.js",
     "mock:driver-pickup-laundry": "node scripts/pickup-laundry/mock-driver-pickup-laundry.js",

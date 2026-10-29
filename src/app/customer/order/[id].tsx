@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
@@ -20,10 +20,12 @@ import { Spacing } from '@/constants/theme';
 import { useCancelOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useSocket } from '@/hooks/use-socket';
-import { STATUS_LABEL } from '@/lib/format';
+import { peso, STATUS_LABEL } from '@/lib/format';
 import type { LatLng, OrderStatus } from '@/lib/types';
 
 const CANCELLABLE: OrderStatus[] = ['awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending'];
+/** After the customer sent their payment to the shop: cancelling doesn't give it back. */
+const PAID: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', 'pending'];
 const LIVE_STATUSES: OrderStatus[] = ['awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending', 'accepted', 'picked_up'];
 
 export default function OrderScreen() {
@@ -115,7 +117,23 @@ export default function OrderScreen() {
         />
       )}
       {CANCELLABLE.includes(o.status) && (
-        <Button title="Cancel order" variant="danger" onPress={() => cancel.mutate()} loading={cancel.isPending} />
+        <Button
+          title="Cancel order"
+          variant="danger"
+          loading={cancel.isPending}
+          onPress={() =>
+            PAID.includes(o.status)
+              ? Alert.alert(
+                  'Cancel a paid order?',
+                  `You already paid ${peso(o.items_total + o.total_delivery_fee)} to ${o.store_name}. Cancelling won't refund it automatically: contact the shop for your refund.`,
+                  [
+                    { text: 'Keep order', style: 'cancel' },
+                    { text: 'Cancel order', style: 'destructive', onPress: () => cancel.mutate() },
+                  ],
+                )
+              : cancel.mutate()
+          }
+        />
       )}
     </Screen>
   );

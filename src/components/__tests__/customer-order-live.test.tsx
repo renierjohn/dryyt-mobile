@@ -1,8 +1,10 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import OrderScreen from '@/app/customer/order/[id]';
 
 const mockSocketRoom = jest.fn();
+const mockCancel = jest.fn();
 let mockStatus = 'pending';
 
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '12' }) }));
@@ -16,7 +18,7 @@ jest.mock('@/hooks/queries', () => ({
     isError: false,
     refetch: jest.fn(),
   }),
-  useCancelOrder: () => ({ mutate: jest.fn(), isPending: false, error: null }),
+  useCancelOrder: () => ({ mutate: mockCancel, isPending: false, error: null }),
   usePlaceOrder: () => ({ mutate: jest.fn(), isPending: false, error: null }),
 }));
 jest.mock('@/hooks/use-cart', () => ({ useCart: () => ({ orderId: null, clear: jest.fn() }) }));
@@ -47,4 +49,31 @@ it.each([
   mockStatus = status;
   await render(<OrderScreen />);
   expect(mockSocketRoom).toHaveBeenLastCalledWith(room);
+});
+
+describe('Cancel order', () => {
+  beforeEach(() => {
+    mockCancel.mockClear();
+    jest.spyOn(Alert, 'alert').mockClear();
+  });
+
+  it('cancels at once before anything was paid', async () => {
+    mockStatus = 'awaiting_fee';
+    await render(<OrderScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel order' }));
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockCancel).toHaveBeenCalled();
+  });
+
+  it.each(['awaiting_payment', 'payment_confirmed', 'pending'])('asks first once paid (%s), saying the money is not refunded', async (status) => {
+    mockStatus = status;
+    await render(<OrderScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel order' }));
+    expect(mockCancel).not.toHaveBeenCalled();
+    const [title, message, buttons] = jest.mocked(Alert.alert).mock.calls[0];
+    expect(title).toBe('Cancel a paid order?');
+    expect(message).toContain('You already paid ₱280.00 to Burger Barn');
+    buttons!.find((b) => b.text === 'Cancel order')!.onPress!();
+    expect(mockCancel).toHaveBeenCalled();
+  });
 });

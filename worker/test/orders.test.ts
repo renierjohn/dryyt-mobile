@@ -1,4 +1,4 @@
-import { env, SELF } from 'cloudflare:test';
+import { env, fetchMock, SELF } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api, placeOrder, registerUser, registerVerifiedDriver } from './helpers';
@@ -401,6 +401,37 @@ describe('paying for a laundry pickup', () => {
     const id = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
     const set = await api(`/owner/orders/${id}/laundry-fee`, { token: owner, body: { laundry_fee: 0 } });
     expect(set.body.order).toMatchObject({ status: 'to_pay', items_total: 0 });
+  });
+
+  it("tells the shop when a paid pickup is cancelled, but not one that wasn't paid yet", async () => {
+    await env.DB.prepare('UPDATE users SET push_token = ? WHERE id = (SELECT owner_id FROM stores WHERE id = 4)').bind('ExponentPushToken[laundry-owner]').run();
+    const sent: { title: string; body: string; data: { order_id: number } }[] = [];
+    fetchMock.activate();
+    fetchMock
+      .get('https://exp.host')
+      .intercept({ path: '/--/api/v2/push/send', method: 'POST' })
+      .reply(200, (req) => {
+        sent.push(...JSON.parse(String(req.body)));
+        return { data: [] };
+      })
+      .persist();
+    const cancelled = () => sent.filter((m) => m.title === 'Order cancelled');
+    try {
+      const unpaid = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+      await api(`/orders/${unpaid}/cancel`, { token: customer, method: 'POST' });
+
+      const paid = (await api('/orders', { token: customer, body: laundryOrder })).body.order.id;
+      await api(`/owner/orders/${paid}/laundry-fee`, { token: owner, body: { laundry_fee: 25000 } });
+      await api(`/orders/${paid}/payment`, { token: customer, body: { payment_ref: 'GCASH-1' } });
+      expect((await api(`/orders/${paid}/cancel`, { token: customer, method: 'POST' })).body.order.status).toBe('cancelled');
+
+      await vi.waitFor(() => expect(cancelled()).toHaveLength(1));
+      const total = (await api(`/orders/${paid}`, { token: customer })).body.order;
+      const amount = ((total.items_total + total.total_delivery_fee) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      expect(cancelled()[0]).toMatchObject({ body: `Order #${paid} was cancelled by the customer. They already paid ₱${amount}.`, data: { order_id: paid } });
+    } finally {
+      fetchMock.deactivate();
+    }
   });
 
   it('can be cancelled before the fee is set or paid', async () => {

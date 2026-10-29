@@ -9,7 +9,7 @@ import { photoResponse, readPhoto } from '../lib/photos';
 import { orderRoom, pickupChanged } from '../lib/pickup-live';
 import { pushToUsers } from '../lib/push';
 import { feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
-import type { AppEnv, StoreType } from '../types';
+import type { AppEnv, OrderStatus, StoreType } from '../types';
 
 const pin = { lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) };
 
@@ -257,11 +257,22 @@ orders.get('/:id/driver-photo/:kind', requireRole('customer'), async (c) => {
   return photoResponse(c.env.PROOFS, kind === 'face' ? row.photo_face : row.photo_id);
 });
 
+/** Statuses after the customer sent their payment to the shop. */
+const PAID: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', 'pending'];
+
+const peso = (centavos: number) => `₱${(centavos / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 orders.post('/:id/cancel', requireRole('customer'), async (c) => {
   const id = parseId(c);
   const db = c.env.DB;
 
-  const order = await db.prepare('SELECT customer_id FROM transactions_pickup WHERE id = ?').bind(id).first<{ customer_id: number }>();
+  const order = await db
+    .prepare(
+      `SELECT o.customer_id, o.status, o.items_total + o.total_delivery_fee AS paid, s.owner_id, s.type AS store_type
+       FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ?`,
+    )
+    .bind(id)
+    .first<{ customer_id: number; status: OrderStatus; paid: number; owner_id: number | null; store_type: StoreType }>();
   if (!order) fail(404, 'Order not found');
   if (order.customer_id !== c.get('user').id) fail(403, 'You cannot cancel this order');
 
@@ -273,6 +284,19 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
     .run();
   if (meta.changes === 0) fail(409, 'Order can no longer be cancelled');
   pickupChanged(c, id);
+  // The customer paid the shop directly, so the shop has to know: it may owe a refund (and may have started cooking).
+  if (PAID.includes(order.status) && order.owner_id !== null) {
+    c.executionCtx.waitUntil(
+      pushToUsers(
+        c.env,
+        [order.owner_id],
+        'Order cancelled',
+        `Order #${id} was cancelled by the customer. They already paid ${peso(order.paid)}.`,
+        { order_id: id, laundry: order.store_type === 'laundry' },
+        'ownerOrder',
+      ),
+    );
+  }
 
   return c.json({ order: await getOrder(db, id) });
 });

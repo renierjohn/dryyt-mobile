@@ -229,7 +229,11 @@ dropoffs.post('/:id/picked-up', requireRole('driver'), async (c) => {
     .run();
   if (meta.changes === 0) fail(409, 'Only a drop off on the way to pickup can be picked up');
 
-  await afterCommit('picked-up trip notify', () => tripFor(c.env, row.room_id).notify({ t: 'status', status: 'en_route_shop' }));
+  const trip = tripFor(c.env, row.room_id);
+  await afterCommit('picked-up trip notify', async () => {
+    await trip.endChat();
+    await trip.notify({ t: 'status', status: 'en_route_shop' });
+  });
   return respond(c, row.id);
 });
 

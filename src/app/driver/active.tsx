@@ -115,7 +115,7 @@ function PickupJob() {
           {job.customer_name} · {job.customer_phone}
         </ThemedText>
       </Card>
-      <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />
+      {job.status === 'accepted' && <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />}
       <ErrorText error={advance.error ?? release.error} />
       {carrying && customer && (
         <ThemedText themeColor="textSecondary">

@@ -23,6 +23,7 @@ export class Trip extends DurableObject<Bindings> {
   async start(transactionId: number) {
     await this.ctx.storage.put('transactionId', transactionId);
     await this.ctx.storage.put('tracking', true);
+    await this.ctx.storage.put('chatOpen', true);
     await this.setTimers({ staleAt: Date.now() + NO_LOCATION_WARN_MS });
   }
 
@@ -30,10 +31,16 @@ export class Trip extends DurableObject<Bindings> {
     for (const ws of this.ctx.getWebSockets()) this.send(ws, msg);
   }
 
-  /** Laundry is at the shop: stop tracking (and the chat), remind the owner if they don't confirm. */
+  /** The driver has the laundry: the chat ends (it is only for meeting up) and its messages are wiped. */
+  async endChat() {
+    await this.ctx.storage.put('chatOpen', false);
+    await clearChat(this.ctx.storage);
+  }
+
+  /** Laundry is at the shop: stop tracking, remind the owner if they don't confirm. */
   async finish() {
     await this.ctx.storage.put('tracking', false);
-    await clearChat(this.ctx.storage);
+    await this.endChat();
     await this.setTimers({ staleAt: undefined, ownerAt: Date.now() + OWNER_REMINDER_MS });
   }
 
@@ -79,7 +86,7 @@ export class Trip extends DurableObject<Bindings> {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server, [role]);
     server.serializeAttachment({ role, userId: Number(request.headers.get('x-user-id')), since: Date.now() } satisfies Attachment);
-    if (await this.ctx.storage.get<boolean>('tracking')) this.send(server, { t: 'chat', messages: await chatMessages(this.ctx.storage) });
+    if (await this.ctx.storage.get<boolean>('chatOpen')) this.send(server, { t: 'chat', messages: await chatMessages(this.ctx.storage) });
     if (role === 'customer') {
       const loc = await this.ctx.storage.get<LatLng>('loc');
       if (loc) this.send(server, { t: 'loc', ...loc });
@@ -100,7 +107,7 @@ export class Trip extends DurableObject<Bindings> {
       return;
     }
     if (msg.t === 'chat') {
-      if (!(await this.ctx.storage.get<boolean>('tracking'))) return;
+      if (!(await this.ctx.storage.get<boolean>('chatOpen'))) return;
       const result = await addChat(this.ctx.storage, att.role, msg.text);
       if ('error' in result) this.send(ws, { t: 'chat_error', error: result.error });
       else await this.notify({ t: 'chat', messages: result });

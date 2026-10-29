@@ -167,7 +167,7 @@ export default function DropoffDetail() {
               </View>
             </View>
           </Card>
-          <JobChat chat={chat} me="customer" otherName={d.driver_name} send={send} connected={connected} />
+          {d.status === 'en_route_pickup' && <JobChat chat={chat} me="customer" otherName={d.driver_name} send={send} connected={connected} />}
         </>
       )}
 

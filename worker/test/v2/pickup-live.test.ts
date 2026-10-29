@@ -177,6 +177,22 @@ describe('order chat', () => {
     expect((await customerSock.next('chat')).messages).toHaveLength(11);
   });
 
+  it('ends once the driver picks the order up', async () => {
+    const { customer, driver, id } = await acceptedOrder();
+    const customerSock = await openSocket(customer.token, `order-${id}`);
+    await customerSock.next('chat');
+    customerSock.send({ t: 'chat', text: 'Hello' });
+    expect((await customerSock.next('chat')).messages).toHaveLength(1);
+
+    await api(`/jobs/${id}/status`, { token: driver.token, body: { status: 'picked_up' } });
+    expect((await customerSock.next('order')).order.status).toBe('picked_up');
+    customerSock.send({ t: 'chat', text: 'Still there?' });
+    await expect(customerSock.next(['chat', 'chat_error'], 30)).rejects.toThrow();
+    // Not replayed on reconnect either: the messages are gone.
+    const again = await openSocket(customer.token, `order-${id}`);
+    await expect(again.next('chat', 30)).rejects.toThrow();
+  });
+
   it('starts fresh for the next driver after a release, and ignores chat before a driver has the job', async () => {
     const { customer, driver, id } = await acceptedOrder();
     const customerSock = await openSocket(customer.token, `order-${id}`);

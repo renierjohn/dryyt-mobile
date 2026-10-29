@@ -39,7 +39,10 @@ export function useJobChat() {
   return { messages, error, onMessage };
 }
 
-/** Short chat between the customer and the driver: up to CHAT_MAX_EACH messages each, CHAT_MAX_LENGTH characters long. */
+/**
+ * Short chat between the customer and the driver until pickup: up to CHAT_MAX_EACH messages each, CHAT_MAX_LENGTH
+ * characters long.
+ */
 export function JobChat({
   chat,
   me,

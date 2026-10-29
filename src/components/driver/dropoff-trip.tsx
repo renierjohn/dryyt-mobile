@@ -92,7 +92,7 @@ export function DropoffTrip({ job, onLive }: { job: Dropoff; onLive?: (connected
         <ThemedText type="small">Drop at: {job.store_name}</ThemedText>
         {job.delivery_fee !== undefined && <ThemedText type="small">You earn {peso(job.delivery_fee)} (paid by the shop)</ThemedText>}
       </Card>
-      {tracking && <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />}
+      {job.status === 'en_route_pickup' && <JobChat chat={chat} me="driver" otherName={job.customer_name} send={send} connected={connected} />}
       <ErrorText error={action.error} />
       {job.status === 'en_route_pickup' && (
         <>

@@ -101,7 +101,8 @@ export default function OrderScreen() {
           </View>
         </Card>
       ) : null}
-      {(o.status === 'accepted' || o.status === 'picked_up') && <JobChat chat={chat} me="customer" otherName={o.driver_name} send={send} connected={connected} />}
+      {/* Until pickup: the chat is for meeting up, and the room wipes it once the driver has the order. */}
+      {o.status === 'accepted' && <JobChat chat={chat} me="customer" otherName={o.driver_name} send={send} connected={connected} />}
       {o.status === 'awaiting_fee' && (
         <View style={styles.statusRow}>
           <ActivityIndicator />

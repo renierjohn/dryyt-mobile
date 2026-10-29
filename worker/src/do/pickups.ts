@@ -63,8 +63,8 @@ export class PickupBoard extends DurableObject<Bindings> {
 }
 
 type Attachment = { role: 'customer' | 'driver'; ts?: number };
-/** The customer and the driver can chat while the job is the driver's. */
-const CHAT_OPEN: (string | undefined)[] = ['accepted', 'picked_up'];
+/** The customer and the driver can chat until the driver picks the order up; the chat is wiped then. */
+const CHAT_OPEN: (string | undefined)[] = ['accepted'];
 /** Food orders waiting for Done Pay: when to remind the owner, and when to accept the payment for them. */
 type PaymentTimers = { remindAt?: number; reminded?: number; confirmAt?: number };
 

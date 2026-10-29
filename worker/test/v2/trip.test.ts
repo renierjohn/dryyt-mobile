@@ -22,7 +22,7 @@ describe('trip', () => {
     expect((await post(`/dropoffs/${id}/confirm-driver`, customer.token)).status).toBe(409);
   });
 
-  it('lets the customer and driver chat while en route, and ends the chat at the shop', async () => {
+  it('lets the customer and driver chat on the way to pickup, and ends the chat once picked up', async () => {
     const { driver, customer, id } = await acceptedDropoff();
     const room = (await post(`/dropoffs/${id}/confirm-driver`, customer.token)).body.dropoff.room_id;
     const customerSock = await openSocket(customer.token, room);
@@ -35,12 +35,13 @@ describe('trip', () => {
     customerSock.send({ t: 'chat', text: 'x'.repeat(101) });
     expect(await customerSock.next('chat_error')).toEqual({ t: 'chat_error', error: 'Messages can be up to 100 characters' });
 
-    // Dropped at the shop: the chat is gone and further messages are ignored.
-    const stub = env.TRIP.get(env.TRIP.idFromName(room));
-    await runInDurableObject(stub, (instance: Trip) => instance.finish());
+    // Picked up: the chat is gone, further messages are ignored and nothing is replayed on reconnect.
+    await post(`/dropoffs/${id}/picked-up`, driver.token);
+    expect(await customerSock.next('status')).toEqual({ t: 'status', status: 'en_route_shop' });
     expect(await tripKeys(room)).not.toContain('chat');
     driverTrip.send({ t: 'chat', text: 'Done' });
     await expect(customerSock.next(['chat', 'chat_error'], 30)).rejects.toThrow();
+    await expect((await openSocket(customer.token, room)).next('chat', 30)).rejects.toThrow();
   });
 
   it('relays driver location to the customer and replays it on reconnect', async () => {

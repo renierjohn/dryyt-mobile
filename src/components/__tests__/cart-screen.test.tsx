@@ -12,7 +12,7 @@ jest.mock('@/hooks/use-auth', () => ({
 }));
 const mockCreate = jest.fn();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
-const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; options: { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number }[]; token: string } | undefined, variables: undefined as object | undefined };
+const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; options: { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number; available: boolean }[]; token: string } | undefined, variables: undefined as object | undefined };
 jest.mock('@/hooks/queries', () => ({
   useCreateOrder: () => ({ mutate: mockCreate, isPending: false, error: null }),
   useOrderQuote: () => mockQuote,
@@ -136,8 +136,8 @@ it('fetches no road until the delivery fee is computed for the pin', async () =>
 const quoted = {
   road_km: 3.2,
   options: [
-    { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 7920 },
-    { vehicle_type: 4, base_fee: 10000, rate_per_km: 2000, total_delivery_fee: 18100 },
+    { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 7920, available: true },
+    { vehicle_type: 4, base_fee: 10000, rate_per_km: 2000, total_delivery_fee: 18100, available: false },
   ],
   token: 'q-token',
 };
@@ -161,6 +161,21 @@ it('lists every vehicle with its base fare and fee, and Proceed waits for a choi
   expect(screen.getByText('₱181.00')).toBeTruthy();
   expect(screen.getByLabelText('Proceed').props.accessibilityState.disabled).toBe(true);
   expect(screen.getByText('Items ₱200.00 + delivery fee')).toBeTruthy();
+});
+
+it('greys out a vehicle with no driver free, but it can still be chosen', async () => {
+  mockQuote.data = quoted;
+  mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
+  mockQuote.isSuccess = true;
+  await render(
+    <CartProvider>
+      <Harness />
+    </CartProvider>,
+  );
+  expect(screen.getAllByText('No driver nearby')).toHaveLength(1);
+  await fireEvent.press(screen.getByLabelText('Car (lightweight), base fare ₱100.00, delivery fee ₱181.00, no driver nearby'));
+  expect(screen.getByText(/No car \(lightweight\) driver is free right now/)).toBeTruthy();
+  expect(screen.getByLabelText('Proceed').props.accessibilityState.disabled).toBe(false);
 });
 
 it('shows the computed fee and total for the chosen vehicle', async () => {

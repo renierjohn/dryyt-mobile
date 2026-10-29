@@ -7,7 +7,7 @@ import { DEFAULT_CATEGORY, isVehicleCategory } from '../lib/fees';
 import { fail, parseBody, parseId } from '../lib/http';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { pushToUsers } from '../lib/push';
-import { feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
+import { availableVehicles, feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
 import { blockedDrivers, dispatchFor, newRequestFrom, tripFor } from '../lib/rooms';
 import type { AppEnv } from '../types';
 
@@ -66,7 +66,8 @@ dropoffs.post('/quote', requireRole('customer'), async (c) => {
   const store = await shopFor(c, input.store_id);
   const at = { lat: input.lat, lng: input.lng };
   const quote = await quoteFor(c.env, 'dropoff', store, at);
-  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'dropoff', store.id, at, quote)) });
+  const available = await availableVehicles(c.env.DB, 'dropoff', store, at);
+  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'dropoff', store.id, at, quote), available) });
 });
 
 dropoffs.post('/', requireRole('customer'), async (c) => {

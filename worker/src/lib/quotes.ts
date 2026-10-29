@@ -1,7 +1,8 @@
 import { sign, verify } from 'hono/jwt';
 
 import type { Bindings, LatLng } from '../types';
-import { computeFees, isVehicleCategory, type Rate, type RateType } from './fees';
+import { computeFees, driverVehicleSql, isVehicleCategory, type Rate, type RateType } from './fees';
+import { haversineKm, MAX_KM } from './geo';
 import { fail } from './http';
 import { roadDistanceKm } from './routing';
 
@@ -41,10 +42,39 @@ export const signQuote = (env: Bindings, kind: RateType, storeId: number, at: La
     'HS256',
   );
 
-/** What the customer sees of a quote: no fee split. */
-export const publicQuote = (quote: Quote, token: string) => ({
+/**
+ * The vehicles with at least one driver who would get this booking right now, by the same rules as the job lists:
+ * verified, free and not blocked, and online for drop offs (in the store's area, last seen within MAX_KM of the pin or
+ * never located, like Dispatch's push to idle drivers) or online for pickup. A hint only: drivers come and go.
+ */
+export async function availableVehicles(db: D1Database, kind: RateType, store: { id: number; group_id: string }, at: LatLng) {
+  const where =
+    kind === 'dropoff'
+      ? `d.online = 1 AND d.group_id = ?1 AND NOT EXISTS (SELECT 1 FROM driver_blocks b WHERE b.store_id = ?2 AND b.driver_id = d.user_id)`
+      : 'd.pickup_online = 1';
+  const { results } = await db
+    .prepare(
+      `SELECT ${driverVehicleSql('dd')} AS vehicle_type, d.lat, d.lng FROM drivers d
+       JOIN users u ON u.id = d.user_id JOIN driver_data dd ON dd.user_id = d.user_id
+       WHERE ${where} AND d.busy = 0 AND dd.status = 1 AND u.blocked = 0`,
+    )
+    .bind(...(kind === 'dropoff' ? [store.group_id, store.id] : []))
+    .all<{ vehicle_type: number; lat: number | null; lng: number | null }>();
+  const near = (d: { lat: number | null; lng: number | null }) =>
+    kind !== 'dropoff' || d.lat === null || d.lng === null || haversineKm({ lat: d.lat, lng: d.lng }, at) <= MAX_KM;
+  return new Set(results.filter(near).map((d) => d.vehicle_type));
+}
+
+/** What the customer sees of a quote: no fee split, and whether each vehicle has a driver available. */
+export const publicQuote = (quote: Quote, token: string, available: Set<number>) => ({
   road_km: quote.road_km,
-  options: quote.options.map(({ vehicle_type, base_fee, rate_per_km, total_delivery_fee }) => ({ vehicle_type, base_fee, rate_per_km, total_delivery_fee })),
+  options: quote.options.map(({ vehicle_type, base_fee, rate_per_km, total_delivery_fee }) => ({
+    vehicle_type,
+    base_fee,
+    rate_per_km,
+    total_delivery_fee,
+    available: available.has(vehicle_type),
+  })),
   token,
 });
 

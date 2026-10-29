@@ -11,6 +11,7 @@ import { DriverDetails } from '@/components/driver-details';
 import { JobChat, useJobChat } from '@/components/job-chat';
 import { LaundryPayment } from '@/components/payment-method';
 import { PaymentWait } from '@/components/payment-wait';
+import { OrderPaymentProof } from '@/components/order-payment-proof';
 import { OrderSummary } from '@/components/order-summary';
 import { OrderTripMap } from '@/components/order-trip-map';
 import { Screen } from '@/components/screen';
@@ -101,6 +102,7 @@ export default function OrderScreen() {
           </View>
         </Card>
       ) : null}
+      <OrderPaymentProof order={o} />
       {/* Until pickup: the chat is for meeting up, and the room wipes it once the driver has the order. */}
       {o.status === 'accepted' && <JobChat chat={chat} me="customer" otherName={o.driver_name} send={send} connected={connected} />}
       {o.status === 'awaiting_fee' && (

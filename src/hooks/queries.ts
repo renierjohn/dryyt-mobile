@@ -90,8 +90,11 @@ export function usePlaceOrder() {
   });
 }
 
-/** One vehicle's price for the trip: its base fare, per-km rate, and the delivery fee the customer pays. */
-export type VehicleFee = { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number };
+/**
+ * One vehicle's price for the trip: its base fare, per-km rate, and the delivery fee the customer pays. `available`: a
+ * driver with this vehicle is free right now (a hint; it can still be booked without one).
+ */
+export type VehicleFee = { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number; available: boolean };
 /** Every vehicle the area has a rate for; `token` books at these prices. */
 export type DeliveryQuote = { road_km: number; options: VehicleFee[]; token: string };
 

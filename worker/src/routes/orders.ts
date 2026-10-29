@@ -8,7 +8,7 @@ import { getOrder, hidePhone, listOrders } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
 import { orderRoom, pickupChanged } from '../lib/pickup-live';
 import { pushToUsers } from '../lib/push';
-import { feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
+import { availableVehicles, feesFor, publicQuote, quoteFor, signQuote } from '../lib/quotes';
 import type { AppEnv, OrderStatus, StoreType } from '../types';
 
 const pin = { lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) };
@@ -76,7 +76,8 @@ orders.post('/quote', requireRole('customer'), async (c) => {
   // One price per vehicle the area has a rate for; the customer picks one when ordering.
   const at = { lat: input.lat, lng: input.lng };
   const quote = await quoteFor(c.env, 'pickup', located(store), at);
-  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'pickup', store.id, at, quote)) });
+  const available = await availableVehicles(c.env.DB, 'pickup', store, at);
+  return c.json({ quote: publicQuote(quote, await signQuote(c.env, 'pickup', store.id, at, quote), available) });
 });
 
 /** Proof of payment photo, uploaded before the order exists; the order then references the returned key. */
@@ -256,6 +257,15 @@ orders.get('/:id/driver-photo/:kind', requireRole('customer'), async (c) => {
   if (!row || row.customer_id !== c.get('user').id) fail(404, 'Order not found');
   if (row.status !== 'accepted' && row.status !== 'picked_up') fail(404, 'No photo');
   return photoResponse(c.env.PROOFS, kind === 'face' ? row.photo_face : row.photo_id);
+});
+
+/** The customer's own proof of payment, shown back on their order. */
+orders.get('/:id/payment-photo', requireRole('customer'), async (c) => {
+  const row = await c.env.DB.prepare('SELECT customer_id, payment_photo_key FROM transactions_pickup WHERE id = ?')
+    .bind(parseId(c))
+    .first<{ customer_id: number; payment_photo_key: string | null }>();
+  if (!row || row.customer_id !== c.get('user').id) fail(404, 'Order not found');
+  return photoResponse(c.env.PROOFS, row.payment_photo_key);
 });
 
 /** Statuses after the customer sent their payment to the shop. */

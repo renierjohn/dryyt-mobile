@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
 import { api, registerUser } from '../helpers';
-import { createDropoff, HOME, makeShop } from './helpers';
+import { createDropoff, HOME, makeDriver, makeShop } from './helpers';
 
 describe('drop offs', () => {
   it('prices by road distance and hides the fee split from the customer', async () => {
@@ -31,8 +31,8 @@ describe('drop offs', () => {
     expect(quote.body.quote).toEqual({
       road_km: 3.2,
       options: [
-        { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000 },
-        { vehicle_type: 3, base_fee: 6000, rate_per_km: 1500, total_delivery_fee: 11900 },
+        { vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000, available: false },
+        { vehicle_type: 3, base_fee: 6000, rate_per_km: 1500, total_delivery_fee: 11900, available: false },
       ],
       token: expect.any(String),
     });
@@ -40,6 +40,42 @@ describe('drop offs', () => {
     expect((await createDropoff(customer.token, { store_id: storeId, vehicle_type: 4, quote_token: quote.body.quote.token })).status).toBe(400);
     const res = await createDropoff(customer.token, { store_id: storeId, vehicle_type: 3, quote_token: quote.body.quote.token });
     expect(res.body.dropoff).toMatchObject({ vehicle_type: 3, total_delivery_fee: 11900 });
+  });
+
+  it('marks the vehicles with a free, online driver nearby in this area', async () => {
+    const { storeId, group } = await makeShop();
+    await env.DB.prepare("INSERT INTO rates (group_id, type, category, base_fee, rate_per_km, commission_pct) VALUES (?, 'dropoff', 3, 6000, 1500, 10)")
+      .bind(group)
+      .run();
+    const customer = await registerUser('customer');
+    const available = async () =>
+      (await api('/dropoffs/quote', { token: customer.token, body: { store_id: storeId, ...HOME } })).body.quote.options.map(
+        (o: { vehicle_type: number; available: boolean }) => [o.vehicle_type, o.available],
+      );
+
+    // A motorcycle driver (the default vehicle), online in this area, never located: counts.
+    const moto = await makeDriver(group);
+    expect(await available()).toEqual([[2, true], [3, false]]);
+
+    // Last seen more than 20 km away, busy, or blocked by this shop: doesn't.
+    const near = (lat: number) => env.DB.prepare('UPDATE drivers SET lat = ?, lng = ? WHERE user_id = ?').bind(lat, HOME.lng, moto.user.id).run();
+    await near(HOME.lat + 0.3);
+    expect(await available()).toEqual([[2, false], [3, false]]);
+    await near(HOME.lat + 0.01);
+    expect(await available()).toEqual([[2, true], [3, false]]);
+    await env.DB.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ?').bind(moto.user.id).run();
+    expect(await available()).toEqual([[2, false], [3, false]]);
+    await env.DB.prepare('UPDATE drivers SET busy = 0 WHERE user_id = ?').bind(moto.user.id).run();
+    await env.DB.prepare('INSERT INTO driver_blocks (store_id, driver_id) VALUES (?, ?)').bind(storeId, moto.user.id).run();
+    expect(await available()).toEqual([[2, false], [3, false]]);
+
+    // Online in another area: doesn't. A tricycle driver here: does.
+    const elsewhere = await makeDriver('elsewhere');
+    await env.DB.prepare('UPDATE driver_data SET vehicle_type = 3 WHERE user_id = ?').bind(elsewhere.user.id).run();
+    expect(await available()).toEqual([[2, false], [3, false]]);
+    const trike = await makeDriver(group);
+    await env.DB.prepare('UPDATE driver_data SET vehicle_type = 3 WHERE user_id = ?').bind(trike.user.id).run();
+    expect(await available()).toEqual([[2, false], [3, true]]);
   });
 
   it('saves the pinned coordinates as the address when none is given', async () => {

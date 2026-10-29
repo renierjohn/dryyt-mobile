@@ -12,7 +12,8 @@ import { vehicleLabel } from '@/lib/vehicles';
 
 /**
  * One row per vehicle the area has a rate for: its base fare and the delivery fee for this trip. The customer picks
- * one and taps Proceed. Nothing is picked at first, so Proceed waits for a choice.
+ * one and taps Proceed. Nothing is picked at first, so Proceed waits for a choice. A vehicle with no driver free right
+ * now is greyed out but can still be picked: one may come online before the booking is taken.
  */
 export function VehicleOptions({
   options,
@@ -39,11 +40,15 @@ export function VehicleOptions({
               key={o.vehicle_type}
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`${vehicleLabel(o.vehicle_type)}, base fare ${peso(o.base_fee)}, delivery fee ${peso(o.total_delivery_fee)}`}
+              accessibilityLabel={`${vehicleLabel(o.vehicle_type)}, base fare ${peso(o.base_fee)}, delivery fee ${peso(o.total_delivery_fee)}${o.available ? '' : ', no driver nearby'}`}
               onPress={() => setPicked(o.vehicle_type)}
               style={({ pressed }) => [
                 styles.option,
-                { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primarySoft : 'transparent', opacity: pressed ? 0.7 : 1 },
+                {
+                  borderColor: active ? theme.primary : theme.border,
+                  backgroundColor: active ? theme.primarySoft : 'transparent',
+                  opacity: pressed ? 0.7 : o.available ? 1 : 0.5,
+                },
               ]}>
               <View style={[styles.radio, { borderColor: active ? theme.primary : theme.border }]}>
                 {active && <View style={[styles.dot, { backgroundColor: theme.primary }]} />}
@@ -54,12 +59,22 @@ export function VehicleOptions({
                 <ThemedText type="small" themeColor="textSecondary">
                   Base fare {peso(o.base_fee)}
                 </ThemedText>
+                {!o.available && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    No driver nearby
+                  </ThemedText>
+                )}
               </View>
               <ThemedText type="smallBold">{peso(o.total_delivery_fee)}</ThemedText>
             </Pressable>
           );
         })}
       </View>
+      {chosen && !chosen.available && (
+        <ThemedText type="small" themeColor="textSecondary">
+          No {vehicleLabel(chosen.vehicle_type).toLowerCase()} driver is free right now. You can still book; it may take longer to find one.
+        </ThemedText>
+      )}
       <Button title="Proceed" disabled={!chosen} loading={loading} onPress={() => chosen && onProceed(chosen)} />
     </View>
   );

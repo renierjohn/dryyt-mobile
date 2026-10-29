@@ -69,8 +69,16 @@ describe('POST /orders', () => {
     const quote = await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } });
     expect(quote).toEqual({
       status: 200,
-      body: { quote: { road_km: 3.2, options: [{ vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000 }], token: expect.any(String) } },
+      body: { quote: { road_km: 3.2, options: [{ vehicle_type: 2, base_fee: 4000, rate_per_km: 1000, total_delivery_fee: 8000, available: false }], token: expect.any(String) } },
     });
+
+    // A verified driver online for pickup and free makes their vehicle available; offline, it isn't.
+    const driver = await registerVerifiedDriver();
+    const availability = async () => (await api('/orders/quote', { token: customer, body: { store_id: 1, lat: 14.56, lng: 121.03 } })).body.quote.options[0].available;
+    await api('/drivers/me/pickup-online', { token: driver.token, body: { online: true } });
+    expect(await availability()).toBe(true);
+    await api('/drivers/me/pickup-online', { token: driver.token, body: { online: false } });
+    expect(await availability()).toBe(false);
 
     const res = await placeOrder({ token: customer, body: pinned });
     expect(res.status).toBe(201);
@@ -283,6 +291,12 @@ describe('paying for a food order', () => {
     const photo = await SELF.fetch(`https://api.test/owner/orders/${id}/payment-photo`, { headers: { authorization: `Bearer ${owner}` } });
     expect(photo.status).toBe(200);
     expect(new Uint8Array(await photo.arrayBuffer())).toEqual(JPEG);
+
+    const mine = await SELF.fetch(`https://api.test/orders/${id}/payment-photo`, { headers: { authorization: `Bearer ${customer}` } });
+    expect(mine.status).toBe(200);
+    expect(new Uint8Array(await mine.arrayBuffer())).toEqual(JPEG);
+    const theirs = await SELF.fetch(`https://api.test/orders/${id}/payment-photo`, { headers: { authorization: `Bearer ${other}` } });
+    expect(theirs.status).toBe(404);
   });
 
   it("rejects another customer's or a missing payment photo", async () => {

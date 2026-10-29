@@ -60,7 +60,7 @@ export default function OwnerDropoffs() {
     rows.push(
       <Card key={d.id} onPress={() => router.push({ pathname: '/owner/dropoff/[id]', params: { id: String(d.id) } })}>
         <View style={styles.header}>
-          {/* Same figure as the summary's "Total to pay the shop". */}
+          {/* Same figure as the summary's "Total". */}
           <ThemedText type="smallBold" style={styles.title}>
             {peso(d.total_delivery_fee + (d.laundry_fee ?? 0))}
           </ThemedText>

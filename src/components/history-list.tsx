@@ -96,7 +96,7 @@ export function HistoryCard({ item, role }: { item: HistoryItem; role: Role }) {
     );
   }
   const d = item.dropoff;
-  // Same figure as the summary's "Total to pay the shop"; before the laundry fee is known, just the delivery fee.
+  // Same figure as the summary's "Total"; before the laundry fee is known, just the delivery fee.
   const amount =
     d.laundry_fee !== null ? `${peso(d.total_delivery_fee + d.laundry_fee)}` : `${peso(d.total_delivery_fee)}`;
   // Nothing to look at in a cancelled or unmatched drop off; unmatched ones are faded too.

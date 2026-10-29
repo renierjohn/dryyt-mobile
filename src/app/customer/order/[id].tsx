@@ -9,6 +9,7 @@ import { Card } from '@/components/card';
 import { ErrorText } from '@/components/error-text';
 import { DriverDetails } from '@/components/driver-details';
 import { LaundryPayment } from '@/components/payment-method';
+import { PaymentWait } from '@/components/payment-wait';
 import { OrderSummary } from '@/components/order-summary';
 import { OrderTripMap } from '@/components/order-trip-map';
 import { Screen } from '@/components/screen';
@@ -102,12 +103,7 @@ export default function OrderScreen() {
         </View>
       )}
       {o.status === 'to_pay' && <LaundryPayment order={o} />}
-      {o.status === 'awaiting_payment' && o.store_type === 'laundry' && (
-        <View style={styles.statusRow}>
-          <ActivityIndicator />
-          <ThemedText style={styles.grow}>Waiting for the shop to confirm your payment…</ThemedText>
-        </View>
-      )}
+      {o.status === 'awaiting_payment' && o.store_type === 'laundry' && <PaymentWait since={o.updated_at} />}
       <ErrorText error={cancel.error ?? place.error} />
       {(o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
         <Button

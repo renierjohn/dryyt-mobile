@@ -211,7 +211,9 @@ it('sending the proof switches the cart to waiting for the store', async () => {
   mockQuote.variables = { store_id: 1, lat: 14.56, lng: 121.03 };
   mockQuote.isSuccess = true;
   mockCreate.mockImplementation((_input, { onSuccess }) => onSuccess({ id: 42 }));
-  mockOrder = { data: { ...waitingOrder, status: 'awaiting_payment' }, isPending: false, error: null, refetch: jest.fn() };
+  // Sent 90 seconds ago, as D1 writes it (UTC, no T or Z): 9:30 left of the 11 minutes.
+  const sent = new Date(Date.now() - 90_000).toISOString().slice(0, 19).replace('T', ' ');
+  mockOrder = { data: { ...waitingOrder, status: 'awaiting_payment', updated_at: sent }, isPending: false, error: null, refetch: jest.fn() };
   await render(
     <CartProvider>
       <Harness />
@@ -222,7 +224,8 @@ it('sending the proof switches the cart to waiting for the store', async () => {
   await fireEvent.changeText(screen.getByDisplayValue(''), 'GC-123');
   await fireEvent.press(screen.getByText('Send proof of payment'));
 
-  expect(screen.getByText('Waiting for the store to confirm your payment…')).toBeTruthy();
+  expect(screen.getByText('Waiting for Payment Confirmation')).toBeTruthy();
+  expect(screen.getByTestId('payment-countdown').props.children).toMatch(/^Confirmed automatically in 9:(30|29)$/);
   expect(mockSocketRoom).toHaveBeenLastCalledWith('order-42');
   expect(screen.getByLabelText('Place order').props.accessibilityState.disabled).toBe(true);
 });

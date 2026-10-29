@@ -10,6 +10,7 @@ import { DeliveryPinCard, useDeliveryPin } from '@/components/delivery-pin';
 import { ErrorText } from '@/components/error-text';
 import { OrderSummary } from '@/components/order-summary';
 import { PaymentMethod, type PaymentProof } from '@/components/payment-method';
+import { PaymentWait } from '@/components/payment-wait';
 import { Screen } from '@/components/screen';
 import { Stepper } from '@/components/stepper';
 import { ThemedText } from '@/components/themed-text';
@@ -162,12 +163,7 @@ function AwaitingPayment({ orderId }: { orderId: number }) {
       }>
       {order.isPending && <ActivityIndicator />}
       <ErrorText error={order.error} />
-      {status === 'awaiting_payment' && (
-        <View style={styles.row}>
-          <ActivityIndicator />
-          <ThemedText style={styles.grow}>Waiting for the store to confirm your payment…</ThemedText>
-        </View>
-      )}
+      {status === 'awaiting_payment' && <PaymentWait since={order.data!.updated_at} />}
       {status === 'payment_confirmed' && <ThemedText type="smallBold">Payment confirmed. Place your order to find a driver.</ThemedText>}
       {status === 'cancelled' && <ThemedText themeColor="textSecondary">This order was cancelled.</ThemedText>}
       {order.data && (

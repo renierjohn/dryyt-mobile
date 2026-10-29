@@ -14,8 +14,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem } from '@/lib/types';
 
-/** Card (96) + gap; each card is clipped to the Sold Out line, one line of name and one of details so every row fits. */
-const ROW_HEIGHT = 104;
+/** Card (104) + gap; each card is clipped to the Sold Out line, one line of name and one of details so every row fits. */
+const ROW_HEIGHT = 112;
 
 const editItem = (storeId: number, itemId: number | 'new') =>
   router.push({
@@ -113,7 +113,7 @@ function SoldOutCheckbox({ storeId, item }: { storeId: number; item: MenuItem })
         const { name, price, image_url, discount_percent, category, best_seller } = item;
         save.mutate({ name, price, image_url, discount_percent, category, best_seller, sold_out: !item.sold_out });
       }}
-      hitSlop={8}
+      hitSlop={12}
       style={styles.check}>
       <Icon
         name={
@@ -121,10 +121,10 @@ function SoldOutCheckbox({ storeId, item }: { storeId: number; item: MenuItem })
             ? { ios: 'checkmark.square.fill', android: 'check_box', web: 'check_box' }
             : { ios: 'square', android: 'check_box_outline_blank', web: 'check_box_outline_blank' }
         }
-        size={18}
+        size={26}
         color={checked ? theme.primary : theme.textSecondary}
       />
-      <ThemedText type="small" themeColor={checked ? undefined : 'textSecondary'}>
+      <ThemedText type="smallBold" themeColor={checked ? undefined : 'textSecondary'}>
         Sold Out
       </ThemedText>
       {save.isError && <Icon name={{ ios: 'exclamationmark.circle', android: 'error', web: 'error' }} size={16} color={Brand.danger} />}
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   card: { height: ROW_HEIGHT - Spacing.two, justifyContent: 'center' },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   text: { flex: 1 },
-  check: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, alignSelf: 'flex-start' },
+  check: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, alignSelf: 'flex-start', paddingRight: Spacing.two },
   soldOut: { opacity: 0.7 },
   /** Fills the card's height on the left edge: a big, easy target. */
   handle: {

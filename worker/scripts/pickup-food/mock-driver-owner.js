@@ -19,6 +19,7 @@ if (!Number.isFinite(speedKmh) || speedKmh <= 0) usage('speed must be a positive
 const DRIVERS = 5;
 const COUNTDOWN_S = 5;
 const POLL_MS = 3000;
+const BACKOFF_MS = 10_000;
 /** A driver whose last fix is farther than this from the store starts this close instead. */
 const MAX_START_KM = 20;
 const START_OFFSET = { lat: -0.007, lng: -0.004 }; // ~1 km from the store
@@ -62,6 +63,11 @@ async function runDriver(driver) {
   log(`online for pickup (vehicle ${driver.vehicle_type})`);
 
   while (!stopping) {
+    // Busy on a job from somewhere else (the app, or another mock using the same driver): wait it out.
+    if ((await user.must('/drivers/me')).driver.busy) {
+      await sleep(POLL_MS);
+      continue;
+    }
     const { jobs } = await user.must('/jobs/available');
     const job = jobs.find((j) => j.store_type === 'food' && !claimed.has(j.id));
     if (!job) {
@@ -78,6 +84,8 @@ async function runDriver(driver) {
     if (res.status >= 400) {
       log(`could not accept #${job.id}: ${res.data.error ?? res.status}`);
       claimed.delete(job.id);
+      // Gives another waiting driver the first go.
+      await sleep(BACKOFF_MS);
       continue;
     }
     log(`accepted #${job.id}`);

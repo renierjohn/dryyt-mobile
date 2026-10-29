@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Plays every side of a drop off except the customer, so a real customer can test the app end to end.
-// Usage: bun run mock:driver-owner [<lat> <lng>] [--api <url>] [--speed <km/h>] [--paid]
-// Puts 3 motorcycle and 3 tricycle test drivers online around lat/lng (default: Dauin town proper) (they're created and verified on first run).
-// When the customer books a drop off at any laundry shop, the nearest waiting driver of the booked vehicle accepts,
-// drives to the customer and on to the shop (GPS every 3 s), and drops off with a proof photo. The shop's owner then
-// confirms it (a shop without an owner is linked to the test owner); with --paid the owner also marks it paid.
-// The driver then goes back to its spot and waits again. Ctrl+C takes everyone offline.
-// Signs owners in with worker/.dev.vars JWT_SECRET and verifies drivers in local D1, so it works against `bun run dev` only.
+// Usage: bun run mock:driver-owner-dropoff [--api <url>] [--speed <km/h>] [--paid]
+// Puts 5 random existing drivers (verified, not blocked, not busy, with a vehicle) online at random spots in inland Dauin
+// (clear of the sea). When the customer books a drop off at any laundry shop, the nearest waiting driver of the booked vehicle
+// counts down 5 s, accepts, drives to the customer and on to the shop (GPS every 3 s), and drops off with a proof photo.
+// The shop's owner then confirms it (a shop without an owner is linked to the test owner); with --paid the owner also
+// marks it paid. The driver then goes back to its spot and waits again. Ctrl+C puts the drivers' Online back as it was.
+// Signs everyone in with worker/.dev.vars JWT_SECRET and reads local D1, so it works against `bun run dev` only.
 import { readFileSync } from 'node:fs';
 
 import { car, d1, km, openRoom, parseArgs, peso, sleep, testUser, time, tokenForUser, tokenUser, usageError } from '../lib/mock.js';
@@ -14,28 +14,16 @@ import { car, d1, km, openRoom, parseArgs, peso, sleep, testUser, time, tokenFor
 const argv = process.argv.slice(2);
 const speedAt = argv.indexOf('--speed');
 const speedKmh = speedAt >= 0 ? Number(argv.splice(speedAt, 2)[1]) : 120;
-const { api, flags, positional } = parseArgs(argv);
-// Dauin, Negros Oriental (town proper), same as the cpanel's default map center.
-const DAUIN = { lat: 9.1906, lng: 123.2669 };
-const [lat, lng] = positional.length > 0 ? positional.map(Number) : [DAUIN.lat, DAUIN.lng];
+const { api, flags } = parseArgs(argv);
 const markPaid = flags.has('--paid');
 
-const usage = usageError('bun run mock:driver-owner [<lat> <lng>] [--api <url>] [--speed <km/h>] [--paid]');
-if (!Number.isFinite(lat) || lat < -90 || lat > 90) usage('lat must be between -90 and 90');
-if (!Number.isFinite(lng) || lng < -180 || lng > 180) usage('lng must be between -180 and 180');
+const usage = usageError('bun run mock:driver-owner-dropoff [--api <url>] [--speed <km/h>] [--paid]');
 if (!Number.isFinite(speedKmh) || speedKmh <= 0) usage('speed must be a positive number');
 
-const VEHICLES = { 2: 'Motorcycle', 3: 'Tricycle' };
-const PER_VEHICLE = 3;
-// Test-only accounts.
+const DRIVERS = 5;
+const COUNTDOWN_S = 5;
+// Test-only account, for shops with no owner.
 const OWNER = { email: 'mock.owner@dryyt.test', password: 'mock-owner-pass', name: 'Mock Owner', phone: '09170000002', role: 'owner' };
-const driverAccount = (vehicle, n) => ({
-  email: `mock.${VEHICLES[vehicle].toLowerCase()}${n}@dryyt.test`,
-  password: 'mock-driver-pass',
-  name: `Mock ${VEHICLES[vehicle]} ${n}`,
-  phone: `0917100${vehicle}${String(n).padStart(3, '0')}`,
-  role: 'driver',
-});
 const TICK_MS = 3000; // above the server's 2 s location limit
 const POLL_MS = 3000;
 
@@ -46,27 +34,20 @@ const PROOF_PNG = readFileSync(new URL('../../../assets/images/logo@3x.png', imp
 const claimed = new Set();
 const drivers = [];
 
-/** A spot on a ring around lat/lng, 300 m to 1 km out, so drivers show as separate pins. */
-function spotFor(i, total) {
-  const angle = (2 * Math.PI * i) / total;
-  const dist = 0.3 + 0.7 * (i / total);
-  return { lat: lat + (dist / 111) * Math.cos(angle), lng: lng + (dist / (111 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle) };
-}
+/** Inland Dauin around the town proper (the cpanel's default map center, 9.1906, 123.2669), clear of the sea to the east. */
+const DAUIN = { minLat: 9.175, maxLat: 9.205, minLng: 123.245, maxLng: 123.266 };
+const random = (min, max) => min + Math.random() * (max - min);
+/** A random spot in Dauin, so drivers show as separate pins. */
+const spot = () => ({ lat: +random(DAUIN.minLat, DAUIN.maxLat).toFixed(6), lng: +random(DAUIN.minLng, DAUIN.maxLng).toFixed(6) });
 
-async function startDriver(vehicle, n, home) {
-  const account = driverAccount(vehicle, n);
-  const user = await testUser(api, account);
-  // Vehicle and verified badge straight in D1 (the API locks the vehicle once verified). user.id is an integer.
-  d1(
-    `INSERT INTO driver_data (user_id, vehicle_type, status) VALUES (${user.user.id}, ${vehicle}, 1)
-     ON CONFLICT (user_id) DO UPDATE SET vehicle_type = excluded.vehicle_type, status = 1, updated_at = datetime('now')`,
-    false,
-  );
+async function startDriver(row, home) {
+  const user = tokenUser(api, tokenForUser(String(row.id), 'driver'));
   await user.must('/drivers/me/online', { online: true });
-  const self = { user, name: account.name, vehicle, home, room: null, free: false, sees: new Set() };
+  const self = { user, name: row.name, vehicle: row.vehicle_type, wasOnline: row.online === 1, home, room: null, free: false, sees: new Set() };
   self.car = car(home, speedKmh, () => self.room);
   drivers.push(self);
-  const log = (msg) => console.log(`[${time()}] ${account.name}: ${msg}`);
+  const log = (msg) => console.log(`[${time()}] ${row.name}: ${msg}`);
+  log(`online (vehicle ${row.vehicle_type})`);
 
   const job = async () => (await user.must('/drivers/me')).job;
   async function waitFor(id, statuses) {
@@ -90,11 +71,25 @@ async function startDriver(vehicle, n, home) {
         const r = msg.items.find((it) => !claimed.has(it.transaction_id) && nearest(it) === self);
         if (!r) return;
         claimed.add(r.transaction_id);
-        log(`request #${r.transaction_id} to ${r.store_name}, ${r.distance_km} km away. Accepting.`);
-        dispatch.send({ t: 'accept', transaction_id: r.transaction_id });
+        self.free = false;
+        log(`request #${r.transaction_id} to ${r.store_name}, ${r.distance_km} km away. Accepting in…`);
+        countdown(r.transaction_id).then(() => dispatch.send({ t: 'accept', transaction_id: r.transaction_id }));
       } else if (msg.t === 'accepted') accepted = msg.transaction_id;
-      else if (msg.t === 'error') log(msg.message);
+      else if (msg.t === 'taken' && claimed.has(msg.transaction_id) && !accepted) {
+        // Someone else (a real driver) took it during the countdown.
+        claimed.delete(msg.transaction_id);
+        self.free = true;
+      } else if (msg.t === 'error') {
+        log(msg.message);
+        self.free = true;
+      }
     });
+    async function countdown(id) {
+      for (let s = COUNTDOWN_S; s > 0; s--) {
+        console.log(`[${time()}] ${row.name}:   ${s} (#${id})`);
+        await sleep(1000);
+      }
+    }
     self.dispatch = dispatch;
     self.free = true;
     while (!accepted) {
@@ -180,26 +175,30 @@ async function ownerResponds(id) {
 }
 
 async function main() {
-  const total = Object.keys(VEHICLES).length * PER_VEHICLE;
-  let i = 0;
-  for (const vehicle of Object.keys(VEHICLES).map(Number)) {
-    for (let n = 1; n <= PER_VEHICLE; n++) await startDriver(vehicle, n, spotFor(i++, total));
-  }
-  console.log(`[${time()}] ${PER_VEHICLE} motorcycle and ${PER_VEHICLE} tricycle drivers waiting around ${lat}, ${lng}. Book a drop off in the customer app. Ctrl+C stops.`);
+  const rows = d1(
+    `SELECT u.id, u.name, dd.vehicle_type, d.online
+     FROM users u JOIN drivers d ON d.user_id = u.id JOIN driver_data dd ON dd.user_id = u.id
+     WHERE u.role = 'driver' AND u.blocked = 0 AND dd.status = 1 AND dd.vehicle_type IS NOT NULL AND d.busy = 0
+     ORDER BY RANDOM() LIMIT ${DRIVERS}`,
+    false,
+  );
+  if (rows.length === 0) usage('No verified, free driver in local D1');
+  for (const row of rows) await startDriver(row, spot());
+  console.log(`[${time()}] ${rows.length} drivers waiting in Dauin. Book a drop off in the customer app. Ctrl+C stops.`);
 }
 
 process.on('SIGINT', async () => {
   for (const d of drivers) {
     d.dispatch?.close();
     d.room?.close();
-    await d.user.call('/drivers/me/online', { online: false });
+    await d.user.call('/drivers/me/online', { online: d.wasOnline });
   }
-  console.log('\nDrivers went offline');
+  console.log('\nDrivers back to their Online setting');
   process.exit(0);
 });
 
 main().catch(async (err) => {
   console.error(err.message);
-  for (const d of drivers) await d.user.call('/drivers/me/online', { online: false });
+  for (const d of drivers) await d.user.call('/drivers/me/online', { online: d.wasOnline });
   process.exit(1);
 });

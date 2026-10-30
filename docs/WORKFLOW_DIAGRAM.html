@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dryyt — Delivery Workflow</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f4f5f7; --line: #d5d8de; --text: #111418; --muted: #5d636d;
+    --brand: #3b82f6; --brand-soft: #dbe8fe; --ok: #1f9d55; --ok-soft: #d8f3e3;
+    --warn: #b7791f; --warn-soft: #fbefd5; --bad: #d64545; --bad-soft: #fbe1e1; --shop: #8b5cf6; --shop-soft: #ede5fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #191c22; --line: #2e333c; --text: #eef0f3; --muted: #9aa1ac;
+      --brand: #6aa2f8; --brand-soft: #1c2c47; --ok: #4cc584; --ok-soft: #163325;
+      --warn: #e0a84a; --warn-soft: #3a2d14; --bad: #ef6b6b; --bad-soft: #3d1b1b; --shop: #b197f9; --shop-soft: #2a2045;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: 48px 0 6px; }
+  p.lead, p.sub { color: var(--muted); margin: 0 0 18px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 12px; }
+  .tabs [role="tab"] { font: inherit; font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; }
+  .tabs [role="tab"] span { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .tabs [role="tab"]:hover { border-color: var(--brand); }
+  .tabs [role="tab"][aria-selected="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+  .tabs [role="tab"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  main > h3 { margin: 24px 0 8px; font-size: 16px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand); margin-right: 6px; }
+  .route { font-weight: 600; margin: 8px 0 4px; }
+  .muted { color: var(--muted); }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--text); font-family: inherit; }
+  svg .muted { fill: var(--muted); }
+  svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  svg .lane { stroke: var(--line); stroke-dasharray: 4 5; }
+  svg .arrow { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#a); }
+  svg .arrow.back { stroke-dasharray: 5 4; }
+  svg .s-pending { fill: var(--warn-soft); stroke: var(--warn); }
+  svg .s-accepted, svg .s-picked { fill: var(--brand-soft); stroke: var(--brand); }
+  svg .s-delivered { fill: var(--ok-soft); stroke: var(--ok); }
+  svg .s-cancelled { fill: var(--bad-soft); stroke: var(--bad); }
+  svg .s-shop { fill: var(--shop-soft); stroke: var(--shop); }
+  svg .state { stroke-width: 1.8; }
+  svg .who-c { fill: var(--brand); } svg .who-d { fill: var(--ok); } svg .who-w { fill: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg width="44" height="44" viewBox="15 15 90 90" style="width:44px" aria-label="Dryyt logo">
+      <circle cx="60" cy="60" r="45" fill="#3B82F6"/>
+      <text x="60" y="75" font-family="Arial, sans-serif" font-size="36" font-weight="bold" style="fill:#fff" text-anchor="middle">D</text>
+      <circle cx="88" cy="42" r="5" fill="#FFFFFF"/>
+    </svg>
+    <h1>Dryyt delivery workflow</h1>
+  </header>
+  <p class="lead">How a customer's request becomes a driver's job and moves to delivery. Mobile app (Expo) ↔ Cloudflare Worker (Hono + D1).</p>
+
+  <h2>Order types</h2>
+  <p class="sub">Every order has one store. The type decides which direction the driver travels.</p>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">pickup</span><span class="tag">food</span>
+      <h3>Food pickup</h3>
+      <div class="route">Restaurant → Customer</div>
+      <div class="muted">Customer picks menu items. Server computes prices from the menu; client prices are ignored.</div>
+    </div>
+    <div class="card">
+      <span class="tag">pickup</span><span class="tag">laundry</span>
+      <h3>Laundry pickup</h3>
+      <div class="route">Laundry shop → Customer</div>
+      <div class="muted">Finished laundry brought home. No items; notes carry the claim ticket. Laundry bill is settled with the shop.</div>
+    </div>
+    <div class="card">
+      <span class="tag">dropoff</span><span class="tag">laundry only</span>
+      <h3>Laundry drop off</h3>
+      <div class="route">Customer → Laundry shop</div>
+      <div class="muted">Driver collects laundry at the customer's address and drops it at the chosen shop.</div>
+    </div>
+  </div>
+  <p class="sub" style="margin-top:12px">Customer pays cash to the driver: <b>items total + ₱50 delivery fee</b>.</p>
+
+  <h2>Order status lifecycle</h2>
+  <p class="sub">Each transition is a single conditional <code>UPDATE … WHERE status = ?</code>, so races resolve to one winner (the loser gets 409). A driver has at most one active job.</p>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs></svg>
+  <div class="tabs" role="tablist" aria-label="Order type"><button role="tab" id="tab-life-dropoff" aria-controls="life-dropoff" aria-selected="true" tabindex="0">Laundry drop off<span>transactions_dropoff</span></button><button role="tab" id="tab-life-food" aria-controls="life-food" aria-selected="false" tabindex="-1">Food pickup<span>transactions_pickup</span></button><button role="tab" id="tab-life-laundry" aria-controls="life-laundry" aria-selected="false" tabindex="-1">Laundry pickup<span>transactions_pickup</span></button></div>
+  <div class="card tabpanel" role="tabpanel" id="life-dropoff" aria-labelledby="tab-life-dropoff"><svg viewBox="0 0 960 410" role="img" aria-label="Drop off lifecycle"><rect class="state s-pending" x="20" y="60" width="170" height="64" rx="12"/><text x="105" y="86" text-anchor="middle" font-weight="700">searching</text><text x="105" y="105" text-anchor="middle" class="muted" font-size="12">Finding a driver</text><rect class="state s-accepted" x="270" y="60" width="170" height="64" rx="12"/><text x="355" y="86" text-anchor="middle" font-weight="700">driver_accepted</text><text x="355" y="105" text-anchor="middle" class="muted" font-size="12">Customer to confirm</text><rect class="state s-accepted" x="520" y="60" width="170" height="64" rx="12"/><text x="605" y="86" text-anchor="middle" font-weight="700">en_route_pickup</text><text x="605" y="105" text-anchor="middle" class="muted" font-size="12">Driver to customer</text><rect class="state s-accepted" x="770" y="60" width="170" height="64" rx="12"/><text x="855" y="86" text-anchor="middle" font-weight="700">en_route_shop</text><text x="855" y="105" text-anchor="middle" class="muted" font-size="12">Driver to the shop</text><path class="arrow" d="M190,82 L268,82"/><text x="229" y="52" text-anchor="middle" font-size="12" class="muted">driver accepts</text><path class="arrow back" d="M270,108 L192,108"/><text x="231" y="142" text-anchor="middle" font-size="12" class="muted">reject / release</text><path class="arrow" d="M440,92 L518,92"/><text x="479" y="52" text-anchor="middle" font-size="12" class="muted">confirm driver</text><path class="arrow" d="M690,92 L768,92"/><text x="729" y="52" text-anchor="middle" font-size="12" class="muted">picked up</text><rect class="state s-shop" x="770" y="216" width="170" height="64" rx="12"/><text x="855" y="242" text-anchor="middle" font-weight="700">dropped_off</text><text x="855" y="261" text-anchor="middle" class="muted" font-size="12">Owner to confirm</text><path class="arrow" d="M855,124 L855,214"/><text x="845" y="170" text-anchor="end" font-size="12" class="muted">drop + proof photo</text><rect class="state s-shop" x="520" y="216" width="170" height="64" rx="12"/><text x="605" y="242" text-anchor="middle" font-weight="700">owner_confirmed</text><text x="605" y="261" text-anchor="middle" class="muted" font-size="12">Customer to pay</text><path class="arrow" d="M770,248 L692,248"/><text x="729" y="208" text-anchor="middle" font-size="12" class="muted">owner confirms</text><rect class="state s-delivered" x="270" y="216" width="170" height="64" rx="12"/><text x="355" y="242" text-anchor="middle" font-weight="700">completed</text><text x="355" y="261" text-anchor="middle" class="muted" font-size="12">Paid</text><path class="arrow" d="M520,238 L442,238"/><text x="481" y="208" text-anchor="middle" font-size="12" class="muted">Pay now</text><rect class="state s-shop" x="270" y="330" width="170" height="64" rx="12"/><text x="355" y="356" text-anchor="middle" font-weight="700">payment_pending</text><text x="355" y="375" text-anchor="middle" class="muted" font-size="12">Pay later</text><path class="arrow" d="M560,280 L560,362 L442,362"/><text x="570" y="350" text-anchor="start" font-size="12" class="muted">Pay later</text><path class="arrow" d="M330,330 L330,282"/><text x="338" y="306" text-anchor="start" font-size="12" class="muted">paid</text><path class="arrow back" d="M380,282 L380,328"/><text x="388" y="306" text-anchor="start" font-size="12" class="muted">shop marks unpaid</text><rect class="state s-cancelled" x="20" y="216" width="170" height="64" rx="12"/><text x="105" y="242" text-anchor="middle" font-weight="700">expired</text><text x="105" y="261" text-anchor="middle" class="muted" font-size="12">No driver in time</text><path class="arrow" d="M105,124 L105,214"/><text x="115" y="170" text-anchor="start" font-size="12" class="muted">deadline passes</text><rect class="state s-cancelled" x="20" y="330" width="170" height="64" rx="12"/><text x="105" y="350" text-anchor="middle" font-weight="700">cancelled</text><text x="105" y="369" text-anchor="middle" class="muted" font-size="12">customer: before pickup</text><text x="105" y="384" text-anchor="middle" class="muted" font-size="12">driver: en route</text></svg><div class="legend"><span><span class="dot" style="background:var(--warn)"></span>waiting for a driver</span><span><span class="dot" style="background:var(--shop)"></span>store / shop and payment</span><span><span class="dot" style="background:var(--brand)"></span>driver on the job</span><span><span class="dot" style="background:var(--ok)"></span>done</span><span><span class="dot" style="background:var(--bad)"></span>terminal, not done</span></div></div>
+  <div class="card tabpanel" role="tabpanel" id="life-food" aria-labelledby="tab-life-food" hidden><svg viewBox="0 0 960 400" role="img" aria-label="Food pickup lifecycle"><rect class="state s-shop" x="520" y="60" width="170" height="64" rx="12"/><text x="605" y="80" text-anchor="middle" font-weight="700">awaiting_payment</text><text x="605" y="99" text-anchor="middle" class="muted" font-size="12">Waiting for Payment</text><text x="605" y="114" text-anchor="middle" class="muted" font-size="12">Confirmation</text><rect class="state s-shop" x="770" y="60" width="170" height="64" rx="12"/><text x="855" y="86" text-anchor="middle" font-weight="700">payment_confirmed</text><text x="855" y="105" text-anchor="middle" class="muted" font-size="12">Store saw the payment</text><circle cx="372" cy="92" r="6" style="fill:var(--muted)"/><path class="arrow" d="M378,92 L518,92"/><text x="448" y="52" text-anchor="middle" font-size="12" class="muted">order + proof of payment</text><path class="arrow" d="M690,92 L768,92"/><text x="729" y="52" text-anchor="middle" font-size="12" class="muted">Done Pay / auto 11 min</text><text x="40" y="80" text-anchor="start" font-size="12" class="muted">Store pushed "Review Payment Now"</text><text x="40" y="98" text-anchor="start" font-size="12" class="muted">every 1 min, 10 times.</text><rect class="state s-pending" x="20" y="216" width="170" height="64" rx="12"/><text x="105" y="242" text-anchor="middle" font-weight="700">pending</text><text x="105" y="261" text-anchor="middle" class="muted" font-size="12">On the job board</text><rect class="state s-accepted" x="270" y="216" width="170" height="64" rx="12"/><text x="355" y="242" text-anchor="middle" font-weight="700">accepted</text><text x="355" y="261" text-anchor="middle" class="muted" font-size="12">Driver to the store</text><rect class="state s-accepted" x="520" y="216" width="170" height="64" rx="12"/><text x="605" y="242" text-anchor="middle" font-weight="700">picked_up</text><text x="605" y="261" text-anchor="middle" class="muted" font-size="12">Driver to customer</text><rect class="state s-delivered" x="770" y="216" width="170" height="64" rx="12"/><text x="855" y="242" text-anchor="middle" font-weight="700">delivered</text><text x="855" y="261" text-anchor="middle" class="muted" font-size="12">Food handed over</text><path class="arrow" d="M190,238 L268,238"/><text x="229" y="208" text-anchor="middle" font-size="12" class="muted">driver accepts</text><path class="arrow back" d="M270,264 L192,264"/><text x="231" y="298" text-anchor="middle" font-size="12" class="muted">release</text><path class="arrow" d="M440,248 L518,248"/><text x="479" y="208" text-anchor="middle" font-size="12" class="muted">picked up</text><path class="arrow" d="M690,248 L768,248"/><text x="729" y="208" text-anchor="middle" font-size="12" class="muted">delivered</text><path class="arrow" d="M855,124 L855,170 L105,170 L105,214"/><text x="480" y="162" text-anchor="middle" font-size="12" class="muted">customer taps Place order (POST /orders/:id/place)</text><rect class="state s-cancelled" x="20" y="330" width="170" height="50" rx="12"/><text x="105" y="360" text-anchor="middle" font-weight="700">cancelled</text><path class="arrow" d="M60,280 L60,328"/><text x="210" y="350" text-anchor="start" font-size="12" class="muted">Customer cancels any time before a driver accepts.</text><text x="210" y="368" text-anchor="start" font-size="12" class="muted">If already paid, the app asks first and the store is pushed (may owe a refund).</text></svg><div class="legend"><span><span class="dot" style="background:var(--warn)"></span>waiting for a driver</span><span><span class="dot" style="background:var(--shop)"></span>store / shop and payment</span><span><span class="dot" style="background:var(--brand)"></span>driver on the job</span><span><span class="dot" style="background:var(--ok)"></span>done</span><span><span class="dot" style="background:var(--bad)"></span>terminal, not done</span></div></div>
+  <div class="card tabpanel" role="tabpanel" id="life-laundry" aria-labelledby="tab-life-laundry" hidden><svg viewBox="0 0 960 400" role="img" aria-label="Laundry pickup lifecycle"><rect class="state s-shop" x="20" y="60" width="170" height="64" rx="12"/><text x="105" y="86" text-anchor="middle" font-weight="700">awaiting_fee</text><text x="105" y="105" text-anchor="middle" class="muted" font-size="12">Shop sets the fee</text><rect class="state s-shop" x="270" y="60" width="170" height="64" rx="12"/><text x="355" y="86" text-anchor="middle" font-weight="700">to_pay</text><text x="355" y="105" text-anchor="middle" class="muted" font-size="12">Customer to pay</text><rect class="state s-shop" x="520" y="60" width="170" height="64" rx="12"/><text x="605" y="80" text-anchor="middle" font-weight="700">awaiting_payment</text><text x="605" y="99" text-anchor="middle" class="muted" font-size="12">Waiting for Payment</text><text x="605" y="114" text-anchor="middle" class="muted" font-size="12">Confirmation</text><rect class="state s-shop" x="770" y="60" width="170" height="64" rx="12"/><text x="855" y="86" text-anchor="middle" font-weight="700">payment_confirmed</text><text x="855" y="105" text-anchor="middle" class="muted" font-size="12">Shop saw the payment</text><path class="arrow" d="M190,92 L268,92"/><text x="229" y="52" text-anchor="middle" font-size="12" class="muted">laundry fee</text><path class="arrow" d="M440,92 L518,92"/><text x="479" y="52" text-anchor="middle" font-size="12" class="muted">pays + proof</text><path class="arrow" d="M690,92 L768,92"/><text x="729" y="52" text-anchor="middle" font-size="12" class="muted">Done Pay / auto 11 min</text><rect class="state s-pending" x="20" y="216" width="170" height="64" rx="12"/><text x="105" y="242" text-anchor="middle" font-weight="700">pending</text><text x="105" y="261" text-anchor="middle" class="muted" font-size="12">On the job board</text><rect class="state s-accepted" x="270" y="216" width="170" height="64" rx="12"/><text x="355" y="242" text-anchor="middle" font-weight="700">accepted</text><text x="355" y="261" text-anchor="middle" class="muted" font-size="12">Driver to the store</text><rect class="state s-accepted" x="520" y="216" width="170" height="64" rx="12"/><text x="605" y="242" text-anchor="middle" font-weight="700">picked_up</text><text x="605" y="261" text-anchor="middle" class="muted" font-size="12">Driver to customer</text><rect class="state s-delivered" x="770" y="216" width="170" height="64" rx="12"/><text x="855" y="242" text-anchor="middle" font-weight="700">delivered</text><text x="855" y="261" text-anchor="middle" class="muted" font-size="12">Laundry delivered</text><path class="arrow" d="M190,238 L268,238"/><text x="229" y="208" text-anchor="middle" font-size="12" class="muted">driver accepts</text><path class="arrow back" d="M270,264 L192,264"/><text x="231" y="298" text-anchor="middle" font-size="12" class="muted">release</text><path class="arrow" d="M440,248 L518,248"/><text x="479" y="208" text-anchor="middle" font-size="12" class="muted">picked up</text><path class="arrow" d="M690,248 L768,248"/><text x="729" y="208" text-anchor="middle" font-size="12" class="muted">delivered</text><path class="arrow" d="M855,124 L855,170 L105,170 L105,214"/><text x="480" y="162" text-anchor="middle" font-size="12" class="muted">customer taps Place order (POST /orders/:id/place)</text><rect class="state s-cancelled" x="20" y="330" width="170" height="50" rx="12"/><text x="105" y="360" text-anchor="middle" font-weight="700">cancelled</text><path class="arrow" d="M60,280 L60,328"/><text x="210" y="350" text-anchor="start" font-size="12" class="muted">Customer cancels any time before a driver accepts.</text><text x="210" y="368" text-anchor="start" font-size="12" class="muted">If already paid, the app asks first and the store is pushed (may owe a refund).</text></svg><div class="legend"><span><span class="dot" style="background:var(--warn)"></span>waiting for a driver</span><span><span class="dot" style="background:var(--shop)"></span>store / shop and payment</span><span><span class="dot" style="background:var(--brand)"></span>driver on the job</span><span><span class="dot" style="background:var(--ok)"></span>done</span><span><span class="dot" style="background:var(--bad)"></span>terminal, not done</span></div></div>
+  <script>
+  (() => {
+    const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+    const select = (tab) => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute('aria-selected', on);
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      }
+      try { localStorage.setItem('lifecycle-tab', tab.id); } catch {}
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t));
+      t.addEventListener('keydown', (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step) return;
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        select(next);
+        next.focus();
+      });
+    });
+    let saved = null;
+    try { saved = document.getElementById(localStorage.getItem('lifecycle-tab')); } catch {}
+    if (saved && tabs.includes(saved)) select(saved);
+  })();
+  </script>
+
+  <h2>End-to-end sequence</h2>
+  <p class="sub">Both apps poll every 5 s, so updates appear without push notifications.</p>
+  <div class="card">
+    <svg viewBox="0 0 960 610" role="img" aria-label="Sequence diagram">
+      <rect class="box" x="60"  y="10" width="180" height="44" rx="10"/>
+      <rect class="box" x="390" y="10" width="180" height="44" rx="10"/>
+      <rect class="box" x="720" y="10" width="180" height="44" rx="10"/>
+      <text x="150" y="38" text-anchor="middle" font-weight="700" class="who-c">Customer app</text>
+      <text x="480" y="38" text-anchor="middle" font-weight="700" class="who-w">Worker API + D1</text>
+      <text x="810" y="38" text-anchor="middle" font-weight="700" class="who-d">Driver app</text>
+      <path class="lane" d="M150,54 L150,600"/><path class="lane" d="M480,54 L480,600"/><path class="lane" d="M810,54 L810,600"/>
+
+      <g font-size="13">
+        <path class="arrow" d="M150,90 L476,90"/>
+        <text x="160" y="82">POST /auth/login → JWT stored in SecureStore</text>
+        <path class="arrow" d="M810,120 L484,120"/>
+        <text x="800" y="112" text-anchor="end">POST /auth/login (role: driver)</text>
+
+        <path class="arrow" d="M150,165 L476,165"/>
+        <text x="160" y="150">GET /stores?type=food|laundry</text>
+        <path class="arrow" d="M150,200 L476,200"/>
+        <text x="160" y="192">POST /orders {type, store_id, items, address}</text>
+        <text x="490" y="218" class="muted" font-size="12">prices from menu · status = pending</text>
+
+        <path class="arrow back" d="M810,255 L484,255"/>
+        <text x="800" y="247" text-anchor="end">poll GET /jobs/available (phone hidden)</text>
+        <path class="arrow" d="M810,295 L484,295"/>
+        <text x="800" y="287" text-anchor="end">POST /jobs/:id/accept</text>
+        <text x="490" y="313" class="muted" font-size="12">atomic: only one driver wins · 409 otherwise</text>
+
+        <path class="arrow back" d="M150,350 L476,350"/>
+        <text x="160" y="342">poll GET /orders/:id → driver name + phone</text>
+
+        <path class="arrow" d="M810,400 L484,400"/>
+        <text x="800" y="392" text-anchor="end">POST /jobs/:id/status {picked_up}</text>
+        <path class="arrow" d="M810,445 L484,445"/>
+        <text x="800" y="437" text-anchor="end">POST /jobs/:id/status {delivered}</text>
+        <text x="800" y="463" text-anchor="end" class="muted" font-size="12">collects cash: items + ₱50</text>
+
+        <path class="arrow back" d="M150,505 L476,505"/>
+        <text x="160" y="497">poll GET /orders/:id → Delivered</text>
+        <path class="arrow back" d="M810,560 L484,560"/>
+        <text x="800" y="552" text-anchor="end">GET /jobs/history</text>
+      </g>
+    </svg>
+  </div>
+
+  <h2>Screens</h2>
+  <div class="grid">
+    <div class="card">
+      <h3 class="who-c" style="color:var(--brand)">Customer</h3>
+      <table>
+        <tr><th>Screen</th><th>Purpose</th></tr>
+        <tr><td>Home</td><td>Pickup / Drop off entry points</td></tr>
+        <tr><td>Pickup</td><td>Choose Food or Laundry</td></tr>
+        <tr><td>Choose a store</td><td>Stores filtered by type</td></tr>
+        <tr><td>New order</td><td>Menu + cart (food) or notes (laundry), address</td></tr>
+        <tr><td>Order</td><td>Status timeline, driver contact, proof of payment card, chat with the driver while accepted, cancel (asks first if already paid)</td></tr>
+        <tr><td>Orders / Profile</td><td>History; edit email and phone, change password, sign out</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--ok)">Driver</h3>
+      <table>
+        <tr><th>Screen</th><th>Purpose</th></tr>
+        <tr><td>Available</td><td>Open jobs, accept (disabled while busy)</td></tr>
+        <tr><td>Active</td><td>Addresses, customer phone, chat with the customer until pickup, next-step button, release</td></tr>
+        <tr><td>History</td><td>Delivered jobs</td></tr>
+        <tr><td>Profile</td><td>Change password, sign out</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>API reference</h2>
+  <div class="card">
+    <table>
+      <tr><th>Endpoint</th><th>Who</th><th>Rule</th></tr>
+      <tr><td><code>POST /auth/register</code> · <code>/auth/login</code></td><td>anyone</td><td>Email + password (PBKDF2), returns 30-day JWT</td></tr>
+      <tr><td><code>GET /stores</code> · <code>/stores/:id</code> · <code>/menu/popular</code></td><td>anyone</td><td>Store list / menu; public so guests can browse Home before signing in</td></tr>
+      <tr><td><code>POST /orders/quote</code> · <code>/dropoffs/quote</code></td><td>customer</td><td>One fee per vehicle the area has a rate for (base fare + fee), signed 15 min token; <code>available</code> marks vehicles with a free driver nearby (others greyed out, still bookable)</td></tr>
+      <tr><td><code>POST /orders</code></td><td>customer</td><td>Food needs ≥1 item, none sold out (409); drop off must target laundry</td></tr>
+<tr><td><code>GET /orders/:id/payment-photo</code></td><td>customer</td><td>Own order only, else 404</td></tr>
+<tr><td><code>PATCH /me</code> · <code>POST /me/password</code></td><td>signed in</td><td>Edit email (409 if taken) and phone; new password ≥ 8 characters</td></tr>
+      <tr><td><code>GET /orders</code> · <code>/orders/:id</code></td><td>owner / driver</td><td>Others' orders → 403</td></tr>
+      <tr><td><code>POST /orders/:id/cancel</code></td><td>owner</td><td>Only while pending, else 409</td></tr>
+      <tr><td><code>GET /jobs/available</code></td><td>driver</td><td>Pending orders booked for the driver's vehicle, customer phone hidden</td></tr>
+      <tr><td><code>POST /jobs/:id/accept</code></td><td>verified driver</td><td>Atomic; 403 if not verified; 409 if taken, driver busy or another vehicle</td></tr>
+      <tr><td><code>POST /drivers/me/online</code> · <code>/pickup-online</code></td><td>verified driver</td><td>Going online 403 until verified; going offline always allowed</td></tr>
+      <tr><td><code>POST /jobs/:id/release</code></td><td>assigned driver</td><td>accepted → pending</td></tr>
+      <tr><td><code>POST /jobs/:id/status</code></td><td>assigned driver</td><td>accepted → picked_up → delivered only</td></tr>
+      <tr><td><code>GET /jobs/active</code> · <code>/jobs/history</code></td><td>driver</td><td>Current job / delivered jobs</td></tr>
+    </table>
+  </div>
+
+  <footer>Source: docs/superpowers/specs/2026-10-09-delivery-app-design.md · Generated 2026-10-10 · Local file, not published.</footer>
+</main>
+</body>
+</html>

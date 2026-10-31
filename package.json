@@ -11,6 +11,7 @@
     "expo": "~57.0.31",
     "expo-asset": "~57.0.20",
     "expo-audio": "~57.0.5",
+    "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.22",
     "expo-dev-client": "~57.0.20",
     "expo-device": "~57.0.2",
@@ -77,10 +78,13 @@
     "build:dev": "eas build --profile development --platform android",
     "build:preview": "eas build --profile preview --platform android",
     "build:prod": "eas build --profile production --platform android",
+    "build:preview:ios": "eas build --profile preview --platform ios",
+    "build:prod:ios": "eas build --profile production --platform ios",
+    "submit:ios": "eas submit --profile production --platform ios",
     "gradle:dev": "bun scripts/gradle.ts dev assembleDebug",
     "gradle:release": "bun scripts/gradle.ts production bundleRelease",
     "gradle:preview": "bun scripts/gradle.ts preview assembleRelease",
-    "apk-server":"bun scripts/apk-server.ts"
+    "apk-server": "bun scripts/apk-server.ts"
   },
   "private": true,
   "packageManager": "bun@1.4.3",

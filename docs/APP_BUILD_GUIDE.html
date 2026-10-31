@@ -82,6 +82,10 @@
 <li><a href="#env-files">Which .env files load</a></li>
 <li><a href="#scripts">Build scripts</a></li>
 </ol></li>
+<li><a class="sec" href="#ios">iOS builds</a><ol>
+<li><a href="#ios-setup">One-time setup</a></li>
+<li><a href="#ios-build">Build and submit</a></li>
+</ol></li>
 <li><a class="sec" href="#signing">Signing keys and fingerprints</a><ol>
 <li><a href="#facebook">Facebook key hashes</a></li>
 <li><a href="#firebase">Firebase fingerprints</a></li>
@@ -93,7 +97,7 @@
 <nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a> <a href="APP_BUILD_GUIDE.html" aria-current="page">App build</a></nav>
 
 <h1>App builds</h1>
-<p class="lede">How to build the Android app and deploy the worker for <b>preview</b> and <b>production</b>, which API each build talks to, and which signing keys Facebook and Firebase must know about.</p>
+<p class="lede">How to build the Android and iOS app and deploy the worker for <b>preview</b> and <b>production</b>, which API each build talks to, and which signing keys Facebook and Firebase must know about.</p>
 
 <h2 id="overview">Overview</h2>
 <p>The app reads one setting at build time, <code>EXPO_PUBLIC_API_URL</code>, and calls that worker for everything (REST, WebSockets, images). Preview and production are two separate workers with their own data, so a preview build never touches production orders, users or files.</p>
@@ -184,6 +188,30 @@ bunx wrangler secret list --env preview</div>
 </table></div>
 <p>Building from the Android Studio Build menu instead: run the same variant with <code>EXPO_PUBLIC_API_URL</code> exported in the shell that launched Android Studio, or use <code>.env.production.local</code>.</p>
 
+<h2 id="ios">iOS builds</h2>
+<p>iOS builds run in the EAS cloud, so they work from macOS or Windows. They use the same <code>eas.json</code> profiles as Android, so they get the same API URLs. Only <code>bunx expo run:ios</code> (a local build) needs a Mac.</p>
+
+<h3 id="ios-setup">One-time setup</h3>
+<div class="tbl"><table>
+<tr><th>Step</th><th>Where</th><th>Why</th></tr>
+<tr><td>Apple Developer Program membership (paid)</td><td>developer.apple.com</td><td>Signing and distribution</td></tr>
+<tr><td>Add an iOS app <code>com.dryyt.mobile</code>, download <code>GoogleService-Info.plist</code> into the project root and commit it</td><td>Firebase console → project <code>dryyt-7b40a</code></td><td>Firebase sign-in and Google sign-in. <code>app.config.js</code> uses it only when the file exists; iOS builds fail without it.</td></tr>
+<tr><td>Run the first build from a terminal and let EAS sign in to Apple</td><td><code>bun run build:preview:ios</code></td><td>EAS creates and stores the distribution certificate, provisioning profile and push key (APNs)</td></tr>
+<tr><td>Register test iPhones (preview only)</td><td><code>bunx eas device:create</code>, open the link on each iPhone</td><td>Internal (ad hoc) builds install only on registered devices. Rebuild after adding a device.</td></tr>
+<tr><td>Add the iOS platform with Bundle ID <code>com.dryyt.mobile</code></td><td>Meta for Developers → Settings → Basic</td><td>Facebook Login. iOS has no key hashes.</td></tr>
+<tr><td>Create the app record (first submit only)</td><td>App Store Connect, or let <code>eas submit</code> create it</td><td>TestFlight and App Store</td></tr>
+</table></div>
+<p class="note">React Native Firebase on iOS needs its pods built as static frameworks. <code>app.config.js</code> sets that through <code>expo-build-properties</code> (<code>ios.useFrameworks: "static"</code>); it doesn't affect Android.</p>
+
+<h3 id="ios-build">Build and submit</h3>
+<div class="tbl"><table>
+<tr><th>Command</th><th>API</th><th>Output</th></tr>
+<tr><td><code>bun run build:preview:ios</code></td><td><code>https://app-preview.dryyt.com</code></td><td>Ad hoc build, installs from the EAS link on registered iPhones</td></tr>
+<tr><td><code>bun run build:prod:ios</code></td><td><code>https://dryyt.com</code></td><td>App Store build, build number auto-incremented</td></tr>
+<tr><td><code>bun run submit:ios</code></td><td></td><td>Uploads the latest production build to App Store Connect (TestFlight)</td></tr>
+</table></div>
+<p>To test on iPhones without registering them, use TestFlight: <code>build:prod:ios</code> then <code>submit:ios</code>. That build calls production; for a TestFlight build against preview, add a profile in <code>eas.json</code> that extends <code>production</code> with the preview <code>EXPO_PUBLIC_API_URL</code>.</p>
+
 <h2 id="signing">Signing keys and fingerprints</h2>
 <p>Each kind of build is signed with a different key. Facebook Login and Google sign-in work only for builds whose key is registered, so register every key you ship with.</p>
 <div class="tbl"><table>
@@ -222,6 +250,10 @@ bunx wrangler secret list --env preview</div>
 2. worker/: bun run deploy
 3. App: bun run gradle:release  (or bunx eas build -p android --profile production)
 4. Upload the AAB to Play; check the Play signing key is registered with Facebook and Firebase</div>
+<h3>iOS</h3>
+<div class="mock">1. Deploy the worker for the target (steps 1–2 above)
+2. bun run build:preview:ios   (registered iPhones)
+   or bun run build:prod:ios &amp;&amp; bun run submit:ios   (TestFlight / App Store)</div>
 </main>
 </div>
 <script>

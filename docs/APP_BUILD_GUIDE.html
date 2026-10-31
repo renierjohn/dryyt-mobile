@@ -175,7 +175,7 @@ bunx wrangler secret list --env preview</div>
 <p class="note">The Facebook app id and client token go into the native <code>android/</code> project during <code>bunx expo prebuild</code> (<code>app.config.js</code>), not during the Gradle build. After changing them in <code>.env</code>, run prebuild again before building.</p>
 
 <h3 id="scripts">Build scripts</h3>
-<p>Run from the app root. Each one sets the API URL in the shell, so it doesn't depend on the <code>.env</code> files.</p>
+<p>Run from the app root, on macOS, Linux or Windows. Each goes through <code>scripts/gradle.ts</code>, which sets <code>EXPO_PUBLIC_API_URL</code> for Gradle (so it doesn't depend on the <code>.env</code> files) and runs <code>./gradlew</code>, or <code>gradlew.bat</code> on Windows.</p>
 <div class="tbl"><table>
 <tr><th>Command</th><th>API</th><th>Output</th></tr>
 <tr><td><code>bun run gradle:dev</code></td><td>Metro (<code>.env</code>)</td><td><code>android/app/build/outputs/apk/debug/app-debug.apk</code></td></tr>

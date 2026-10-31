@@ -7,7 +7,9 @@
     "web:dev": "bun run --cwd web dev",
     "web:build": "bun run --cwd web build",
     "deploy": "bun run web:build && wrangler deploy",
+    "deploy:preview": "bun run web:build && wrangler deploy --env preview",
     "r2:lifecycle": "wrangler r2 bucket lifecycle add dryyt-mobile expire-proofs proof/ --expire-days 90 -y && wrangler r2 bucket lifecycle add dryyt-mobile expire-payments payments/ --expire-days 90 -y",
+    "r2:lifecycle:preview": "wrangler r2 bucket lifecycle add dryyt-mobile-preview expire-proofs proof/ --expire-days 90 -y && wrangler r2 bucket lifecycle add dryyt-mobile-preview expire-payments payments/ --expire-days 90 -y",
     "test": "vitest run && vitest run -c vitest.v2.config.ts",
     "test:v2": "vitest run -c vitest.v2.config.ts",
     "typecheck": "tsc --noEmit",
@@ -32,7 +34,8 @@
     "mock:driver-owner-pickup-laundry": "bun scripts/pickup-laundry/mock-driver-owner.js",
     "mock:push": "bun scripts/mock-push.js",
     "db:migrate:local": "wrangler d1 migrations apply dryyt-mobile --local",
-    "db:migrate:remote": "wrangler d1 migrations apply dryyt-mobile --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply dryyt-mobile --remote",
+    "db:migrate:preview": "wrangler d1 migrations apply dryyt-mobile-preview --remote --env preview"
   },
   "dependencies": {
     "hono": "^4.13.13",

@@ -78,8 +78,8 @@
     "build:preview": "eas build --profile preview --platform android",
     "build:prod": "eas build --profile production --platform android",
     "gradle:dev": "cd android && ./gradlew assembleDebug",
-    "gradle:preview": "cd android && ./gradlew assembleRelease",
     "gradle:release": "cd android && EXPO_PUBLIC_API_URL=https://dryyt.com ./gradlew bundleRelease",
+    "gradle:preview": "cd android && EXPO_PUBLIC_API_URL=https://app-preview.dryyt.com ./gradlew assembleRelease",
     "apk-server":"bun scripts/apk-server.ts"
   },
   "private": true,

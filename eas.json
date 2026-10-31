@@ -13,6 +13,9 @@
     "preview": {
       "environment": "preview",
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app-preview.dryyt.com"
+      },
       "bun": "1.4.3"
     },
     "production": {

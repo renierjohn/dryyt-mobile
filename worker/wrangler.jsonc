@@ -85,5 +85,40 @@
 			"database_id": "5554bba6-a382-4a69-8034-7df6e97bd9ce",
 			"migrations_dir": "migrations"
 		}
-	]
+	],
+	// Preview: `bun run deploy:preview` → worker "dryyt-worker-preview" on app-preview.dryyt.com, with its own D1, R2 and
+	// Durable Objects. Inherits assets, triggers, migrations and compatibility settings; vars and bindings are repeated here
+	// because wrangler doesn't inherit them. Secrets are per worker: `wrangler secret put <NAME> --env preview`.
+	"env": {
+		"preview": {
+			"routes": [{ "pattern": "app-preview.dryyt.com", "custom_domain": true }],
+			"workers_dev": false,
+			"vars": {
+				"DELIVERY_FEE": "5000",
+				"PICKUP_ENABLED": "true",
+				"OSRM_URL": "https://router.project-osrm.org",
+				"OSRM_USER_AGENT": "dryyt-worker-preview/1.0 (+https://app-preview.dryyt.com)",
+				"ORS_URL": "https://api.openrouteservice.org",
+				"TURNSTILE_HOSTNAMES": "app-preview.dryyt.com",
+				"FIREBASE_PROJECT_ID": "dryyt-7b40a"
+			},
+			"durable_objects": {
+				"bindings": [
+					{ "name": "DISPATCH", "class_name": "Dispatch" },
+					{ "name": "TRIP", "class_name": "Trip" },
+					{ "name": "PICKUPS", "class_name": "PickupBoard" },
+					{ "name": "ORDER_ROOM", "class_name": "OrderRoom" }
+				]
+			},
+			"r2_buckets": [{ "binding": "PROOFS", "bucket_name": "dryyt-mobile-preview" }],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "dryyt-mobile-preview",
+					"database_id": "dd333990-4af4-474a-88af-644a7e8e751a",
+					"migrations_dir": "migrations"
+				}
+			]
+		}
+	}
 }

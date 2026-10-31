@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt App Builds</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+    --ok: #1f7a43; --ok-soft: #e3f3e9; --due: #2f5f9e; --due-soft: #e4ecf7; --warn: #a36a12; --warn-soft: #fbf0dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+      --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+    --accent: #7cc4b3; --accent-soft: #1f2f2b;
+    --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; max-width: 960px; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc ol ol { margin: 2px 0 8px 10px; border-left: 1px solid var(--line); }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 44px 0 8px; scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 26px 0 6px; scroll-margin-top: 16px; }
+  .lede, .muted { color: var(--muted); }
+  code { font: 0.86em ui-monospace, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .mock { font: 13px/1.55 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; background: var(--code); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+  .tbl { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .formula { font: 14px/1.6 ui-monospace, Menlo, monospace; background: var(--accent-soft); color: var(--fg); border-radius: 10px; padding: 10px 14px; margin: 8px 0; overflow-x: auto; white-space: pre; }
+  .pill { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.due { background: var(--due-soft); color: var(--due); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; margin: 12px 0; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+  .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+  .tabs a { display: block; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .tabs a:hover { border-color: var(--accent); }
+  .tabs b { display: block; }
+  .tabs span { color: var(--muted); font-size: 0.85rem; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+    main { padding: 24px 16px 48px; }
+    .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+<div class="title">Contents</div>
+<ol>
+<li><a class="sec" href="#overview">Overview</a></li>
+<li><a class="sec" href="#environments">Environments</a></li>
+<li><a class="sec" href="#worker">Worker (API)</a><ol>
+<li><a href="#worker-deploy">Deploy</a></li>
+<li><a href="#worker-secrets">Secrets</a></li>
+<li><a href="#worker-db">Database migrations</a></li>
+</ol></li>
+<li><a class="sec" href="#eas">App builds with EAS</a></li>
+<li><a class="sec" href="#gradle">App builds with Android Studio / Gradle</a><ol>
+<li><a href="#env-files">Which .env files load</a></li>
+<li><a href="#scripts">Build scripts</a></li>
+</ol></li>
+<li><a class="sec" href="#signing">Signing keys and fingerprints</a><ol>
+<li><a href="#facebook">Facebook key hashes</a></li>
+<li><a href="#firebase">Firebase fingerprints</a></li>
+</ol></li>
+<li><a class="sec" href="#checklist">Release checklist</a></li>
+</ol>
+</aside>
+<main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a> <a href="APP_BUILD_GUIDE.html" aria-current="page">App build</a></nav>
+
+<h1>App builds</h1>
+<p class="lede">How to build the Android app and deploy the worker for <b>preview</b> and <b>production</b>, which API each build talks to, and which signing keys Facebook and Firebase must know about.</p>
+
+<h2 id="overview">Overview</h2>
+<p>The app reads one setting at build time, <code>EXPO_PUBLIC_API_URL</code>, and calls that worker for everything (REST, WebSockets, images). Preview and production are two separate workers with their own data, so a preview build never touches production orders, users or files.</p>
+<div class="mock">  Preview app  ──►  app-preview.dryyt.com  ──►  dryyt-worker-preview  ──►  D1 dryyt-mobile-preview · R2 dryyt-mobile-preview · own Durable Objects
+  Production   ──►  dryyt.com              ──►  dryyt-worker          ──►  D1 dryyt-mobile         · R2 dryyt-mobile         · own Durable Objects</div>
+
+<h2 id="environments">Environments</h2>
+<div class="tbl"><table>
+<tr><th></th><th>Production</th><th>Preview</th></tr>
+<tr><td>Worker</td><td><code>dryyt-worker</code></td><td><code>dryyt-worker-preview</code> (<code>env.preview</code> in <code>worker/wrangler.jsonc</code>)</td></tr>
+<tr><td>Domain</td><td><code>dryyt.com</code>, <code>www.dryyt.com</code>, <code>*.workers.dev</code></td><td><code>app-preview.dryyt.com</code> only</td></tr>
+<tr><td>D1 database</td><td><code>dryyt-mobile</code></td><td><code>dryyt-mobile-preview</code></td></tr>
+<tr><td>R2 bucket</td><td><code>dryyt-mobile</code></td><td><code>dryyt-mobile-preview</code></td></tr>
+<tr><td>Durable Objects</td><td colspan="2">Scoped to each worker: the same class names, separate objects and storage. <code>order-42</code> on preview is not <code>order-42</code> on production.</td></tr>
+<tr><td>Turnstile hostname</td><td><code>dryyt.com,www.dryyt.com</code></td><td><code>app-preview.dryyt.com</code></td></tr>
+<tr><td>Shared</td><td colspan="2">Firebase project <code>dryyt-7b40a</code> (Google/phone/Facebook sign-in), Expo project (push), app id <code>com.dryyt.mobile</code>.</td></tr>
+</table></div>
+<p class="note">Both builds use the app id <code>com.dryyt.mobile</code>, so on one phone the preview app replaces the production app. Installing both needs a separate id (e.g. <code>com.dryyt.mobile.preview</code>) registered in Firebase and on the Meta app.</p>
+
+<h2 id="worker">Worker (API)</h2>
+<p>Run from <code>worker/</code>.</p>
+
+<h3 id="worker-deploy">Deploy</h3>
+<div class="tbl"><table>
+<tr><th>Command</th><th>What it does</th></tr>
+<tr><td><code>bun run deploy</code></td><td>Builds the landing page and cpanel, deploys production.</td></tr>
+<tr><td><code>bun run deploy:preview</code></td><td>Same, deploys <code>dryyt-worker-preview</code> on <code>app-preview.dryyt.com</code>.</td></tr>
+</table></div>
+
+<h3 id="worker-secrets">Secrets</h3>
+<p>Secrets belong to one worker and are never copied between them. Set each one with <code>--env preview</code> for preview. Each <code>secret put</code> takes effect at once.</p>
+<div class="tbl"><table>
+<tr><th>Secret</th><th>Needed for</th><th>Preview</th></tr>
+<tr><td><code>JWT_SECRET</code></td><td>Signing sign-in tokens. Different per worker, so sessions don't carry over.</td><td><span class="pill ok">set</span></td></tr>
+<tr><td><code>ORS_API_KEY</code></td><td>Route fallback when OSRM fails.</td><td><span class="pill warn">optional</span></td></tr>
+<tr><td><code>EXPO_ACCESS_TOKEN</code></td><td>Push sending and receipts; required only when Enhanced Security for Push is on in the Expo project. The same token works for both workers.</td><td><span class="pill warn">optional</span></td></tr>
+<tr><td><code>TURNSTILE_SECRET</code></td><td>Cpanel sign-in bot check.</td><td><span class="pill warn">for cpanel</span></td></tr>
+</table></div>
+<div class="mock">bunx wrangler secret put ORS_API_KEY --env preview
+bunx wrangler secret put EXPO_ACCESS_TOKEN --env preview
+bunx wrangler secret put TURNSTILE_SECRET --env preview
+bunx wrangler secret list --env preview</div>
+
+<h3 id="worker-db">Database migrations</h3>
+<div class="tbl"><table>
+<tr><th>Command</th><th>Target</th></tr>
+<tr><td><code>bun run db:migrate:local</code></td><td>Local dev database</td></tr>
+<tr><td><code>bun run db:migrate:preview</code></td><td><code>dryyt-mobile-preview</code></td></tr>
+<tr><td><code>bun run db:migrate:remote</code></td><td><code>dryyt-mobile</code> (production)</td></tr>
+<tr><td><code>bun run r2:lifecycle:preview</code></td><td>90-day expiry for proofs and payments in the preview bucket (once)</td></tr>
+</table></div>
+<p>Apply a new migration to preview first, test, then production. The preview database starts empty: create users, shops and an admin there with the scripts in <code>worker/scripts</code>.</p>
+
+<h2 id="eas">App builds with EAS</h2>
+<p>EAS takes the API URL from the profile in <code>eas.json</code>. A value set there beats every <code>.env</code> file uploaded with the build.</p>
+<div class="tbl"><table>
+<tr><th>Command</th><th>API</th><th>Output</th></tr>
+<tr><td><code>bunx eas build -p android --profile preview</code></td><td><code>https://app-preview.dryyt.com</code></td><td>APK, internal distribution</td></tr>
+<tr><td><code>bunx eas build -p android --profile production</code></td><td><code>https://dryyt.com</code></td><td>AAB for Play, version code auto-incremented</td></tr>
+<tr><td><code>bunx eas build -p android --profile development</code></td><td>Your Metro server's <code>.env</code></td><td>Dev client</td></tr>
+</table></div>
+
+<h2 id="gradle">App builds with Android Studio / Gradle</h2>
+<p>Android Studio and <code>./gradlew</code> ignore <code>eas.json</code>. The JavaScript bundle gets its values from the shell and the <code>.env</code> files, and the native project from the last <code>expo prebuild</code>.</p>
+
+<h3 id="env-files">Which .env files load</h3>
+<div class="tbl"><table>
+<tr><th>Build type</th><th>Mode</th><th>Files, highest priority first</th></tr>
+<tr><td>debug</td><td>development (JS from Metro)</td><td><code>.env.development.local</code> → <code>.env.local</code> → <code>.env.development</code> → <code>.env</code></td></tr>
+<tr><td>release</td><td>production</td><td><code>.env.production.local</code> → <code>.env.local</code> → <code>.env.production</code> → <code>.env</code></td></tr>
+</table></div>
+<p>A variable already set in the shell beats every file. There is no "preview" mode: a <code>.env.preview</code> file is never loaded, and a plain release build reads <code>.env.production</code> and calls <b>production</b>.</p>
+<div class="tbl"><table>
+<tr><th>File</th><th>Holds</th></tr>
+<tr><td><code>.env</code></td><td>Local API URL (your LAN IP, port 9999), Firebase SMS key, Google web client id, Facebook app id and client token.</td></tr>
+<tr><td><code>.env.production</code></td><td><code>EXPO_PUBLIC_API_URL=https://dryyt.com</code> for release builds.</td></tr>
+<tr><td><code>.env.production.local</code></td><td>Optional local override (git-ignored). Delete it before building production.</td></tr>
+</table></div>
+<p class="note">The Facebook app id and client token go into the native <code>android/</code> project during <code>bunx expo prebuild</code> (<code>app.config.js</code>), not during the Gradle build. After changing them in <code>.env</code>, run prebuild again before building.</p>
+
+<h3 id="scripts">Build scripts</h3>
+<p>Run from the app root. Each one sets the API URL in the shell, so it doesn't depend on the <code>.env</code> files.</p>
+<div class="tbl"><table>
+<tr><th>Command</th><th>API</th><th>Output</th></tr>
+<tr><td><code>bun run gradle:dev</code></td><td>Metro (<code>.env</code>)</td><td><code>android/app/build/outputs/apk/debug/app-debug.apk</code></td></tr>
+<tr><td><code>bun run gradle:preview</code></td><td><code>https://app-preview.dryyt.com</code></td><td><code>android/app/build/outputs/apk/release/app-release.apk</code> (sideload)</td></tr>
+<tr><td><code>bun run gradle:release</code></td><td><code>https://dryyt.com</code></td><td><code>android/app/build/outputs/bundle/release/app-release.aab</code> (Play)</td></tr>
+</table></div>
+<p>Building from the Android Studio Build menu instead: run the same variant with <code>EXPO_PUBLIC_API_URL</code> exported in the shell that launched Android Studio, or use <code>.env.production.local</code>.</p>
+
+<h2 id="signing">Signing keys and fingerprints</h2>
+<p>Each kind of build is signed with a different key. Facebook Login and Google sign-in work only for builds whose key is registered, so register every key you ship with.</p>
+<div class="tbl"><table>
+<tr><th>Build</th><th>Signed by</th><th>Where to get the SHA-1</th></tr>
+<tr><td>Local debug</td><td><code>android/app/debug.keystore</code></td><td><code>5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25</code></td></tr>
+<tr><td>EAS builds</td><td>EAS-managed upload keystore</td><td><code>bunx eas credentials</code> → Android → <code>com.dryyt.mobile</code></td></tr>
+<tr><td>Local release (Gradle)</td><td>The keystore in <code>android/app/build.gradle</code>'s release signing config</td><td><code>keytool -list -v -keystore &lt;file&gt;</code></td></tr>
+<tr><td>Installed from Google Play</td><td>Google's app signing key (re-signs your upload)</td><td>Play Console → Test and release → App integrity → App signing key certificate</td></tr>
+</table></div>
+<p class="note">The Play key is the one most often missed: a build works when sideloaded and fails once installed from Play.</p>
+
+<h3 id="facebook">Facebook key hashes</h3>
+<p>Facebook wants the SHA-1 as base64:</p>
+<div class="mock">echo &lt;SHA1 with colons&gt; | tr -d ':' | xxd -r -p | openssl base64</div>
+<p>Local debug key hash: <code>Xo8WBi6jzSxKDVR4drqm84yr9iU=</code></p>
+<p>Meta for Developers → app <code>3762408017230187</code> → Settings → Basic → Android:</p>
+<div class="tbl"><table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Package name</td><td><code>com.dryyt.mobile</code></td></tr>
+<tr><td>Class name</td><td><code>com.dryyt.mobile.MainActivity</code></td></tr>
+<tr><td>Key hashes</td><td>One per signing key above</td></tr>
+</table></div>
+<p>Until the app is on Google Play, saving shows <i>"There was a problem verifying this package name"</i>. Choose <b>Use this package name</b>; the settings save and login works. No rebuild is needed after adding a hash.</p>
+
+<h3 id="firebase">Firebase fingerprints</h3>
+<p>Firebase console → Project settings → Android app <code>com.dryyt.mobile</code> → Add fingerprint: add the SHA-1 and SHA-256 of every signing key. Download a fresh <code>google-services.json</code> afterwards.</p>
+
+<h2 id="checklist">Release checklist</h2>
+<h3>Preview</h3>
+<div class="mock">1. worker/: bun run db:migrate:preview
+2. worker/: bun run deploy:preview
+3. App: bun run gradle:preview  (or bunx eas build -p android --profile preview)
+4. Install the APK, sign in, place a test order</div>
+<h3>Production</h3>
+<div class="mock">1. worker/: bun run db:migrate:remote
+2. worker/: bun run deploy
+3. App: bun run gradle:release  (or bunx eas build -p android --profile production)
+4. Upload the AAB to Play; check the Play signing key is registered with Facebook and Firebase</div>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

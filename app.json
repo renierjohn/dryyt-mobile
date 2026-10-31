@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.dryyt.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -97,6 +98,12 @@
       "eas": {
         "projectId": "88caef7f-3229-4b8f-9167-847f3125203a"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/88caef7f-3229-4b8f-9167-847f3125203a"
     }
   }
 }

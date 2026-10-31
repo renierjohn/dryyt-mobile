@@ -23,6 +23,12 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   } catch {
     fail(401, 'Session expired, please sign in again');
   }
+  // Checked in the database on every request, so a cpanel block or role change ends a signed-in session at once (the
+  // app signs out on any 401). WebSocket tickets are issued behind this too.
+  const row = await c.env.DB.prepare('SELECT role, blocked FROM users WHERE id = ?').bind(user.id).first<{ role: Role; blocked: number }>();
+  if (!row) fail(401, 'Session expired, please sign in again');
+  if (row.blocked === 1) fail(401, 'This account is blocked. Please contact support.');
+  if (row.role !== user.role) fail(401, 'Your account was changed, please sign in again');
   c.set('user', user);
   await next();
 });

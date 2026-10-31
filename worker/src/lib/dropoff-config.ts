@@ -10,6 +10,10 @@ export const PAYMENT_REMINDER_MS = 60_000;
 export const PAYMENT_REMINDERS = 10;
 /** Food pickup: still no Done Pay one interval after the last reminder → the payment is accepted for the owner. */
 export const PAYMENT_AUTO_CONFIRM_MS = (PAYMENT_REMINDERS + 1) * PAYMENT_REMINDER_MS;
+/** Pickup: a driver on an order whose app hasn't been heard from (socket heartbeat or location) for this long is warned… */
+export const PICKUP_DRIVER_WARN_MS = 5 * 60_000;
+/** …and after this long is taken off it (accepted: back to the board) or reported (picked up: customer and owner pushed). */
+export const PICKUP_DRIVER_GONE_MS = 10 * 60_000;
 /** Drivers without a location for this long are hidden from customers. */
 export const DRIVER_STALE_MS = 30_000;
 /** Location messages faster than this are dropped. */

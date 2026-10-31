@@ -1,7 +1,7 @@
 import { env, fetchMock, SELF } from 'cloudflare:test';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api, registerUser } from './helpers';
+import { api, registerUser, registerVerifiedDriver } from './helpers';
 
 let admin: string;
 let adminEmail: string;
@@ -166,6 +166,26 @@ describe('admin drivers and blocking', () => {
     expect((await api(`/admin/users/${driver.user.id}/blocked`, { token: customer.token, body: { blocked: true } })).status).toBe(403);
   });
 
+  it('ends a signed-in session at once and takes a blocked driver offline', async () => {
+    const driver = await registerVerifiedDriver();
+    await api('/drivers/me/online', { token: driver.token, body: { online: true } });
+    await api('/drivers/me/pickup-online', { token: driver.token, body: { online: true } });
+    expect((await api('/me', { token: driver.token })).status).toBe(200);
+
+    await api(`/admin/users/${driver.user.id}/blocked`, { token: admin, body: { blocked: true } });
+    for (const path of ['/me', '/drivers/me', '/jobs/available']) {
+      const res = await api(path, { token: driver.token });
+      expect(res.status).toBe(401);
+      expect(res.body.error).toMatch(/blocked/);
+    }
+    expect((await api('/ws/ticket', { token: driver.token, body: { room: 'pickups' } })).status).toBe(401);
+    expect(await env.DB.prepare('SELECT online, pickup_online FROM drivers WHERE user_id = ?').bind(driver.user.id).first()).toEqual({ online: 0, pickup_online: 0 });
+
+    // Unblocked, the same token works again.
+    await api(`/admin/users/${driver.user.id}/blocked`, { token: admin, body: { blocked: false } });
+    expect((await api('/me', { token: driver.token })).status).toBe(200);
+  });
+
   it('keeps blocked admins out of the cpanel sign in', async () => {
     await env.DB.prepare('UPDATE users SET blocked = 1 WHERE email = ?').bind(adminEmail).run();
     fetchMock.activate();
@@ -200,6 +220,62 @@ describe('admin customers and owners', () => {
     await api(`/admin/users/${customer.user.id}/blocked`, { token: admin, body: { blocked: true } });
     expect(await ids('/admin/customers?status=blocked')).toEqual([customer.user.id]);
     expect(await ids('/admin/customers?status=active')).not.toContain(customer.user.id);
+  });
+});
+
+describe('admin role change', () => {
+  it('turns a customer into a driver or an owner, who then signs in again', async () => {
+    const toDriver = await api(`/admin/users/${customer.user.id}/role`, { token: admin, body: { role: 'driver' } });
+    expect(toDriver.body.user).toEqual({ id: customer.user.id, role: 'driver' });
+    expect(await env.DB.prepare('SELECT online, busy FROM drivers WHERE user_id = ?').bind(customer.user.id).first()).toEqual({ online: 0, busy: 0 });
+    expect((await api('/me', { token: customer.token })).status).toBe(401);
+
+    const other = await registerUser('customer');
+    await api(`/admin/users/${other.user.id}/role`, { token: admin, body: { role: 'owner' } });
+    const owners = (await api('/admin/owners', { token: admin })).body.rows.map((r: { id: number }) => r.id);
+    expect(owners).toContain(other.user.id);
+    expect((await api('/admin/customers', { token: admin })).body.rows.map((r: { id: number }) => r.id)).not.toContain(other.user.id);
+  });
+
+  it('only changes customers with nothing open, to driver or owner, for admins', async () => {
+    const driver = await registerUser('driver');
+    expect((await api(`/admin/users/${driver.user.id}/role`, { token: admin, body: { role: 'owner' } })).status).toBe(409);
+    expect((await api(`/admin/users/${customer.user.id}/role`, { token: admin, body: { role: 'admin' } })).status).toBe(400);
+    expect((await api('/admin/users/999999/role', { token: admin, body: { role: 'owner' } })).status).toBe(404);
+    expect((await api(`/admin/users/${customer.user.id}/role`, { token: customer.token, body: { role: 'owner' } })).status).toBe(403);
+
+    await env.DB.prepare("INSERT INTO stores (id, name, type, address) VALUES (900, 'Suds', 'laundry', '1 St')").run();
+    await env.DB.prepare(
+      "INSERT INTO transactions_pickup (type, customer_id, store_id, status, customer_address, items_total, delivery_fee, total_delivery_fee) VALUES ('pickup', ?, 900, 'pending', '1 St', 0, 0, 0)",
+    )
+      .bind(customer.user.id)
+      .run();
+    const open = await api(`/admin/users/${customer.user.id}/role`, { token: admin, body: { role: 'driver' } });
+    expect(open.status).toBe(409);
+    expect(open.body.error).toMatch(/open order/);
+  });
+});
+
+describe('admin order cancel', () => {
+  it('cancels a stuck picked-up order and frees its driver, once', async () => {
+    const driver = await registerVerifiedDriver();
+    await env.DB.prepare("INSERT INTO stores (id, name, type, address) VALUES (901, 'Grill', 'food', '1 St')").run();
+    const { meta } = await env.DB.prepare(
+      "INSERT INTO transactions_pickup (type, customer_id, driver_id, store_id, status, customer_address, items_total, delivery_fee, total_delivery_fee) VALUES ('pickup', ?, ?, 901, 'picked_up', '1 St', 0, 0, 0)",
+    )
+      .bind(customer.user.id, driver.user.id)
+      .run();
+    const id = meta.last_row_id;
+    await env.DB.prepare('UPDATE drivers SET busy = 1 WHERE user_id = ?').bind(driver.user.id).run();
+
+    expect((await api(`/admin/orders/${id}/cancel`, { token: customer.token, method: 'POST' })).status).toBe(403);
+    const res = await api(`/admin/orders/${id}/cancel`, { token: admin, method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(res.body.order.status).toBe('cancelled');
+    expect(await env.DB.prepare('SELECT busy FROM drivers WHERE user_id = ?').bind(driver.user.id).first()).toEqual({ busy: 0 });
+
+    expect((await api(`/admin/orders/${id}/cancel`, { token: admin, method: 'POST' })).status).toBe(409);
+    expect((await api('/admin/orders/999999/cancel', { token: admin, method: 'POST' })).status).toBe(404);
   });
 });
 

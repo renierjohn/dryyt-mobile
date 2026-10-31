@@ -267,6 +267,36 @@ describe('waiting for Done Pay', () => {
     expect(await statusOf(id)).toBe('cancelled');
   });
 
+  it('lets the owner turn down a payment: back to to_pay, timers stopped, and the customer pays again', async () => {
+    const customer = await registerUser('customer');
+    const owner = await registerUser('owner');
+    await env.DB.prepare('UPDATE stores SET owner_id = ? WHERE id = 2').bind(owner.user.id).run();
+    const id = await awaiting(customer.token);
+    const reject = (reason: string, token = owner.token) => api(`/owner/orders/${id}/reject-payment`, { token, body: { reason } });
+
+    expect((await reject('')).status).toBe(400);
+    // Another shop's owner can't touch it.
+    const other = await registerUser('owner');
+    await env.DB.prepare('UPDATE stores SET owner_id = ? WHERE id = 1').bind(other.user.id).run();
+    expect((await reject('Not received', other.token)).status).toBe(404);
+    const res = await reject('No GCash payment with that reference');
+    expect(res.status).toBe(200);
+    expect(res.body.order).toMatchObject({ status: 'to_pay', payment_ref: '', payment_photo_key: null, payment_rejected_reason: 'No GCash payment with that reference' });
+    for (let i = 0; i < 50 && (await paymentTimers(id)); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(await paymentTimers(id)).toBeUndefined();
+    expect((await reject('Again')).status).toBe(409);
+
+    // Auto-accept can't fire on it any more.
+    await dueNow(id, { confirmAt: 0 });
+    await runDurableObjectAlarm(roomOf(id));
+    expect(await statusOf(id)).toBe('to_pay');
+
+    const paid = await api(`/orders/${id}/payment`, { token: customer.token, body: { payment_ref: 'GC-2' } });
+    expect(paid.body.order).toMatchObject({ status: 'awaiting_payment', payment_ref: 'GC-2', payment_rejected_reason: null });
+    for (let i = 0; i < 50 && !(await paymentTimers(id)); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(await paymentTimers(id)).toMatchObject({ reminded: 0 });
+  });
+
   it("sends the owner's Done Pay over the customer's socket", async () => {
     const customer = await registerUser('customer');
     const owner = await registerUser('owner');
@@ -278,4 +308,123 @@ describe('waiting for Done Pay', () => {
     expect((await customerSock.next('order')).order.status).toBe('payment_confirmed');
     expect(await paymentTimers(id)).toBeUndefined();
   });
+});
+
+describe('driver who goes silent', () => {
+  const roomOf = (id: number) => env.ORDER_ROOM.get(env.ORDER_ROOM.idFromName(`order-${id}`));
+  type Watch = { id: number; seenAt: number; warned?: boolean; reported?: boolean };
+  const watchOf = (id: number) => runInDurableObject(roomOf(id), (_r: OrderRoom, state) => state.storage.get<Watch>('driver'));
+  const row = (id: number) =>
+    env.DB.prepare('SELECT o.status, o.driver_id, d.busy FROM transactions_pickup o LEFT JOIN drivers d ON d.user_id = ? WHERE o.id = ?');
+  /** Pretends the driver was last heard from `ago` ms ago, then fires the alarm. */
+  const silentFor = async (id: number, ago: number, extra: Partial<Watch> = {}) => {
+    await runInDurableObject(roomOf(id), async (_r: OrderRoom, state) => {
+      const watch = (await state.storage.get<Watch>('driver'))!;
+      await state.storage.put('driver', { ...watch, ...extra, seenAt: Date.now() - ago });
+      // Later than now, so it runs only when the test fires it.
+      await state.storage.setAlarm(Date.now() + 60_000);
+    });
+    await runDurableObjectAlarm(roomOf(id));
+  };
+
+  async function accepted() {
+    const customer = await registerUser('customer');
+    const driver = await pickupDriver();
+    const id = await placed(customer.token);
+    await api(`/orders/${id}/place`, { token: customer.token, method: 'POST' });
+    await api(`/jobs/${id}/accept`, { token: driver.token, method: 'POST' });
+    for (let i = 0; i < 50 && !(await watchOf(id)); i++) await new Promise((r) => setTimeout(r, 10));
+    return { customer, driver, id };
+  }
+
+  const silentAt = async (id: number) =>
+    (await env.DB.prepare('SELECT driver_silent_at FROM transactions_pickup WHERE id = ?').bind(id).first<{ driver_silent_at: string | null }>())!.driver_silent_at;
+
+  it('watches the driver from accept, warns at 5 min, and flags them silent at 10 without taking the job', async () => {
+    const { customer, driver, id } = await accepted();
+    expect(await watchOf(id)).toMatchObject({ id: driver.user.id });
+    // Before the flag, an accepted order can't be cancelled or handed on.
+    expect((await api(`/orders/${id}/cancel`, { token: customer.token, method: 'POST' })).status).toBe(409);
+    expect((await api(`/orders/${id}/new-driver`, { token: customer.token, method: 'POST' })).status).toBe(409);
+
+    await silentFor(id, 5 * 60_000 + 1);
+    expect(await watchOf(id)).toMatchObject({ warned: true });
+    expect(await silentAt(id)).toBeNull();
+
+    const customerSock = await openSocket(customer.token, `order-${id}`);
+    await silentFor(id, 10 * 60_000 + 1);
+    expect((await customerSock.next('order')).order.driver_silent_at).toEqual(expect.any(String));
+    expect(await row(id).bind(driver.user.id, id).first()).toEqual({ status: 'accepted', driver_id: driver.user.id, busy: 1 });
+    expect(await watchOf(id)).toMatchObject({ reported: true });
+  });
+
+  it('lets the customer send a silent driver\'s order back to the board', async () => {
+    const { customer, driver, id } = await accepted();
+    await silentFor(id, 10 * 60_000 + 1);
+    const other = await registerUser('customer');
+    expect((await api(`/orders/${id}/new-driver`, { token: other.token, method: 'POST' })).status).toBe(403);
+
+    const res = await api(`/orders/${id}/new-driver`, { token: customer.token, method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(res.body.order).toMatchObject({ status: 'pending', driver_id: null, driver_silent_at: null });
+    expect(await row(id).bind(driver.user.id, id).first()).toMatchObject({ busy: 0 });
+    for (let i = 0; i < 50 && (await watchOf(id)); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(await watchOf(id)).toBeUndefined();
+  });
+
+  it('lets the customer cancel once the driver is flagged silent, freeing the driver', async () => {
+    const { customer, driver, id } = await accepted();
+    await silentFor(id, 10 * 60_000 + 1);
+    const res = await api(`/orders/${id}/cancel`, { token: customer.token, method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await row(id).bind(driver.user.id, id).first()).toEqual({ status: 'cancelled', driver_id: driver.user.id, busy: 0 });
+  });
+
+  it('clears the flag when the driver comes back', async () => {
+    const { customer, driver, id } = await accepted();
+    await silentFor(id, 10 * 60_000 + 1);
+    expect(await silentAt(id)).not.toBeNull();
+    await openSocket(driver.token, `order-${id}`);
+    for (let i = 0; i < 50 && (await silentAt(id)); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(await silentAt(id)).toBeNull();
+    expect((await api(`/orders/${id}/new-driver`, { token: customer.token, method: 'POST' })).status).toBe(409);
+  });
+
+  it('keeps the job while the driver socket sends heartbeats', async () => {
+    const { driver, id } = await accepted();
+    const sock = await openSocket(driver.token, `order-${id}`);
+    sock.send({ t: 'ping' });
+    await sock.next('pong');
+    // The stored seenAt is stale, but the heartbeat (answered without waking the room) counts as seen.
+    await runInDurableObject(roomOf(id), async (_r: OrderRoom, state) => {
+      await state.storage.put('driver', { ...(await state.storage.get<Watch>('driver'))!, seenAt: Date.now() - 10 * 60_000 - 1 });
+      await state.storage.setAlarm(Date.now() + 60_000);
+    });
+    await runDurableObjectAlarm(roomOf(id));
+    expect(await row(id).bind(driver.user.id, id).first()).toMatchObject({ status: 'accepted', driver_id: driver.user.id });
+  });
+
+  it('reports a silent driver who picked the order up once, without taking it off them', async () => {
+    const { customer, driver, id } = await accepted();
+    await api(`/jobs/${id}/status`, { token: driver.token, body: { status: 'picked_up' } });
+    for (let i = 0; i < 50 && (await statusAt(id)) !== 'picked_up'; i++) await new Promise((r) => setTimeout(r, 10));
+
+    await silentFor(id, 10 * 60_000 + 1, { warned: true });
+    expect(await watchOf(id)).toMatchObject({ reported: true });
+    expect(await row(id).bind(driver.user.id, id).first()).toEqual({ status: 'picked_up', driver_id: driver.user.id, busy: 1 });
+    expect(await silentAt(id)).not.toBeNull();
+    // Food is with the driver: the customer can't cancel or hand it on.
+    expect((await api(`/orders/${id}/cancel`, { token: customer.token, method: 'POST' })).status).toBe(409);
+    expect((await api(`/orders/${id}/new-driver`, { token: customer.token, method: 'POST' })).status).toBe(409);
+  });
+
+  it('stops watching once the order ends', async () => {
+    const { driver, id } = await accepted();
+    await env.DB.prepare("UPDATE transactions_pickup SET status = 'cancelled' WHERE id = ?").bind(id).run();
+    await runInDurableObject(roomOf(id), (r: OrderRoom) => r.update(id));
+    expect(await watchOf(id)).toBeUndefined();
+    expect(await row(id).bind(driver.user.id, id).first()).toMatchObject({ status: 'cancelled' });
+  });
+
+  const statusAt = async (id: number) => (await env.DB.prepare('SELECT status FROM transactions_pickup WHERE id = ?').bind(id).first<{ status: string }>())!.status;
 });

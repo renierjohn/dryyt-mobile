@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt edge cases</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f4f5f7; --line: #d5d8de; --text: #111418; --muted: #5d636d;
+    --brand: #3b82f6; --brand-soft: #dbe8fe; --ok: #1f9d55; --ok-soft: #d8f3e3;
+    --warn: #b7791f; --warn-soft: #fbefd5; --bad: #d64545; --bad-soft: #fbe1e1; --shop: #8b5cf6; --shop-soft: #ede5fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #191c22; --line: #2e333c; --text: #eef0f3; --muted: #9aa1ac;
+      --brand: #6aa2f8; --brand-soft: #1c2c47; --ok: #4cc584; --ok-soft: #163325;
+      --warn: #e0a84a; --warn-soft: #3a2d14; --bad: #ef6b6b; --bad-soft: #3d1b1b; --shop: #b197f9; --shop-soft: #2a2045;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: 48px 0 6px; }
+  p.lead, p.sub { color: var(--muted); margin: 0 0 18px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 16px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 12px; }
+  .tabs [role="tab"] { font: inherit; font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; }
+  .tabs [role="tab"] span { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .tabs [role="tab"]:hover { border-color: var(--brand); }
+  .tabs [role="tab"][aria-selected="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+  .tabs [role="tab"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  main > h3 { margin: 24px 0 8px; font-size: 16px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand); margin-right: 6px; }
+  .route { font-weight: 600; margin: 8px 0 4px; }
+  .muted { color: var(--muted); }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--text); font-family: inherit; }
+  svg .muted { fill: var(--muted); }
+  svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  svg .lane { stroke: var(--line); stroke-dasharray: 4 5; }
+  svg .arrow { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#a); }
+  svg .arrow.back { stroke-dasharray: 5 4; }
+  svg .s-pending { fill: var(--warn-soft); stroke: var(--warn); }
+  svg .s-accepted, svg .s-picked { fill: var(--brand-soft); stroke: var(--brand); }
+  svg .s-delivered { fill: var(--ok-soft); stroke: var(--ok); }
+  svg .s-cancelled { fill: var(--bad-soft); stroke: var(--bad); }
+  svg .s-shop { fill: var(--shop-soft); stroke: var(--shop); }
+  svg .state { stroke-width: 1.8; }
+  svg .who-c { fill: var(--brand); } svg .who-d { fill: var(--ok); } svg .who-w { fill: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 13px; }
+  main { max-width: 1120px; }
+  .sev { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .sev.ok { color: var(--ok); background: var(--ok-soft); }
+  .sev.warn { color: var(--warn); background: var(--warn-soft); }
+  .sev.gap { color: var(--bad); background: var(--bad-soft); }
+  td:first-child { font-weight: 600; } [role="tabpanel"] td:first-child { width: 26%; }
+  [role="tabpanel"] td:last-child { width: 1%; }
+  .scroll { overflow-x: auto; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 16px 0 6px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 22px; } .stat span { color: var(--muted); font-size: 13px; }
+</style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
+</head>
+<body>
+<main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html" aria-current="page">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a></nav>
+
+  <header>
+    <svg width="44" height="44" viewBox="15 15 90 90" style="width:44px" aria-label="Dryyt logo">
+      <circle cx="60" cy="60" r="45" fill="#3B82F6"/>
+      <text x="60" y="75" font-family="Arial, sans-serif" font-size="36" font-weight="bold" style="fill:#fff" text-anchor="middle">D</text>
+      <circle cx="88" cy="42" r="5" fill="#FFFFFF"/>
+    </svg>
+    <h1>Dryyt edge cases and fallbacks</h1>
+  </header>
+  <p class="lead">What happens when something goes wrong: lost connection, cancellations by either side, timeouts, payment problems and races, with the fallback the app or worker uses. Taken from the worker routes, Durable Objects and app hooks.</p>
+  <div class="stats">
+    <div class="stat"><b>58</b><span>cases</span></div>
+    <div class="stat"><b style="color:var(--ok)">47</b><span>handled</span></div>
+    <div class="stat"><b style="color:var(--warn)">11</b><span>partial (manual step or outside the app)</span></div>
+    <div class="stat"><b style="color:var(--bad)">0</b><span>gaps</span></div>
+  </div>
+
+  <h2>Edge cases by area</h2>
+  <p class="sub">Every status change is a guarded <code>UPDATE … WHERE status = ?</code>: a race always leaves one winner and the loser gets 409.</p>
+  <div class="tabs" role="tablist" aria-label="Area"><button role="tab" id="tab-e-connection" aria-controls="e-connection" aria-selected="true" tabindex="0">Connection<span>10 cases</span></button><button role="tab" id="tab-e-customer-cancel" aria-controls="e-customer-cancel" aria-selected="false" tabindex="-1">Customer cancel<span>7 cases</span></button><button role="tab" id="tab-e-driver-cancel" aria-controls="e-driver-cancel" aria-selected="false" tabindex="-1">Driver cancel<span>7 cases</span></button><button role="tab" id="tab-e-timeouts" aria-controls="e-timeouts" aria-selected="false" tabindex="-1">Timeouts<span>7 cases</span></button><button role="tab" id="tab-e-payments" aria-controls="e-payments" aria-selected="false" tabindex="-1">Payments<span>8 cases</span></button><button role="tab" id="tab-e-races" aria-controls="e-races" aria-selected="false" tabindex="-1">Races<span>7 cases</span></button><button role="tab" id="tab-e-accounts" aria-controls="e-accounts" aria-selected="false" tabindex="-1">Accounts<span>5 cases</span></button></div>
+  <div class="card scroll" role="tabpanel" id="e-connection" aria-labelledby="tab-e-connection"><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Phone loses internet during any request</td><td>fetch throws → the app shows "Cannot reach the server. Check your connection." under the action. Nothing is saved server side.</td><td>Queries retry twice (network / 5xx only, never 4xx). The user taps the button again once back online; every write is guarded, so a repeat can&#x27;t double-apply.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>WebSocket drops (any room)</td><td><code>useSocket</code> reconnects with backoff 1 → 2 → 5 → 10 s, with a fresh ticket each attempt.</td><td>While disconnected the screen polls every 5 s instead of 30 s. On reconnect the room resends its state: job list, request list, last driver location, chat messages.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>App goes to background</td><td>Dispatch and pickups sockets close (so the driver counts as idle); trip and order sockets stay open. React Query pauses polling.</td><td>On return: sockets reopen at once and polling resumes with an immediate refetch. Idle drivers are pushed "New drop off nearby".</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver loses signal on a drop off trip</td><td>No GPS reaches the Trip room; the trip is not cancelled.</td><td>After 2 min the customer sees a stale-location warning (clears on the next fix). While en_route_pickup the customer may cancel.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver loses signal on a pickup</td><td>Location only relayed and saved while <code>picked_up</code>; the order keeps its status.</td><td>Customer map shows the last saved location (saved at most every 30 s). No stale warning on pickups.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Customer offline during a drop off trip</td><td>Trip counts the customer online for 5 min after the last connection or heartbeat (10 s).</td><td>After 5 min the driver&#x27;s Cancel trip button unlocks ("The customer is offline. You can cancel this trip.").</td><td><span class="sev ok">Handled</span></td></tr><tr><td>A Durable Object call fails after D1 committed</td><td>The request still succeeds; the live update is logged ("pickup live update failed").</td><td>Screens catch up on the next fallback poll (30 s live / 5 s).</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Routing service slow or down</td><td>OSRM (5 s) → OpenRouteService (5 s) → straight line × 1.3.</td><td>Booking never fails on routing; each fallback logs a warning.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Phone can&#x27;t get a push token</td><td>App logs <code>[push-token] failed</code> to the worker.</td><td>Retries on every return to the foreground. Live sockets and polling still work while the app is open.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Chat send while disconnected</td><td>The Send button is disabled until the room socket is connected.</td><td>Messages resend on reconnect; nothing is queued locally.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Customer reloads during a pickup delivery</td><td><code>driver_lat/lng</code> on the order (saved at most every 30 s).</td><td>The driver is back on the map before the next location arrives.</td><td><span class="sev ok">Handled</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-customer-cancel" aria-labelledby="tab-e-customer-cancel" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Drop off: cancel while searching</td><td>Allowed. Request removed from every nearby driver&#x27;s list.</td><td>—</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: cancel after a driver accepted (not confirmed)</td><td>Allowed. Driver freed (busy = 0) and told "The customer cancelled."</td><td>Driver goes back to the request list.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: cancel while the driver is on the way (en_route_pickup)</td><td>Allowed. Driver freed; Trip room notified and stopped.</td><td>—</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: cancel after pickup (en_route_shop or later)</td><td>Refused: 409 "Cannot cancel a drop off that is en route shop".</td><td>The laundry is with the driver; the trip must finish.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Pickup: cancel before a driver accepts</td><td>Allowed from awaiting_fee, to_pay, awaiting_payment, payment_confirmed, pending. Board refreshed, order room closed.</td><td>If already paid: the app asks first and the store is pushed "Order cancelled … They already paid ₱…". Refund happens outside the app.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Pickup: cancel after a driver accepted</td><td>Refused: 409 "Order can no longer be cancelled".</td><td>Customer must wait for the driver, or contact them over chat while accepted. If the driver goes silent for 10 min: "Find another driver" or cancel.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Cancel lands at the same moment as a driver accept</td><td>Both are guarded <code>UPDATE … WHERE status</code>; exactly one wins.</td><td>Cancel first → accept gets 409 and the driver is freed. Accept first → cancel gets 409 (pickup) or frees the driver (drop off).</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: cancel after a driver accepted, before confirming</td><td>Allowed. The request leaves Dispatch; the driver gets "The customer cancelled." and is freed.</td><td>Customer can book again right away.</td><td><span class="sev ok">Handled</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-driver-cancel" aria-labelledby="tab-e-driver-cancel" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Drop off: driver wants out before the customer confirms</td><td>No cancel route. The 60 s confirm timeout releases them.</td><td>Request goes back to searching with a fresh 3 min window.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: driver cancels on the way</td><td>Only while en_route_pickup / en_route_shop and only when the customer has been offline 5 min.</td><td>Customer online → 409 "The customer is online; ask them to cancel". Offline → cancelled; customer pushed "Drop off cancelled".</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Pickup: driver releases an accepted job</td><td>Allowed while accepted. Driver freed, order back to pending, chat wiped.</td><td>Next driver on the board can take it with an empty chat.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Pickup: driver wants out after picking up</td><td>Refused: 409 "Only jobs not yet picked up can be released".</td><td>No driver cancel once the food or laundry is collected.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Driver app closed / phone dies mid-job</td><td>Job keeps its status; driver stays busy.</td><td>Drop off: stale warning after 2 min, customer may cancel before pickup. Pickup: driver pushed at 5 min silent. At 10 min the order is flagged and the customer pushed: before pickup they can keep waiting, tap "Find another driver" or cancel; after pickup the owner is pushed too and the cpanel can cancel it. The flag clears when the driver's app is heard from again.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver taps Picked up / Delivered far from the pin</td><td>The app keeps the button locked until within 200 m of the pin.</td><td>Shows "N m from the customer. Get within 200 m …".</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver taps Delivered twice</td><td>Second batch matches no row → 409 "Job changed, refresh and try again".</td><td>Earnings, busy and popularity change once.</td><td><span class="sev ok">Handled</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-timeouts" aria-labelledby="tab-e-timeouts" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Drop off: no driver accepts in 3 min</td><td>Dispatch alarm → expired.</td><td>Customer gets "Search again", which books a new drop off.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: customer doesn&#x27;t confirm the driver in 60 s</td><td>Dispatch alarm → back to searching, driver freed.</td><td>Fresh 3 min search.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Customer rejects the driver</td><td>Back to searching.</td><td>That driver can&#x27;t get this customer&#x27;s requests for 5 min.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Owner doesn&#x27;t confirm a dropped-off load</td><td>Trip alarm after 30 min pushes the owner once.</td><td>Stays dropped_off until confirmed; no auto-confirm.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Food / laundry payment: owner never taps Done Pay</td><td>Owner pushed "Review Payment Now" every 1 min, 10 times.</td><td>At 11 min the order room accepts the payment itself; customer and owner pushed.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Laundry: shop never sets the fee (awaiting_fee)</td><td>No timer.</td><td>Customer can cancel any time before a driver accepts.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Customer confirmed payment but never taps Place order</td><td>Stays payment_confirmed; drivers never see it.</td><td>Customer can still cancel.</td><td><span class="sev warn">Partial</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-payments" aria-labelledby="tab-e-payments" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>No reference number and no photo</td><td>400 "Add a reference number or a photo of your payment".</td><td>Either one is enough.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Photo upload fails mid-way</td><td>Order/payment is not sent; the photo key must exist in R2 under the customer&#x27;s own folder.</td><td>400 "upload the photo first"; retry the upload.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Payment is wrong or missing</td><td>Owner taps "Payment not received" with a reason: the order goes back to to_pay, the proof is cleared and the reminders and 11 min auto-accept stop.</td><td>Customer is pushed the reason, sees it on the order and sends a new proof (or cancels).</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Drop off: customer picks Pay later</td><td>Status payment_pending.</td><td>Customer can Pay now later; only the shop can undo a payment (mark unpaid).</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Store has no owner linked</td><td>No owner pushes, nobody can tap Done Pay.</td><td>11 min auto-accept still moves the order on.</td><td><span class="sev warn">Partial</span></td></tr><tr><td>Sold out item in an old cart</td><td>POST /orders → 409 "… is sold out".</td><td>The menu shows it dimmed with no add button.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Menu price changes after the cart was built</td><td>Items are priced server-side at create; order_items snapshot name and price.</td><td>Customer pays the current price.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Quote token older than 15 min</td><td>The fee is priced again at create.</td><td>No error; fee may differ slightly.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Pinned spot but the store has no map location</td><td>400 "this store has no map location yet".</td><td>A typed address still books at the flat fee.</td><td><span class="sev ok">Handled</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-races" aria-labelledby="tab-e-races" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Two drivers accept the same job</td><td>Guarded UPDATE; one row changes.</td><td>Loser freed and gets 409 / "Another driver took that one."</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver already on a job tries to accept</td><td><code>busy = 0</code> guard changes nothing.</td><td>409 "Finish your active job first" (one job across pickup and drop off).</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Owner taps Done Pay as the customer cancels</td><td>Both guarded on status.</td><td>Whichever lands first wins; the other gets 409.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Search expires at the moment of accept</td><td>Expire and accept are both guarded on searching.</td><td>One wins; the other re-reads D1.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Dispatch DO restarts after an accept</td><td>Next alarm re-reads D1 and rebuilds the hold.</td><td>60 s confirm timeout still runs.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Customer books a second drop off</td><td>Unique index allows one active drop off per customer.</td><td>409 "You already have an active drop off".</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Two accounts on one phone</td><td>The newer sign-in takes the push token from the other account.</td><td>Pushes never ring the wrong person.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Shop blocks a driver mid-search</td><td>The block list is captured at create and at each requeue.</td><td>Applies from the next requeue or request.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver verified while a photo upload is in flight</td><td>Guarded <code>UPDATE … WHERE status = 0</code> matches 0 rows.</td><td>The new R2 object is deleted; 409.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Pickup status skipped (e.g. accepted → delivered)</td><td><code>NEXT_STATUS</code> allows only accepted → picked_up → delivered.</td><td>409.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Owner marks the driver paid twice</td><td><code>WHERE driver_paid_at IS NULL</code> guard.</td><td>409 "Driver is already marked paid".</td><td><span class="sev ok">Handled</span></td></tr></table></div>
+  <div class="card scroll" role="tabpanel" id="e-accounts" aria-labelledby="tab-e-accounts" hidden><table><tr><th>Scenario</th><th>What happens</th><th>Fallback / recovery</th><th>Status</th></tr><tr><td>Cpanel changes a customer&#x27;s role</td><td><code>GET /me</code> → 401 "Your account was changed, please sign in again".</td><td>App signs out; they sign in to the driver or owner app. Only customers with nothing open can be changed.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Session token expires (30 days)</td><td>Any 401 signs the app out.</td><td>Sign in again.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Cpanel blocks a user</td><td>Login refused: 403 "This account is blocked". Every request checks <code>users.blocked</code>, so an open session gets 401 on its next call (WebSocket tickets too).</td><td>The app signs out and shows the reason. A blocked driver is also set offline for drop off and pickup.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Driver unverified</td><td>Can&#x27;t go online or accept (server refuses too).</td><td>Admin verifies in the cpanel.</td><td><span class="sev ok">Handled</span></td></tr><tr><td>Pickup switched off (PICKUP_ENABLED)</td><td>Every /orders, /jobs, /menu route returns 403.</td><td>Open orders freeze until it&#x27;s switched back on.</td><td><span class="sev warn">Partial</span></td></tr></table></div>
+  <script>
+  (() => {
+    const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+    const select = (tab) => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute('aria-selected', on);
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      }
+      try { localStorage.setItem('edge-tab', tab.id); } catch {}
+    };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => select(t));
+      t.addEventListener('keydown', (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step) return;
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        select(next);
+        next.focus();
+      });
+    });
+    let saved = null;
+    try { saved = document.getElementById(localStorage.getItem('edge-tab')); } catch {}
+    if (saved && tabs.includes(saved)) select(saved);
+  })();
+  </script>
+
+  <h2>Fallback chain</h2>
+  <div class="card scroll"><table>
+    <tr><th>Layer</th><th>Normal</th><th>Fallback</th><th>Last resort</th></tr>
+    <tr><td>Live updates</td><td>WebSocket room (Dispatch, Trip, PickupBoard, OrderRoom)</td><td>Poll every 5 s while the socket is down (30 s while up)</td><td>Push notification when the app is closed (drop off requests, payments, cancellations)</td></tr>
+    <tr><td>Requests</td><td>fetch to the worker</td><td>React Query retries twice on network / 5xx</td><td>Error text; the user retries; guarded writes make repeats safe</td></tr>
+    <tr><td>Routing</td><td>OSRM</td><td>OpenRouteService</td><td>Straight line × 1.3</td></tr>
+    <tr><td>Stuck states</td><td>The other side acts</td><td>Alarms: 3 min search, 60 s confirm, 11 min payment auto-accept, 30 min owner reminder</td><td>Manual cancel (where allowed) or the cpanel</td></tr>
+  </table></div>
+
+  <h2>Known gaps</h2>
+  <p class="sub">Unexpected events with no automatic recovery today.</p>
+  <div class="card scroll"><table><tr><th>Case</th><th>Detail and fix idea</th></tr><tr><td>Dropped-off load never confirmed</td><td>Owner pushed once at 30 min; nothing after. Fix idea: repeat reminders or surface it in the cpanel.</td></tr><tr><td>No push to the customer for pickup progress</td><td>Accepted / picked up / delivered show only when the app is open.</td></tr></table></div>
+
+  <footer>Generated 2026-10-31 from worker/src (routes, do, lib) and src (hooks, components). Local file, not published.</footer>
+</main>
+</body>
+</html>

@@ -17,7 +17,7 @@ import type { OrderDetail } from '@/lib/types';
 
 export type PaymentProof = { payment_ref: string; payment_photo_key?: string };
 
-/** Laundry pickup, once the shop set the laundry fee: pay the total and send the proof for the order. */
+/** Laundry pickup once the shop set the laundry fee, or any order whose proof the shop turned down: pay and send the proof. */
 export function LaundryPayment({ order }: { order: OrderDetail }) {
   const send = useSendPayment(order.id);
   return (

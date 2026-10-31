@@ -3,13 +3,14 @@ import { File } from 'expo-file-system';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8788';
 
 let authToken: string | null = null;
-let onUnauthorized = () => {};
+let onUnauthorized = (_message: string) => {};
 
 export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
-export function setUnauthorizedHandler(handler: () => void) {
+/** Called with the server's reason (e.g. "This account is blocked…") when a signed-in request gets a 401. */
+export function setUnauthorizedHandler(handler: (message: string) => void) {
   onUnauthorized = handler;
 }
 
@@ -55,8 +56,9 @@ async function request<T>(path: string, init: { method: string; headers: Record<
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401 && authToken) onUnauthorized();
-    throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);
+    const message = data.error ?? `Request failed (${res.status})`;
+    if (res.status === 401 && authToken) onUnauthorized(message);
+    throw new ApiError(res.status, message);
   }
   return data as T;
 }

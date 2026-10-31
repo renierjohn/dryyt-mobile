@@ -214,7 +214,7 @@ export function OrdersTable({ onAuthError }: Props) {
 			summary={feeTotals}
 			columns={[
 				{ label: '#', cell: (r) => r.id },
-				{ label: 'Status', cell: (r) => badge(r.status) },
+				{ label: 'Status', cell: (r) => <OrderStatusCell order={r} onAuthError={onAuthError} /> },
 				{ label: 'Store', cell: (r) => person(r.store_name, r.store_type) },
 				{ label: 'Customer', cell: (r) => person(r.customer_name, r.customer_phone) },
 				{ label: 'Driver', cell: (r) => person(r.driver_name) },
@@ -291,6 +291,66 @@ function BlockButton({ id, blocked, onAuthError }: { id: number; blocked: number
 			{isBlocked && badge('blocked')}{' '}
 			<button className="cp-btn-ghost cp-btn-xs" disabled={busy} onClick={toggle}>
 				{isBlocked ? 'Unblock' : 'Block'}
+			</button>
+		</>
+	);
+}
+
+/** Users tab "Role" cell: changes a customer into a driver or an owner (they move to that tab). */
+function RoleCell({ id, onAuthError }: { id: number; onAuthError: (e: unknown) => void }) {
+	const [role, setRole] = useState('customer');
+	const [busy, setBusy] = useState(false);
+
+	const change = async (next: string) => {
+		if (!confirm(`Change user #${id} to ${next}? They'll need to sign in again.`)) return;
+		setBusy(true);
+		try {
+			const res = await api<{ user: { role: string } }>(`/admin/users/${id}/role`, { body: { role: next } });
+			setRole(res.user.role);
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Request failed');
+			onAuthError(e);
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	if (role !== 'customer') return badge(role);
+	return (
+		<select value={role} disabled={busy} onChange={(e) => change(e.target.value)} aria-label={`Role of user #${id}`}>
+			<option value="customer">customer</option>
+			<option value="driver">driver</option>
+			<option value="owner">owner</option>
+		</select>
+	);
+}
+
+/** Orders tab "Status" cell: an open order gets a Cancel link for when it's stuck (e.g. its driver vanished). */
+function OrderStatusCell({ order, onAuthError }: { order: Row; onAuthError: (e: unknown) => void }) {
+	const [status, setStatus] = useState<string>(order.status);
+	const [busy, setBusy] = useState(false);
+	useEffect(() => setStatus(order.status), [order.status]);
+
+	const cancel = async () => {
+		if (!confirm(`Cancel order #${order.id}? The customer and driver are notified; any refund happens outside the app.`)) return;
+		setBusy(true);
+		try {
+			const res = await api<{ order: { status: string } }>(`/admin/orders/${order.id}/cancel`, { body: {} });
+			setStatus(res.order.status);
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Request failed');
+			onAuthError(e);
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	if (status === 'delivered' || status === 'cancelled') return badge(status);
+	return (
+		<>
+			{badge(status)}
+			<button className="cp-link" disabled={busy} onClick={cancel}>
+				<small className="cp-sub">Cancel</small>
 			</button>
 		</>
 	);
@@ -437,6 +497,7 @@ export function UsersTable({ onAuthError }: Props) {
 				{ label: 'Orders', cell: (r) => r.order_count, className: 'num' },
 				{ label: 'Drop offs', cell: (r) => r.dropoff_count, className: 'num' },
 				{ label: 'Joined', cell: (r) => when(r.created_at) },
+				{ label: 'Role', cell: (r) => <RoleCell id={r.id} onAuthError={onAuthError} /> },
 				{ label: 'Access', cell: (r) => <BlockButton id={r.id} blocked={r.blocked} onAuthError={onAuthError} /> },
 			]}
 		/>

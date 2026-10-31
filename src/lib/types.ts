@@ -70,6 +70,10 @@ export type Order = {
   driver_lat: number | null;
   driver_lng: number | null;
   driver_loc_at: string | null;
+  /** Set while the assigned driver hasn't been heard from for 10 min: the customer may cancel or ask for another driver. */
+  driver_silent_at: string | null;
+  /** Why the owner turned down the last proof of payment ("Payment not received"); the order is back at to_pay. */
+  payment_rejected_reason: string | null;
   store_name: string;
   store_logo: string | null;
   store_address: string;

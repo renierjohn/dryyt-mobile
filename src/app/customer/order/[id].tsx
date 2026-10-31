@@ -19,7 +19,7 @@ import { StatusBadge, type Tone } from '@/components/status-badge';
 import { StatusTimeline } from '@/components/status-timeline';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useCancelOrder, useOrder, usePlaceOrder } from '@/hooks/queries';
+import { useCancelOrder, useNewDriver, useOrder, usePlaceOrder } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useSocket } from '@/hooks/use-socket';
 import { peso, STATUS_LABEL } from '@/lib/format';
@@ -48,6 +48,7 @@ export default function OrderScreen() {
     live.current = connected;
   });
   const cancel = useCancelOrder(id);
+  const newDriver = useNewDriver(id);
   const place = usePlaceOrder();
   const cart = useCart();
 
@@ -111,9 +112,48 @@ export default function OrderScreen() {
           <ThemedText style={styles.grow}>Waiting for {o.store_name} to set the laundry fee…</ThemedText>
         </View>
       )}
+      {o.status === 'to_pay' && o.payment_rejected_reason && (
+        <Card>
+          <ThemedText type="smallBold">Payment not received</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {o.store_name}: {o.payment_rejected_reason}. Check your payment and send the proof again.
+          </ThemedText>
+        </Card>
+      )}
       {o.status === 'to_pay' && <LaundryPayment order={o} />}
       {o.status === 'awaiting_payment' && o.store_type === 'laundry' && <PaymentWait since={o.updated_at} />}
-      <ErrorText error={cancel.error ?? place.error} />
+      {/* The order room flags a driver it hasn't heard from for 10 min; they may just be navigating in another app. */}
+      {o.driver_silent_at && (o.status === 'accepted' || o.status === 'picked_up') && (
+        <Card>
+          <ThemedText type="smallBold">Your driver is not responding</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {o.status === 'accepted'
+              ? "We haven't heard from your driver's app for 10 minutes. They may still be on the way. You can keep waiting, find another driver, or cancel."
+              : `We haven't heard from your driver's app for 10 minutes. Try calling them${o.driver_phone ? ` at ${o.driver_phone}` : ''}.`}
+          </ThemedText>
+        </Card>
+      )}
+      <ErrorText error={cancel.error ?? place.error ?? newDriver.error} />
+      {o.driver_silent_at && o.status === 'accepted' && (
+        <>
+          <Button title="Find another driver" loading={newDriver.isPending} onPress={() => newDriver.mutate()} />
+          <Button
+            title="Cancel order"
+            variant="danger"
+            loading={cancel.isPending}
+            onPress={() =>
+              Alert.alert(
+                'Cancel this order?',
+                `You already paid ${peso(o.items_total + o.total_delivery_fee)} to ${o.store_name}. Cancelling won't refund it automatically: contact the shop for your refund.`,
+                [
+                  { text: 'Keep order', style: 'cancel' },
+                  { text: 'Cancel order', style: 'destructive', onPress: () => cancel.mutate() },
+                ],
+              )
+            }
+          />
+        </>
+      )}
       {(o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && (
         <Button
           title="Place order"

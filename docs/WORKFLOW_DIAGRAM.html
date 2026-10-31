@@ -62,10 +62,15 @@
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 10px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
   footer { margin-top: 56px; color: var(--muted); font-size: 13px; }
+  .note a { color: var(--brand); }
+  .note { border-left: 3px solid var(--brand); padding: 10px 14px; margin: 16px 0; background: var(--brand-soft); border-radius: 4px; }
 </style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
 </head>
 <body>
 <main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html" aria-current="page">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a></nav>
+
   <header>
     <svg width="44" height="44" viewBox="15 15 90 90" style="width:44px" aria-label="Dryyt logo">
       <circle cx="60" cy="60" r="45" fill="#3B82F6"/>
@@ -98,9 +103,9 @@
       <div class="muted">Driver collects laundry at the customer's address and drops it at the chosen shop.</div>
     </div>
   </div>
-  <p class="sub" style="margin-top:12px">Customer pays cash to the driver: <b>items total + ₱50 delivery fee</b>.</p>
+  <p class="sub" style="margin-top:12px">Food is paid upfront to the store&#x27;s payment QR and confirmed by the owner. A laundry pickup is paid once the shop sets the laundry fee. A drop off is paid to the shop after the owner confirms the load (Pay now or Pay later). Delivery fees are priced by road distance and vehicle.</p>
 
-  <h2>Order status lifecycle</h2>
+  <h2 id="lifecycle">Order status lifecycle</h2>
   <p class="sub">Each transition is a single conditional <code>UPDATE … WHERE status = ?</code>, so races resolve to one winner (the loser gets 409). A driver has at most one active job.</p>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs></svg>
   <div class="tabs" role="tablist" aria-label="Order type"><button role="tab" id="tab-life-dropoff" aria-controls="life-dropoff" aria-selected="true" tabindex="0">Laundry drop off<span>transactions_dropoff</span></button><button role="tab" id="tab-life-food" aria-controls="life-food" aria-selected="false" tabindex="-1">Food pickup<span>transactions_pickup</span></button><button role="tab" id="tab-life-laundry" aria-controls="life-laundry" aria-selected="false" tabindex="-1">Laundry pickup<span>transactions_pickup</span></button></div>
@@ -136,7 +141,7 @@
   </script>
 
   <h2>End-to-end sequence</h2>
-  <p class="sub">Both apps poll every 5 s, so updates appear without push notifications.</p>
+  <p class="sub">Live changes arrive over WebSockets; screens also poll every 5 s as a fallback (30 s while a socket is connected), and pushes reach a closed app.</p>
   <div class="card">
     <svg viewBox="0 0 960 610" role="img" aria-label="Sequence diagram">
       <rect class="box" x="60"  y="10" width="180" height="44" rx="10"/>
@@ -182,54 +187,10 @@
     </svg>
   </div>
 
-  <h2>Screens</h2>
-  <div class="grid">
-    <div class="card">
-      <h3 class="who-c" style="color:var(--brand)">Customer</h3>
-      <table>
-        <tr><th>Screen</th><th>Purpose</th></tr>
-        <tr><td>Home</td><td>Pickup / Drop off entry points</td></tr>
-        <tr><td>Pickup</td><td>Choose Food or Laundry</td></tr>
-        <tr><td>Choose a store</td><td>Stores filtered by type</td></tr>
-        <tr><td>New order</td><td>Menu + cart (food) or notes (laundry), address</td></tr>
-        <tr><td>Order</td><td>Status timeline, driver contact, proof of payment card, chat with the driver while accepted, cancel (asks first if already paid)</td></tr>
-        <tr><td>Orders / Profile</td><td>History; edit email and phone, change password, sign out</td></tr>
-      </table>
-    </div>
-    <div class="card">
-      <h3 style="color:var(--ok)">Driver</h3>
-      <table>
-        <tr><th>Screen</th><th>Purpose</th></tr>
-        <tr><td>Available</td><td>Open jobs, accept (disabled while busy)</td></tr>
-        <tr><td>Active</td><td>Addresses, customer phone, chat with the customer until pickup, next-step button, release</td></tr>
-        <tr><td>History</td><td>Delivered jobs</td></tr>
-        <tr><td>Profile</td><td>Change password, sign out</td></tr>
-      </table>
-    </div>
-  </div>
+  <h2>Screens and API</h2>
+<p class="note">Screens, their files and live data are in <a href="WIREFRAME.html">WIREFRAME.html</a>. Routes, who may call them and the tables they write are in <a href="architecture.html#api">architecture.html</a>.</p>
 
-  <h2>API reference</h2>
-  <div class="card">
-    <table>
-      <tr><th>Endpoint</th><th>Who</th><th>Rule</th></tr>
-      <tr><td><code>POST /auth/register</code> · <code>/auth/login</code></td><td>anyone</td><td>Email + password (PBKDF2), returns 30-day JWT</td></tr>
-      <tr><td><code>GET /stores</code> · <code>/stores/:id</code> · <code>/menu/popular</code></td><td>anyone</td><td>Store list / menu; public so guests can browse Home before signing in</td></tr>
-      <tr><td><code>POST /orders/quote</code> · <code>/dropoffs/quote</code></td><td>customer</td><td>One fee per vehicle the area has a rate for (base fare + fee), signed 15 min token; <code>available</code> marks vehicles with a free driver nearby (others greyed out, still bookable)</td></tr>
-      <tr><td><code>POST /orders</code></td><td>customer</td><td>Food needs ≥1 item, none sold out (409); drop off must target laundry</td></tr>
-<tr><td><code>GET /orders/:id/payment-photo</code></td><td>customer</td><td>Own order only, else 404</td></tr>
-<tr><td><code>PATCH /me</code> · <code>POST /me/password</code></td><td>signed in</td><td>Edit email (409 if taken) and phone; new password ≥ 8 characters</td></tr>
-      <tr><td><code>GET /orders</code> · <code>/orders/:id</code></td><td>owner / driver</td><td>Others' orders → 403</td></tr>
-      <tr><td><code>POST /orders/:id/cancel</code></td><td>owner</td><td>Only while pending, else 409</td></tr>
-      <tr><td><code>GET /jobs/available</code></td><td>driver</td><td>Pending orders booked for the driver's vehicle, customer phone hidden</td></tr>
-      <tr><td><code>POST /jobs/:id/accept</code></td><td>verified driver</td><td>Atomic; 403 if not verified; 409 if taken, driver busy or another vehicle</td></tr>
-      <tr><td><code>POST /drivers/me/online</code> · <code>/pickup-online</code></td><td>verified driver</td><td>Going online 403 until verified; going offline always allowed</td></tr>
-      <tr><td><code>POST /jobs/:id/release</code></td><td>assigned driver</td><td>accepted → pending</td></tr>
-      <tr><td><code>POST /jobs/:id/status</code></td><td>assigned driver</td><td>accepted → picked_up → delivered only</td></tr>
-      <tr><td><code>GET /jobs/active</code> · <code>/jobs/history</code></td><td>driver</td><td>Current job / delivered jobs</td></tr>
-    </table>
-  </div>
-
-  <footer>Source: docs/superpowers/specs/2026-10-09-delivery-app-design.md · Generated 2026-10-10 · Local file, not published.</footer>
+<footer>Source: docs/superpowers/specs/2026-10-09-delivery-app-design.md · Generated 2026-10-10 · Local file, not published.</footer>
 </main>
 </body>
 </html>

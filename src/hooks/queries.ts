@@ -221,6 +221,15 @@ export function useCancelOrder(id: number) {
   });
 }
 
+/** Find another driver: an accepted order whose driver went silent goes back to the board. */
+export function useNewDriver(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ order: OrderDetail }>(`/orders/${id}/new-driver`, { method: 'POST' }).then((r) => r.order),
+    onSuccess: (order) => qc.setQueryData(['order', id], order),
+  });
+}
+
 /**
  * Pickup jobs, only while the driver is online for pickup. The 'pickups' socket pushes the list (setQueryData);
  * `isLive()`: it's connected, so polling is only a slow fallback.
@@ -563,6 +572,15 @@ export function useConfirmPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<{ order: OrderDetail }>(`/owner/orders/${id}/confirm-payment`, { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'orders'] }),
+  });
+}
+
+/** Payment not received: the owner turns down the proof with a reason; the customer pays again. */
+export function useRejectPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => api<{ order: OrderDetail }>(`/owner/orders/${id}/reject-payment`, { body: { reason } }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['owner', 'orders'] }),
   });
 }

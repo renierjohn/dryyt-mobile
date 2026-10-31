@@ -182,16 +182,19 @@ const paymentSchema = z.object({
   payment_photo_key: z.string().max(200).optional(),
 });
 
-/** Laundry: once the shop sets the laundry fee, the customer pays the total and sends the proof, like food at checkout. */
+/**
+ * Laundry: once the shop sets the laundry fee, the customer pays the total and sends the proof, like food at checkout.
+ * A food or laundry order whose proof the owner turned down (back at to_pay) is paid again here too.
+ */
 orders.post('/:id/payment', requireRole('customer'), async (c) => {
   const id = parseId(c);
   const input = await parseBody(c, paymentSchema);
   const customerId = c.get('user').id;
   const db = c.env.DB;
   const order = await db
-    .prepare('SELECT o.customer_id, s.owner_id FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ?')
+    .prepare('SELECT o.customer_id, s.owner_id, s.type AS store_type FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ?')
     .bind(id)
-    .first<{ customer_id: number; owner_id: number | null }>();
+    .first<{ customer_id: number; owner_id: number | null; store_type: StoreType }>();
   if (!order || order.customer_id !== customerId) fail(404, 'Order not found');
   if (!input.payment_ref && !input.payment_photo_key) fail(400, 'Add a reference number or a photo of your payment');
   if (input.payment_photo_key) {
@@ -202,12 +205,20 @@ orders.post('/:id/payment', requireRole('customer'), async (c) => {
 
   const { meta } = await db
     .prepare(
-      "UPDATE transactions_pickup SET status = 'awaiting_payment', payment_ref = ?, payment_photo_key = ?, updated_at = datetime('now') WHERE id = ? AND status = 'to_pay'",
+      "UPDATE transactions_pickup SET status = 'awaiting_payment', payment_ref = ?, payment_photo_key = ?, payment_rejected_reason = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'to_pay'",
     )
     .bind(input.payment_ref, input.payment_photo_key ?? null, id)
     .run();
   if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
-  awaitPayment(c, id, order.owner_id, 'Review payment', 'A customer paid for a laundry pickup. Check the proof in Pickups and tap Done Pay.', true);
+  const laundry = order.store_type === 'laundry';
+  awaitPayment(
+    c,
+    id,
+    order.owner_id,
+    'Review payment',
+    `A customer paid for a ${laundry ? 'laundry pickup' : 'food order'}. Check the proof in ${laundry ? 'Pickups' : 'Orders'} and tap Done Pay.`,
+    laundry,
+  );
   pickupChanged(c, id, { board: false });
   return c.json({ order: await getOrder(db, id) });
 });
@@ -268,6 +279,9 @@ orders.get('/:id/payment-photo', requireRole('customer'), async (c) => {
   return photoResponse(c.env.PROOFS, row.payment_photo_key);
 });
 
+/** An accepted order whose driver the order room flagged silent: the customer may cancel it or send it back to the drivers. */
+const SILENT_DRIVER = "status = 'accepted' AND driver_silent_at IS NOT NULL";
+
 /** Statuses after the customer sent their payment to the shop. */
 const PAID: OrderStatus[] = ['awaiting_payment', 'payment_confirmed', 'pending'];
 
@@ -279,22 +293,30 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
 
   const order = await db
     .prepare(
-      `SELECT o.customer_id, o.status, o.items_total + o.total_delivery_fee AS paid, s.owner_id, s.type AS store_type
+      `SELECT o.customer_id, o.driver_id, o.status, o.items_total + o.total_delivery_fee AS paid, s.owner_id, s.type AS store_type
        FROM transactions_pickup o JOIN stores s ON s.id = o.store_id WHERE o.id = ?`,
     )
     .bind(id)
-    .first<{ customer_id: number; status: OrderStatus; paid: number; owner_id: number | null; store_type: StoreType }>();
+    .first<{ customer_id: number; driver_id: number | null; status: OrderStatus; paid: number; owner_id: number | null; store_type: StoreType }>();
   if (!order) fail(404, 'Order not found');
   if (order.customer_id !== c.get('user').id) fail(403, 'You cannot cancel this order');
 
-  const { meta } = await db
-    .prepare(
-      "UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND status IN ('awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending')",
-    )
-    .bind(id)
-    .run();
+  // Before a driver has it, or once its driver has gone silent (driver_silent_at) before picking it up; the driver is freed
+  // in the same batch, only if the cancel lands.
+  const [, { meta }] = await db.batch([
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_pickup WHERE id = ? AND ${SILENT_DRIVER})`).bind(id),
+    db
+      .prepare(
+        `UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now')
+         WHERE id = ? AND (status IN ('awaiting_fee', 'to_pay', 'awaiting_payment', 'payment_confirmed', 'pending') OR ${SILENT_DRIVER})`,
+      )
+      .bind(id),
+  ]);
   if (meta.changes === 0) fail(409, 'Order can no longer be cancelled');
   pickupChanged(c, id);
+  if (order.status === 'accepted' && order.driver_id !== null) {
+    c.executionCtx.waitUntil(pushToUsers(c.env, [order.driver_id], 'Order cancelled', `The customer cancelled order #${id}.`, { order_id: id }));
+  }
   // The customer paid the shop directly, so the shop has to know: it may owe a refund (and may have started cooking).
   if (PAID.includes(order.status) && order.owner_id !== null) {
     c.executionCtx.waitUntil(
@@ -309,6 +331,32 @@ orders.post('/:id/cancel', requireRole('customer'), async (c) => {
     );
   }
 
+  return c.json({ order: await getOrder(db, id) });
+});
+
+/** Find another driver: an accepted order whose driver went silent goes back to the board, and the driver is freed. */
+orders.post('/:id/new-driver', requireRole('customer'), async (c) => {
+  const id = parseId(c);
+  const db = c.env.DB;
+  const order = await db.prepare('SELECT customer_id, driver_id FROM transactions_pickup WHERE id = ?').bind(id).first<{ customer_id: number; driver_id: number | null }>();
+  if (!order) fail(404, 'Order not found');
+  if (order.customer_id !== c.get('user').id) fail(403, 'This is not your order');
+
+  const [, { meta }] = await db.batch([
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_pickup WHERE id = ? AND ${SILENT_DRIVER})`).bind(id),
+    db
+      .prepare(
+        `UPDATE transactions_pickup SET driver_id = NULL, status = 'pending', driver_silent_at = NULL, updated_at = datetime('now') WHERE id = ? AND ${SILENT_DRIVER}`,
+      )
+      .bind(id),
+  ]);
+  if (meta.changes === 0) fail(409, 'Your driver is responding again, or already has your order');
+  pickupChanged(c, id);
+  if (order.driver_id !== null) {
+    c.executionCtx.waitUntil(
+      pushToUsers(c.env, [order.driver_id], 'Job released', `The customer gave order #${id} to another driver because we couldn't reach you.`, { order_id: id }),
+    );
+  }
   return c.json({ order: await getOrder(db, id) });
 });
 

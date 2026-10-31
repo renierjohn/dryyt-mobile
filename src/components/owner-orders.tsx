@@ -12,7 +12,7 @@ import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useConfirmPayment, useOwnerOrders, useSetLaundryFee } from '@/hooks/queries';
+import { useConfirmPayment, useOwnerOrders, useRejectPayment, useSetLaundryFee } from '@/hooks/queries';
 import { useTheme } from '@/hooks/use-theme';
 import { apiUrl, authHeaders } from '@/lib/api';
 import { dayLabel, localDay, peso, STATUS_LABEL } from '@/lib/format';
@@ -119,7 +119,10 @@ function OrderCard({
           )}
           {o.status === 'awaiting_fee' && <LaundryFeeForm orderId={o.id} />}
           {o.status === 'awaiting_payment' && (
-            <Button title="Done Pay" loading={confirm.isPending && confirm.variables === o.id} onPress={() => confirm.mutate(o.id)} />
+            <>
+              <Button title="Done Pay" loading={confirm.isPending && confirm.variables === o.id} onPress={() => confirm.mutate(o.id)} />
+              <RejectPaymentForm orderId={o.id} />
+            </>
           )}
         </>
       ) : (
@@ -151,6 +154,28 @@ function OrderCard({
         </ThemedText>
       </Pressable>
     </Card>
+  );
+}
+
+/** Payment not received: opens a reason field; sending it returns the order to the customer to pay again. */
+function RejectPaymentForm({ orderId }: { orderId: number }) {
+  const reject = useRejectPayment();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  if (!open) return <Button title="Payment not received" variant="secondary" onPress={() => setOpen(true)} />;
+  return (
+    <>
+      <TextField label="Reason for the customer" value={reason} onChangeText={setReason} placeholder="e.g. No GCash payment with that reference" maxLength={200} />
+      <ErrorText error={reject.error} />
+      <Button
+        title="Send to customer"
+        variant="danger"
+        loading={reject.isPending}
+        disabled={reason.trim() === ''}
+        onPress={() => reject.mutate({ id: orderId, reason: reason.trim() })}
+      />
+      <Button title="Back" variant="secondary" onPress={() => setOpen(false)} />
+    </>
   );
 }
 

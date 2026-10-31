@@ -84,7 +84,7 @@ jobs.post('/:id/release', async (c) => {
   // One batch: the driver is freed only if the release itself lands.
   const [, released] = await db.batch([
     db.prepare("UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_pickup WHERE id = ? AND status = 'accepted')").bind(id),
-    db.prepare("UPDATE transactions_pickup SET driver_id = NULL, status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'accepted'").bind(id),
+    db.prepare("UPDATE transactions_pickup SET driver_id = NULL, status = 'pending', driver_silent_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'accepted'").bind(id),
   ]);
   if (released.meta.changes === 0) fail(409, 'Only jobs not yet picked up can be released');
 
@@ -102,7 +102,10 @@ jobs.post('/:id/status', async (c) => {
   if (order.driver_id !== c.get('user').id) fail(403, 'This is not your job');
   if (NEXT_STATUS[order.status] !== status) fail(409, `Cannot change status from ${order.status} to ${status}`);
 
-  const move = db.prepare("UPDATE transactions_pickup SET status = ?, updated_at = datetime('now') WHERE id = ? AND status = ?").bind(status, id, order.status);
+  // The driver tapping means they're back: any silent flag goes.
+  const move = db
+    .prepare("UPDATE transactions_pickup SET status = ?, driver_silent_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = ?")
+    .bind(status, id, order.status);
   // Delivered frees the driver and counts the items in the same batch, each guarded by the old state so they land only
   // with the status change (a repeated "delivered" changes nothing).
   const results =

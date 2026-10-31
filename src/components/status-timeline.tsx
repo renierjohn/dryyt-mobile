@@ -22,7 +22,8 @@ export function StatusTimeline({ status, paid = false, laundry = false }: { stat
     );
   }
 
-  const steps = laundry ? LAUNDRY_STEPS : paid ? PAID_STEPS : STEPS;
+  // A food order whose proof the shop turned down is back at to_pay, before the payment steps.
+  const steps = laundry ? LAUNDRY_STEPS : paid ? (status === 'to_pay' ? (['to_pay', ...PAID_STEPS] satisfies OrderStatus[]) : PAID_STEPS) : STEPS;
   const current = steps.indexOf(status);
   return (
     <View style={styles.list}>

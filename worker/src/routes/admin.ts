@@ -7,6 +7,8 @@ import { APP_FEE_TYPES, DEFAULT_CATEGORY, isVehicleCategory, RATE_TYPES } from '
 import { fail, parseBody } from '../lib/http';
 import { getOrder } from '../lib/orders';
 import { photoResponse, readPhoto } from '../lib/photos';
+import { pickupChanged } from '../lib/pickup-live';
+import { pushToUsers } from '../lib/push';
 import { STORE_TOTALS, storeRange } from '../lib/store-totals';
 import { verifyTurnstile } from '../lib/turnstile';
 import type { AppEnv } from '../types';
@@ -172,6 +174,35 @@ admin.get('/orders/:id/payment-photo', async (c) => {
     .bind(Number(c.req.param('id')) || 0)
     .first<{ payment_photo_key: string | null }>();
   return photoResponse(c.env.PROOFS, row?.payment_photo_key, 'no-store');
+});
+
+/** Pickup and drop off statuses the customer is still waiting on. */
+const OPEN_ORDER = "status NOT IN ('delivered', 'cancelled')";
+const OPEN_DROPOFF = "status IN ('searching', 'driver_accepted', 'en_route_pickup', 'en_route_shop', 'dropped_off')";
+
+/**
+ * Support cancels a pickup order that's stuck (e.g. its driver vanished after picking it up). Frees the driver in the same
+ * batch, guarded on the order still being open, and tells the customer and the driver. Refunds happen outside the app.
+ */
+admin.post('/orders/:id/cancel', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id <= 0) fail(404, 'Order not found');
+  const db = c.env.DB;
+  const order = await db.prepare('SELECT customer_id, driver_id FROM transactions_pickup WHERE id = ?').bind(id).first<{ customer_id: number; driver_id: number | null }>();
+  if (!order) fail(404, 'Order not found');
+  const [, cancelled] = await db.batch([
+    db.prepare(`UPDATE drivers SET busy = 0 WHERE user_id = (SELECT driver_id FROM transactions_pickup WHERE id = ? AND ${OPEN_ORDER})`).bind(id),
+    db.prepare(`UPDATE transactions_pickup SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND ${OPEN_ORDER}`).bind(id),
+  ]);
+  if (cancelled.meta.changes === 0) fail(409, 'This order is already delivered or cancelled');
+  console.log('[admin] order cancelled', { by: c.get('user').id, id });
+  pickupChanged(c, id);
+  c.executionCtx.waitUntil(
+    pushToUsers(c.env, [order.customer_id, ...(order.driver_id !== null ? [order.driver_id] : [])], 'Order cancelled', `Support cancelled order #${id}.`, {
+      order_id: id,
+    }),
+  );
+  return c.json({ order: await getOrder(db, id) });
 });
 
 admin.get('/dropoffs', async (c) => {
@@ -452,10 +483,38 @@ admin.post('/users/:id/blocked', async (c) => {
   if (!Number.isInteger(id) || id <= 0) fail(404, 'User not found');
   const { blocked } = await parseBody(c, z.object({ blocked: z.boolean() }));
   if (blocked && id === c.get('user').id) fail(400, "You can't block your own account");
-  const user = await c.env.DB.prepare('UPDATE users SET blocked = ? WHERE id = ? RETURNING id, blocked').bind(blocked ? 1 : 0, id).first();
+  const db = c.env.DB;
+  const user = await db.prepare('UPDATE users SET blocked = ? WHERE id = ? RETURNING id, blocked').bind(blocked ? 1 : 0, id).first();
   if (!user) fail(404, 'User not found');
+  // Their next request gets a 401 and the app signs out; a blocked driver also stops getting new drop off and pickup requests.
+  if (blocked) await db.prepare('UPDATE drivers SET online = 0, pickup_online = 0 WHERE user_id = ?').bind(id).run();
   console.log('[admin] user blocked', { by: c.get('user').id, id, blocked });
   return c.json({ user });
+});
+
+/** Turns a customer into a driver (unverified, offline) or an owner. They sign in again to get the new app. */
+admin.post('/users/:id/role', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id <= 0) fail(404, 'User not found');
+  const { role } = await parseBody(c, z.object({ role: z.enum(['driver', 'owner']) }));
+  const db = c.env.DB;
+  const [user, open] = await db.batch([
+    db.prepare('SELECT role FROM users WHERE id = ?').bind(id),
+    db.prepare(
+      `SELECT (SELECT COUNT(*) FROM transactions_pickup WHERE customer_id = ?1 AND ${OPEN_ORDER})
+            + (SELECT COUNT(*) FROM transactions_dropoff WHERE customer_id = ?1 AND ${OPEN_DROPOFF}) AS n`,
+    ).bind(id),
+  ]);
+  const current = (user.results[0] as { role: string } | undefined)?.role;
+  if (!current) fail(404, 'User not found');
+  if (current !== 'customer') fail(409, 'Only customers can be changed to a driver or owner');
+  if ((open.results[0] as { n: number }).n > 0) fail(409, 'This customer still has an open order or drop off');
+  await db.batch([
+    db.prepare("UPDATE users SET role = ? WHERE id = ? AND role = 'customer'").bind(role, id),
+    ...(role === 'driver' ? [db.prepare('INSERT OR IGNORE INTO drivers (user_id) VALUES (?)').bind(id)] : []),
+  ]);
+  console.log('[admin] user role', { by: c.get('user').id, id, role });
+  return c.json({ user: { id, role } });
 });
 
 const STORE_TOTALS_SUM = 'COALESCE(SUM(s.service_fee), 0) AS total_service_fee, COALESCE(SUM(s.app_fee), 0) AS total_app_fee';

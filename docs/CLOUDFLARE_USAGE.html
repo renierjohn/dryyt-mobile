@@ -52,6 +52,7 @@
   }
 
 </style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
 </head>
 <body>
 <div class="layout">
@@ -85,6 +86,8 @@
 </ol>
 </aside>
 <main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html" aria-current="page">Cloudflare usage</a></nav>
+
 <h1>Cloudflare usage and budget</h1>
 <p>Expected monthly usage of every Cloudflare service the Dryyt worker uses, at three sizes, with the cost and a recommended budget for each.</p>
 <ul><li>Prices are from Cloudflare's pricing pages, checked <b>2026-10-20</b>. Re-check them before relying on the totals.</li><li>Usage is estimated from how the app actually calls the worker: poll intervals, socket messages and writes per order, taken from the code. These are planning numbers, not measurements. Once the app is live, compare them with the Cloudflare dashboard (Workers &amp; Pages → dryyt-worker → Metrics, plus D1 and R2 metrics) and adjust.</li></ul>

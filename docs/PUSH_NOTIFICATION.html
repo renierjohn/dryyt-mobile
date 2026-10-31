@@ -46,9 +46,12 @@
   svg .arrowdead { fill: var(--push); }
   ol.steps li { margin-bottom: 8px; }
 </style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
 </head>
 <body>
 <main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html" aria-current="page">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a></nav>
+
 <h1>Push notifications</h1>
 <p class="sub">How the worker sends pushes and confirms they were delivered, the limits, and how to set up <code>EXPO_ACCESS_TOKEN</code>. Updated 2026-10-19.</p>
 
@@ -106,24 +109,6 @@
   </svg>
   <figcaption>Dashed lines: a dead token is cleared, either right away from the ticket or later from the receipt.</figcaption>
 </figure>
-
-<h2>What changed</h2>
-<table>
-  <tr><th>File</th><th>Change</th></tr>
-  <tr><td><code>worker/src/lib/push.ts</code></td><td>
-    <code>postExpo</code>: one helper for both Expo endpoints. It sends the bearer token when set, retries 429/5xx/network errors after 1s and 3s, and logs other 4xx errors as <code>[push] rejected</code>.<br>
-    <code>sendPush</code> now returns <code>{ dead, tickets }</code>.<br>
-    <code>pushToUsers(env, …)</code> takes the worker env instead of the D1 handle. It clears dead tokens and saves tickets.<br>
-    <code>checkPushReceipts(env)</code> is the cron step. It reads up to 1000 tickets that are at least 15 minutes old, clears tokens reported as unregistered, deletes the tickets it checked, and drops any ticket older than a day.<br>
-    <code>maskToken</code> moved here from <code>index.ts</code>.</td></tr>
-  <tr><td><code>worker/migrations/0019_push_tickets.sql</code></td><td>New table <code>push_tickets (id, token, created_at)</code> with an index on <code>created_at</code>.</td></tr>
-  <tr><td><code>worker/src/index.ts</code></td><td>The default export is now <code>{ fetch, scheduled }</code>, and <code>scheduled</code> runs <code>checkPushReceipts</code>. The Hono app is also a named export, <code>app</code>.</td></tr>
-  <tr><td><code>worker/wrangler.jsonc</code></td><td><code>triggers.crons: ["*/15 * * * *"]</code></td></tr>
-  <tr><td><code>worker/src/types.ts</code></td><td><code>EXPO_ACCESS_TOKEN?: string</code> on <code>Bindings</code>.</td></tr>
-  <tr><td>Routes and Durable Objects</td><td>All 10 <code>pushToUsers</code> callers pass <code>c.env</code> / <code>this.env</code>.</td></tr>
-  <tr><td>Tests</td><td>The fake Expo service in <code>vitest.shared.ts</code> returns tickets and receipts. New tests cover dead tokens, the 503 retry, saving tickets, and the receipt check. Results: 78 + 110 passing.</td></tr>
-  <tr><td><code>README.md</code></td><td>Added the <code>EXPO_ACCESS_TOKEN</code> secret step and switched <code>npx</code> to <code>bunx</code>.</td></tr>
-</table>
 
 <h2>Limits</h2>
 <table>

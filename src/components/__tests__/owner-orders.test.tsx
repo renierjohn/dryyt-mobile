@@ -29,7 +29,9 @@ jest.mock('@/hooks/queries', () => ({
     refetch: jest.fn(),
   }),
   useConfirmPayment: () => ({ mutate: mockConfirm, isPending: false, error: null }),
+  useRejectPayment: () => ({ mutate: mockReject, isPending: false, error: null }),
 }));
+const mockReject = jest.fn();
 const mockSticky = jest.fn();
 // The real Screen, recording which children it pins.
 jest.mock('@/components/screen', () => {
@@ -91,6 +93,15 @@ it('shows the proof of payment and Done Pay only while the order waits for payme
   expect(screen.getAllByText('Done Pay')).toHaveLength(1);
   await fireEvent.press(screen.getByText('Done Pay'));
   expect(mockConfirm).toHaveBeenCalledWith(4);
+});
+
+it('turns down a payment with a reason for the customer', async () => {
+  await render(<Orders />);
+  await fireEvent.press(screen.getByText('Payment not received'));
+  expect(screen.getByText('Send to customer')).toBeTruthy();
+  await fireEvent.changeText(screen.getByPlaceholderText('e.g. No GCash payment with that reference'), '  No GCash payment with that reference ');
+  await fireEvent.press(screen.getByText('Send to customer'));
+  expect(mockReject).toHaveBeenCalledWith({ id: 4, reason: 'No GCash payment with that reference' });
 });
 
 it("groups orders by the day they were placed, with the day's order amount (no fees, no cancelled orders) on the right", async () => {

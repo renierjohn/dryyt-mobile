@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { createContext, use, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Alert } from 'react-native';
 
 import { api, setAuthToken, setUnauthorizedHandler } from '@/lib/api';
 import { signOutOfSocial } from '@/lib/social-auth';
@@ -47,7 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => void signOut());
+    // A plain expiry signs out quietly; a block or role change from the cpanel says why. Polls and sockets can hit
+    // several 401s at once, so only the first (while still signed in) alerts.
+    let notified = false;
+    setUnauthorizedHandler((message) => {
+      if (!notified && !/expired/i.test(message)) {
+        notified = true;
+        Alert.alert('Signed out', message, [{ text: 'OK', onPress: () => (notified = false) }]);
+      }
+      void signOut();
+    });
     loadSession()
       .then((session) => {
         if (!session) return setState({ status: 'signedOut' });

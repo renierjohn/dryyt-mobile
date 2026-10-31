@@ -336,6 +336,34 @@ owner.post('/orders/:id/confirm-payment', async (c) => {
   return c.json({ order: await getOrder(db, order.id) });
 });
 
+const rejectSchema = z.object({ reason: z.string().trim().min(1).max(200) });
+
+/**
+ * Payment not received: the proof doesn't match a payment. The order goes back to to_pay with the proof cleared (which
+ * also stops the order room's reminders and auto-accept), and the customer is told why so they can pay again.
+ */
+owner.post('/orders/:id/reject-payment', async (c) => {
+  const order = await myOrder(c);
+  const { reason } = await parseBody(c, rejectSchema);
+  const db = c.env.DB;
+  const { meta } = await db
+    .prepare(
+      `UPDATE transactions_pickup SET status = 'to_pay', payment_ref = '', payment_photo_key = NULL, payment_rejected_reason = ?, updated_at = datetime('now')
+       WHERE id = ? AND status = 'awaiting_payment'`,
+    )
+    .bind(reason, order.id)
+    .run();
+  if (meta.changes === 0) fail(409, 'This order is not waiting for payment');
+  pickupChanged(c, order.id, { board: false });
+  c.executionCtx.waitUntil(
+    Promise.all([
+      pushToUsers(c.env, [order.customer_id], 'Payment not received', `${order.store_name}: ${reason}. Check your payment and send it again.`, { order_id: order.id }),
+      order.payment_photo_key ? c.env.PROOFS.delete(order.payment_photo_key) : undefined,
+    ]),
+  );
+  return c.json({ order: await getOrder(db, order.id) });
+});
+
 // 0: the customer already paid the laundry at the shop; they pay only the delivery.
 const laundryFeeSchema = z.object({ laundry_fee: z.number().int().min(0).max(10_000_000) });
 

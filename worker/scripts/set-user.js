@@ -2,12 +2,12 @@
 // Updates a user's details. Set only the fields you pass.
 // Usage: bun run user:set <userId|email> [--name <text>] [--email <email>] [--phone <text>] [--password <text>]
 //                                     [--online true|false] [--busy true|false] [--group <group_id>]
-//                                     [--push <ExponentPushToken[...]>|none] [--remote]
+//                                     [--push <ExponentPushToken[...]>|none] [--remote|--preview]
 // --online, --busy and --group are for drivers only. Without --remote it updates the local D1 database.
 import { d1, hashPassword, usageError } from './lib/mock.js';
 
 const usage = usageError(
-  'bun run user:set <userId|email> [--name <text>] [--email <email>] [--phone <text>] [--password <text>] [--online true|false] [--busy true|false] [--group <group_id>] [--push <token>|none] [--remote]',
+  'bun run user:set <userId|email> [--name <text>] [--email <email>] [--phone <text>] [--password <text>] [--online true|false] [--busy true|false] [--group <group_id>] [--push <token>|none] [--remote|--preview]',
 );
 
 const args = process.argv.slice(2);

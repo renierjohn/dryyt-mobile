@@ -149,7 +149,13 @@ bunx wrangler secret list --env preview</div>
 <tr><td><code>bun run db:migrate:remote</code></td><td><code>dryyt-mobile</code> (production)</td></tr>
 <tr><td><code>bun run r2:lifecycle:preview</code></td><td>90-day expiry for proofs and payments in the preview bucket (once)</td></tr>
 </table></div>
-<p>Apply a new migration to preview first, test, then production. The preview database starts empty: create users, shops and an admin there with the scripts in <code>worker/scripts</code>.</p>
+<p>Apply a new migration to preview first, test, then production. The preview database starts without users: create them, shops and an admin with the scripts in <code>worker/scripts</code>.</p>
+<p>Every worker script takes <code>--preview</code>: it reads and writes <code>dryyt-mobile-preview</code> and the mocks call <code>https://app-preview.dryyt.com</code>. Without it, scripts use the local database, or production with <code>--remote</code>.</p>
+<div class="mock">bun run users --preview
+bun run user:add ana@example.com secret123 --role owner --name Ana --phone 09170000000 --preview
+bun run admin:set ana@example.com --preview
+bun run shop:set 1 --owner 2 --preview</div>
+<p>Mocks that sign in as an existing user sign a token with the preview worker's <code>JWT_SECRET</code>, which can't be read back from Cloudflare. Pass it as <code>PREVIEW_JWT_SECRET</code> in the shell, or set a new <code>JWT_SECRET --env preview</code> you keep (this signs everyone out of preview).</p>
 
 <h2 id="eas">App builds with EAS</h2>
 <p>EAS takes the API URL from the profile in <code>eas.json</code>. A value set there beats every <code>.env</code> file uploaded with the build.</p>

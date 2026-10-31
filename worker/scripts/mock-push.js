@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Sends a test push notification to a user's phone, shaped exactly like the worker's pushes.
-// Usage: bun run mock:push <userId|email> [preset] [--title <text>] [--body <text>] [--remote]
+// Usage: bun run mock:push <userId|email> [preset] [--title <text>] [--body <text>] [--remote|--preview]
 // Presets mirror the app's real pushes: new-dropoff (driver), arrived / waiting / order / laundry / laundry-payment (owner),
 // received / cancelled (customer). Default: a plain "Test notification".
 // The user needs a saved push token: sign in once on a development or release build (not Expo Go).
@@ -34,7 +34,7 @@ const PRESETS = {
   cancelled: { title: 'Drop off cancelled', body: 'Your driver cancelled the trip.' },
 };
 
-const usage = usageError(`bun run mock:push <userId|email> [${Object.keys(PRESETS).join('|')}] [--title <text>] [--body <text>] [--remote]`);
+const usage = usageError(`bun run mock:push <userId|email> [${Object.keys(PRESETS).join('|')}] [--title <text>] [--body <text>] [--remote|--preview]`);
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

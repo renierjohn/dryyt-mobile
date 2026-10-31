@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Developer only: gives a user cpanel access (users.is_admin = 1), or takes it away with --off.
-// Usage: bun run admin:set <userId|email> [--off] [--remote]
+// Usage: bun run admin:set <userId|email> [--off] [--remote|--preview]
 // Without --remote it updates the local D1 database used by `bun run dev`.
 import { d1, usageError } from './lib/mock.js';
 
-const usage = usageError('bun run admin:set <userId|email> [--off] [--remote]');
+const usage = usageError('bun run admin:set <userId|email> [--off] [--remote|--preview]');
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

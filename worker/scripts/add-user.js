@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Registers a user, like the app's sign up (POST /auth/register). Drivers also get their drivers row.
-// Usage: bun run user:add <email> <password> --role customer|driver|owner --name <text> --phone <text> [--remote]
+// Usage: bun run user:add <email> <password> --role customer|driver|owner --name <text> --phone <text> [--remote|--preview]
 // Without --remote it adds to the local D1 database.
 import { d1, hashPassword, usageError } from './lib/mock.js';
 
-const usage = usageError('bun run user:add <email> <password> --role customer|driver|owner --name <text> --phone <text> [--remote]');
+const usage = usageError('bun run user:add <email> <password> --role customer|driver|owner --name <text> --phone <text> [--remote|--preview]');
 
 const args = process.argv.slice(2);
 const remote = args.includes('--remote');

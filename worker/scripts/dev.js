@@ -10,4 +10,4 @@ import { appApiUrl } from './lib/mock.js';
 const { host } = new URL(appApiUrl());
 const args = ['wrangler', 'dev', '--ip', '0.0.0.0', '--port', '9999', '--local-upstream', host, ...process.argv.slice(2)];
 console.log(`wrangler dev as ${host}`);
-spawn('npx', args, { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 0));
+spawn(process.execPath, ['x', ...args], { stdio: 'inherit' }).on('exit', (code) => process.exit(code ?? 0));

@@ -4,10 +4,27 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 /**
+ * `--preview` on any script: D1 is the preview worker's database (remote) and the API is app-preview.dryyt.com.
+ * Taken out of argv here, before the script reads it, so scripts don't need to know the flag.
+ */
+const previewAt = process.argv.indexOf('--preview');
+export const PREVIEW = previewAt >= 0;
+if (PREVIEW) {
+  process.argv.splice(previewAt, 1);
+  console.log('Target: preview (dryyt-mobile-preview, https://app-preview.dryyt.com)');
+}
+
+/** `wrangler d1 execute` arguments for the database: preview, the production one (--remote) or the local one. */
+export function d1Target(remote) {
+  return PREVIEW ? ['dryyt-mobile-preview', '--remote', '--env', 'preview'] : ['dryyt-mobile', remote ? '--remote' : '--local'];
+}
+
+/**
  * The worker the app talks to: EXPO_PUBLIC_API_URL from the app's .env, so the mocks join the same
  * Dispatch and Trip rooms as the real app. Each `wrangler dev` has its own rooms (only D1 is shared).
  */
 export function appApiUrl() {
+  if (PREVIEW) return 'https://app-preview.dryyt.com';
   try {
     const env = readFileSync(new URL('../../../.env', import.meta.url), 'utf8');
     const url = env.match(/^EXPO_PUBLIC_API_URL=(.+)$/m)?.[1].trim();
@@ -99,10 +116,10 @@ export async function openRoom(api, user, room, onMessage) {
   return { send: (msg) => ws.send(JSON.stringify(msg)), close: () => ws.close() };
 }
 
-/** Runs SQL on the local (or --remote) D1 database and returns the rows. Only pass validated values. */
+/** Runs SQL on the local (or --remote, or --preview) D1 database and returns the rows. Only pass validated values. */
 export function d1(sql, remote) {
   return JSON.parse(
-    execFileSync('npx', ['wrangler', 'd1', 'execute', 'dryyt-mobile', remote ? '--remote' : '--local', '--json', '--command', sql], {
+    execFileSync(process.execPath, ['x', 'wrangler', 'd1', 'execute', ...d1Target(remote), '--json', '--command', sql], {
       encoding: 'utf8',
       stdio: ['inherit', 'pipe', 'inherit'],
     }),
@@ -120,8 +137,10 @@ export function tokenForUser(who, role) {
   if (!user) throw new Error(`No user ${who}`);
   if (user.role !== role) throw new Error(`User #${user.id} is ${user.role === 'owner' ? 'an' : 'a'} ${user.role}, not ${role === 'owner' ? 'an' : 'a'} ${role}`);
 
-  let secret;
-  try {
+  // The preview worker's secret can't be read back from Cloudflare: pass the one you set with `wrangler secret put`.
+  let secret = PREVIEW ? process.env.PREVIEW_JWT_SECRET : undefined;
+  if (PREVIEW && !secret) throw new Error('--preview signs in with PREVIEW_JWT_SECRET (the preview worker\'s JWT_SECRET); set it in the shell');
+  if (!secret) try {
     secret = readFileSync(new URL('../../.dev.vars', import.meta.url), 'utf8').match(/^JWT_SECRET=(.+)$/m)?.[1].trim();
   } catch {
     // no .dev.vars

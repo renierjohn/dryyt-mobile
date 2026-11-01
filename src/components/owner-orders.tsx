@@ -1,5 +1,5 @@
 import { Image, type ImageSource } from 'expo-image';
-import { useState, type ReactElement } from 'react';
+import { memo, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -52,7 +52,9 @@ export function OwnerOrders({ type, title }: { type: StoreType; title: string })
         </View>,
       );
     }
-    rows.push(<OrderCard key={o.id} order={o} onViewPhoto={setViewing} confirm={confirm} />);
+    rows.push(
+      <OrderCard key={o.id} order={o} onViewPhoto={setViewing} confirming={confirm.isPending && confirm.variables === o.id} onConfirm={confirm.mutate} />,
+    );
   });
 
   // The fixed rows above the list, null ones dropped so `sticky` indexes line up with the scroll view's children.
@@ -85,14 +87,17 @@ export function OwnerOrders({ type, title }: { type: StoreType; title: string })
 }
 
 /** Collapsed (unless awaiting payment) to store, order amount, number, status and total; "Show More" opens the full summary, proof of payment and Done Pay. */
-function OrderCard({
+/** memo: the list re-renders on each visit to the tab; a card only when its order (or its Done Pay) changes. */
+const OrderCard = memo(function OrderCard({
   order: o,
   onViewPhoto,
-  confirm,
+  confirming,
+  onConfirm,
 }: {
   order: Order;
   onViewPhoto: (photo: ImageSource) => void;
-  confirm: ReturnType<typeof useConfirmPayment>;
+  confirming: boolean;
+  onConfirm: (orderId: number) => void;
 }) {
   const theme = useTheme();
   // Orders waiting on the owner (laundry fee, payment) start open, so Confirm or Done Pay is in reach.
@@ -123,7 +128,7 @@ function OrderCard({
           {o.status === 'awaiting_fee' && <LaundryFeeForm orderId={o.id} />}
           {o.status === 'awaiting_payment' && (
             <>
-              <Button title="Done Pay" loading={confirm.isPending && confirm.variables === o.id} onPress={() => confirm.mutate(o.id)} />
+              <Button title="Done Pay" loading={confirming} onPress={() => onConfirm(o.id)} />
               <RejectPaymentForm orderId={o.id} />
             </>
           )}
@@ -158,7 +163,7 @@ function OrderCard({
       </Pressable>
     </Card>
   );
-}
+});
 
 /** Payment not received: opens a reason field; sending it returns the order to the customer to pay again. */
 function RejectPaymentForm({ orderId }: { orderId: number }) {

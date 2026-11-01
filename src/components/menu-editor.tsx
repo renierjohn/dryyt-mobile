@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { memo, useCallback, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -28,17 +29,16 @@ export function MenuEditor({ storeId }: { storeId: number }) {
   const store = useStore(storeId);
   const remove = useDeleteMenuItem(storeId);
   const reorder = useReorderMenu(storeId);
-  const theme = useTheme();
 
-  const confirmDelete = (item: MenuItem) =>
-    Alert.alert('Delete item?', `${item.name} will be removed from the menu.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => remove.mutate(item.id),
-      },
-    ]);
+  const deleting = remove.isPending ? remove.variables : null;
+  const { mutate: removeItem } = remove;
+  // Stable while nothing is being deleted, so a row re-renders only when its own item changes (e.g. marked sold out).
+  const renderItem = useCallback(
+    (item: MenuItem, handle: (node: ReactNode) => ReactNode) => (
+      <MenuRow storeId={storeId} item={item} handle={handle} deleting={deleting === item.id} onDelete={removeItem} />
+    ),
+    [storeId, deleting, removeItem],
+  );
 
   return (
     <View style={styles.section}>
@@ -47,45 +47,7 @@ export function MenuEditor({ storeId }: { storeId: number }) {
       <ErrorText error={store.error ?? remove.error ?? reorder.error} />
       {store.isSuccess && store.data.menu.length === 0 && <ThemedText themeColor="textSecondary">No items yet.</ThemedText>}
       {store.data && (
-        <SortableList
-          items={store.data.menu}
-          rowHeight={ROW_HEIGHT}
-          onReorder={(ids) => reorder.mutate(ids)}
-          renderItem={(item, handle) => (
-            <Card style={styles.card} onPress={() => editItem(storeId, item.id)}>
-              <View style={styles.row}>
-                {handle(
-                  <View style={styles.handle} accessibilityLabel={`Drag to reorder ${item.name}`}>
-                    <Icon name={{ ios: 'line.3.horizontal', android: 'drag_handle', web: 'drag_handle' }} size={24} color={theme.textSecondary} />
-                  </View>,
-                )}
-                {/* The item's photo, or a placeholder so every row lines up. */}
-                <View style={item.sold_out && styles.soldOut}>
-                  <DishPhoto uri={item.image_url} size={48} testID={`menu-photo-${item.id}`} />
-                </View>
-                <View style={styles.text}>
-                  <SoldOutCheckbox storeId={storeId} item={item} />
-                  <ThemedText type="smallBold" numberOfLines={1} style={item.sold_out && styles.soldOut}>
-                    {item.name}
-                    {item.best_seller ? ' · Best seller' : ''}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={item.sold_out && styles.soldOut}>
-                    {[item.category, peso(discountedPrice(item)), item.discount_percent > 0 && `${item.discount_percent}% off`]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </ThemedText>
-                </View>
-                {remove.isPending && remove.variables === item.id ? (
-                  <ActivityIndicator />
-                ) : (
-                  <Pressable onPress={() => confirmDelete(item)} hitSlop={12} accessibilityLabel={`Delete ${item.name}`}>
-                    <Icon name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={22} color={Brand.danger} />
-                  </Pressable>
-                )}
-              </View>
-            </Card>
-          )}
-        />
+        <SortableList items={store.data.menu} rowHeight={ROW_HEIGHT} onReorder={(ids) => reorder.mutate(ids)} renderItem={renderItem} />
       )}
       {store.data && store.data.menu.length > 1 && (
         <ThemedText type="small" themeColor="textSecondary">
@@ -96,6 +58,62 @@ export function MenuEditor({ storeId }: { storeId: number }) {
     </View>
   );
 }
+
+/** One menu item: drag handle, photo, Sold Out, name and details, delete. */
+const MenuRow = memo(function MenuRow({
+  storeId,
+  item,
+  handle,
+  deleting,
+  onDelete,
+}: {
+  storeId: number;
+  item: MenuItem;
+  handle: (node: ReactNode) => ReactNode;
+  deleting: boolean;
+  onDelete: (itemId: number) => void;
+}) {
+  const theme = useTheme();
+  const confirmDelete = () =>
+    Alert.alert('Delete item?', `${item.name} will be removed from the menu.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(item.id) },
+    ]);
+  return (
+    <Card style={styles.card} onPress={() => editItem(storeId, item.id)}>
+      <View style={styles.row}>
+        {handle(
+          <View style={styles.handle} accessibilityLabel={`Drag to reorder ${item.name}`}>
+            <Icon name={{ ios: 'line.3.horizontal', android: 'drag_handle', web: 'drag_handle' }} size={24} color={theme.textSecondary} />
+          </View>,
+        )}
+        {/* The item's photo, or a placeholder so every row lines up. */}
+        <View style={item.sold_out && styles.soldOut}>
+          <DishPhoto uri={item.image_url} size={48} testID={`menu-photo-${item.id}`} />
+        </View>
+        <View style={styles.text}>
+          <SoldOutCheckbox storeId={storeId} item={item} />
+          <ThemedText type="smallBold" numberOfLines={1} style={item.sold_out && styles.soldOut}>
+            {item.name}
+            {item.best_seller ? ' · Best seller' : ''}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={item.sold_out && styles.soldOut}>
+            {[item.category, peso(discountedPrice(item)), item.discount_percent > 0 && `${item.discount_percent}% off`]
+              .filter(Boolean)
+              .join(' · ')}
+          </ThemedText>
+        </View>
+        {deleting ? (
+          <ActivityIndicator />
+        ) : (
+          <Pressable onPress={confirmDelete} hitSlop={12} accessibilityLabel={`Delete ${item.name}`}>
+            <Icon name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={22} color={Brand.danger} />
+          </Pressable>
+        )}
+      </View>
+    </Card>
+  );
+});
 
 /** Saves right away; customers see a sold out item dimmed and can't add it to the cart. */
 function SoldOutCheckbox({ storeId, item }: { storeId: number; item: MenuItem }) {

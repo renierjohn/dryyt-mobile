@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { memo, useState, type ReactElement, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -325,7 +325,18 @@ function Face({ line }: { line: Line }) {
  * A card per day: the date and that day's total paid out, then each payout as
  * "# · face · driver · time    amount" over "store    status", with Mark paid while pending.
  */
-function dayGroups(section: string, lines: Line[], paying: number | undefined, onPay: (id: number) => void) {
+/** A tab's payout lines by day. memo: the screen re-renders on each visit; the days only when their lines change. */
+const PayoutDays = memo(function PayoutDays({
+  section,
+  lines,
+  paying,
+  onPay,
+}: {
+  section: string;
+  lines: Line[];
+  paying: number | undefined;
+  onPay: (id: number) => void;
+}) {
   return byDay(lines).map((day) => (
     <Card key={`${section}-${localDay(day[0].at)}`}>
       <View testID="payout-day" style={styles.row}>
@@ -340,10 +351,10 @@ function dayGroups(section: string, lines: Line[], paying: number | undefined, o
       ))}
     </Card>
   ));
-}
+});
 
 /** One week of service fees: its total, and the lines once opened (collapsed by default; loaded on first open). */
-function FeeWeek({ week, total }: { week: string; total: number }) {
+const FeeWeek = memo(function FeeWeek({ week, total }: { week: string; total: number }) {
   const theme = useTheme();
   const [open, setOpen] = useState(false);
   return (
@@ -367,7 +378,7 @@ function FeeWeek({ week, total }: { week: string; total: number }) {
       {open && <FeeWeekLines week={week} />}
     </Card>
   );
-}
+});
 
 /** Mounted only while its week is open, so the lines are fetched then. */
 function FeeWeekLines({ week }: { week: string }) {
@@ -466,8 +477,9 @@ export default function Payouts() {
   const laundryPickups = usePickupPayouts('laundry');
   const foodOrders = usePickupPayouts('food');
   const pickups = tab === 'orders' ? foodOrders : laundryPickups;
-  const markPaid = useMarkPayoutPaid();
-  const markPickupPaid = useMarkPickupPaid();
+  // Only the fields used: the mutation result is a new object every render, its `mutate` isn't.
+  const { mutate: payDropoff, isPending: payingDropoff, variables: dropoffPaid, error: payDropoffError } = useMarkPayoutPaid();
+  const { mutate: payPickup, isPending: payingPickup, variables: pickupPaid, error: payPickupError } = useMarkPickupPaid();
   // The worker already sorts both lists: pending first, then newest.
   const list = payouts.data?.pages.flatMap((p) => p.payouts) ?? [];
   const toLine = (p: (typeof list)[number]): Line => ({
@@ -528,7 +540,7 @@ export default function Payouts() {
 
   if (tab === 'dropoff' && payouts.isSuccess) {
     if (drivers.length === 0) rows.push(empty('no-dropoffs', 'Nothing to pay yet.'));
-    rows.push(...dayGroups('dropoff', drivers, markPaid.isPending ? markPaid.variables : undefined, (id) => markPaid.mutate(id)));
+    rows.push(<PayoutDays key="dropoff-days" section="dropoff" lines={drivers} paying={payingDropoff ? dropoffPaid : undefined} onPay={payDropoff} />);
   }
 
   if (tab === 'dropoff' && payouts.hasNextPage) {
@@ -539,7 +551,7 @@ export default function Payouts() {
 
   if ((tab === 'pickup' || tab === 'orders') && pickups.isSuccess) {
     if (pickupLines.length === 0) rows.push(empty('no-pickups', 'Nothing to pay yet.'));
-    rows.push(...dayGroups(tab, pickupLines, markPickupPaid.isPending ? markPickupPaid.variables : undefined, (id) => markPickupPaid.mutate(id)));
+    rows.push(<PayoutDays key={`${tab}-days`} section={tab} lines={pickupLines} paying={payingPickup ? pickupPaid : undefined} onPay={payPickup} />);
     if (pickups.hasNextPage) {
       rows.push(
         <Button key="more-pickups" title="Show More" variant="secondary" loading={pickups.isFetchingNextPage} onPress={() => pickups.fetchNextPage()} />,
@@ -553,7 +565,7 @@ export default function Payouts() {
     </ThemedText>,
     <PayoutTabs key="tabs" tab={tab} onSelect={select} />,
     (payouts.isPending || pickups.isPending) && <ActivityIndicator key="loading" />,
-    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? weeks.error ?? markPaid.error ?? markPickupPaid.error} />,
+    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? weeks.error ?? payDropoffError ?? payPickupError} />,
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import type { ReactElement } from 'react';
+import { memo, type ReactElement } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -57,23 +57,7 @@ export default function OwnerDropoffs() {
         </View>,
       );
     }
-    rows.push(
-      <Card key={d.id} onPress={() => router.push({ pathname: '/owner/dropoff/[id]', params: { id: String(d.id) } })}>
-        <View style={styles.header}>
-          {/* Same figure as the summary's "Total". */}
-          <ThemedText type="smallBold" style={styles.title}>
-            {peso(d.total_delivery_fee + (d.laundry_fee ?? 0))}
-          </ThemedText>
-          {badge && <StatusBadge label={badge.label} tone={badge.tone} />}
-        </View>
-        <ThemedText type="smallBold">
-          {d.customer_name} · {d.weight_kg} kg · laundry {peso(d.laundry_fee ?? 0)}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {d.store_name} · {DROPOFF_STATUS_LABEL[d.status]}
-        </ThemedText>
-      </Card>,
-    );
+    rows.push(<DropoffCard key={d.id} dropoff={d} />);
     // Line between badge groups.
     if (next && OWNER_BADGE[next.status]?.label !== badge?.label) {
       rows.push(<View key={`line-${d.id}`} style={[styles.separator, { backgroundColor: theme.backgroundSelected }]} />);
@@ -104,6 +88,28 @@ export default function OwnerDropoffs() {
     </Screen>
   );
 }
+
+/** memo: the list re-renders on each visit to the tab; a card only when its drop off changes. */
+const DropoffCard = memo(function DropoffCard({ dropoff: d }: { dropoff: Dropoff }) {
+  const badge = OWNER_BADGE[d.status];
+  return (
+    <Card onPress={() => router.push({ pathname: '/owner/dropoff/[id]', params: { id: String(d.id) } })}>
+      <View style={styles.header}>
+        {/* Same figure as the summary's "Total". */}
+        <ThemedText type="smallBold" style={styles.title}>
+          {peso(d.total_delivery_fee + (d.laundry_fee ?? 0))}
+        </ThemedText>
+        {badge && <StatusBadge label={badge.label} tone={badge.tone} />}
+      </View>
+      <ThemedText type="smallBold">
+        {d.customer_name} · {d.weight_kg} kg · laundry {peso(d.laundry_fee ?? 0)}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        {d.store_name} · {DROPOFF_STATUS_LABEL[d.status]}
+      </ThemedText>
+    </Card>
+  );
+});
 
 const styles = StyleSheet.create({
   groupTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two },

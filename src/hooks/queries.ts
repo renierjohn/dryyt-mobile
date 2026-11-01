@@ -1,6 +1,6 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryKey, type UseInfiniteQueryResult } from '@tanstack/react-query';
 import { useFocusEffect, useIsFocused } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 import { PICKUP_ENABLED } from '@/constants/features';
 import { useAuth } from '@/hooks/use-auth';
@@ -24,21 +24,53 @@ function usePoll(ms: number = POLL_MS) {
 export const OWNER_MIN_GAP_MS = 5_000;
 
 /**
- * Query options for screens that load on demand, without polling: the query listens only while its screen is focused,
- * so it loads on each visit (and on return to the app while on it), unless it loaded under OWNER_MIN_GAP_MS ago.
+ * Query options for screens that load on demand, without polling: the query is active only while its screen is focused,
+ * so it loads on each visit (and on return to the app while on it), unless it loaded under `staleTime` ago. Hidden, it
+ * neither loads (on return to the app, or when another screen invalidates it) nor re-renders: focus lives in a ref
+ * read by `enabled`, not in state, and a visit loads from useFocusEffect.
  */
-const useLoadOnFocus = () => ({ subscribed: useIsFocused(), staleTime: OWNER_MIN_GAP_MS });
+function useLoadOnFocus(queryKey: QueryKey, staleTime = OWNER_MIN_GAP_MS) {
+  const qc = useQueryClient();
+  const focused = useRef(false);
+  const key = JSON.stringify(queryKey);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      const filters = { queryKey: JSON.parse(key) as QueryKey, exact: true };
+      const state = qc.getQueryState(filters.queryKey);
+      const loadedAt = Math.max(state?.dataUpdatedAt ?? 0, state?.errorUpdatedAt ?? 0);
+      const due = !state || state.isInvalidated || Date.now() - loadedAt >= staleTime;
+      if (due && state?.fetchStatus !== 'fetching') void qc.refetchQueries(filters);
+      return () => {
+        focused.current = false;
+      };
+    }, [qc, key, staleTime]),
+  );
+  return { enabled: () => focused.current, staleTime };
+}
 
-type Loadable = { refetch: () => Promise<unknown>; isFetching: boolean; dataUpdatedAt: number; errorUpdatedAt: number };
-
-/** Adds `refresh()` for pull to refresh, skipped within OWNER_MIN_GAP_MS of the last load, and `nextAt` (epoch ms). */
-function withMinGap<Q extends Loadable>(query: Q) {
-  const nextAt = Math.max(query.dataUpdatedAt, query.errorUpdatedAt) + OWNER_MIN_GAP_MS;
-  const refresh = async () => {
-    if (query.isFetching || Date.now() < nextAt) return;
-    await query.refetch();
-  };
-  return { ...query, refresh, nextAt };
+/**
+ * An on-demand list: only the fields its screen shows, plus `refresh()` for pull to refresh, skipped within
+ * OWNER_MIN_GAP_MS of the last load. React Query re-renders a screen only for the fields it reads, so a load that
+ * brings back the same list doesn't re-render it (spreading the whole result would read, and so watch, every field).
+ */
+function useOnDemandList<T>(query: UseInfiniteQueryResult<InfiniteData<T>>, queryKey: QueryKey) {
+  const qc = useQueryClient();
+  const { refetch } = query;
+  // Read from the cache when pulled, not while rendering, so loading and load times don't re-render the screen.
+  const key = JSON.stringify(queryKey);
+  const refresh = useCallback(async () => {
+    const state = qc.getQueryState(JSON.parse(key));
+    const last = Math.max(state?.dataUpdatedAt ?? 0, state?.errorUpdatedAt ?? 0);
+    if (state?.fetchStatus === 'fetching' || Date.now() < last + OWNER_MIN_GAP_MS) return;
+    await refetch();
+  }, [qc, refetch, key]);
+  const { data, error, isPending, isSuccess, hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  // The same object until one of these changes, so screens (and the React Compiler) can tell nothing did.
+  return useMemo(
+    () => ({ data, error, isPending, isSuccess, hasNextPage, isFetchingNextPage, fetchNextPage, refresh }),
+    [data, error, isPending, isSuccess, hasNextPage, isFetchingNextPage, fetchNextPage, refresh],
+  );
 }
 
 export type NewOrder = {
@@ -449,8 +481,8 @@ export function useUploadVerificationPhoto() {
 
 /** Waiting-for-confirmation first, then newest; 10 per page (`fetchNextPage` for more). */
 export const useOwnerDropoffs = () => {
-  const loadOnFocus = useLoadOnFocus();
-  return withMinGap(
+  const loadOnFocus = useLoadOnFocus(['owner', 'dropoffs']);
+  return useOnDemandList(
     useInfiniteQuery({
       queryKey: ['owner', 'dropoffs'],
       queryFn: ({ pageParam: next }) => api<{ dropoffs: Dropoff[]; next: string | null }>(`/owner/transactions${pageParam(next)}`),
@@ -458,6 +490,7 @@ export const useOwnerDropoffs = () => {
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
     }),
+    ['owner', 'dropoffs'],
   );
 };
 
@@ -477,7 +510,7 @@ export const useOwnerAppFee = () =>
   useQuery({
     queryKey: ['owner', 'app-fee'],
     queryFn: () => api<OwnerAppFee>('/owner/app-fee'),
-    ...useLoadOnFocus(),
+    ...useLoadOnFocus(['owner', 'app-fee']),
   });
 
 /** Sends proof of an app fee payment (a reference number and/or a photo); the cpanel fills in the amount. */
@@ -512,9 +545,9 @@ export function currentFeeWeek(now = Date.now()) {
  * A past week can't change (lines count when they finish), so it loads once and stays cached; only the current week reloads.
  */
 export const useServiceFees = (week: string) => {
-  const loadOnFocus = useLoadOnFocus();
   const past = week < currentFeeWeek();
-  return withMinGap(
+  const loadOnFocus = useLoadOnFocus(['owner', 'service-fees', week], past ? Infinity : OWNER_MIN_GAP_MS);
+  return useOnDemandList(
     useInfiniteQuery({
       queryKey: ['owner', 'service-fees', week],
       queryFn: ({ pageParam: next }) =>
@@ -522,8 +555,9 @@ export const useServiceFees = (week: string) => {
       initialPageParam: null as string | null,
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
-      ...(past && { staleTime: Infinity, gcTime: Infinity }),
+      ...(past && { gcTime: Infinity }),
     }),
+    ['owner', 'service-fees', week],
   );
 };
 
@@ -534,16 +568,19 @@ export const useServiceFeeWeeks = () => {
   const weeks = useQuery({
     queryKey: ['owner', 'service-fee-weeks'],
     queryFn: () => api<{ weeks: { week: string; total: number }[] }>('/owner/service-fee-weeks').then((r) => r.weeks),
-    ...useLoadOnFocus(),
+    ...useLoadOnFocus(['owner', 'service-fee-weeks']),
   });
   const refresh = () => Promise.all([weeks.refetch(), qc.invalidateQueries({ queryKey: ['owner', 'service-fees', currentFeeWeek()] })]);
-  return { ...weeks, refresh };
+  // Only what the screen shows (see useOnDemandList).
+  return weeks.isSuccess
+    ? { data: weeks.data, error: weeks.error, isSuccess: true as const, refresh }
+    : { data: weeks.data, error: weeks.error, isSuccess: false as const, refresh };
 };
 
 /** Newest first; 10 per page (`fetchNextPage` for more). */
 export const usePayouts = () => {
-  const loadOnFocus = useLoadOnFocus();
-  return withMinGap(
+  const loadOnFocus = useLoadOnFocus(['owner', 'payouts']);
+  return useOnDemandList(
     useInfiniteQuery({
       queryKey: ['owner', 'payouts'],
       queryFn: ({ pageParam: next }) => api<{ payouts: Payout[]; next: string | null }>(`/owner/payouts${pageParam(next)}`),
@@ -551,14 +588,15 @@ export const usePayouts = () => {
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
     }),
+    ['owner', 'payouts'],
   );
 };
 
 /** Delivered pickups' driver share: not yet paid first, then newest; 10 per page. */
 /** Drivers' share of delivered food orders (Orders tab) or laundry pickups (Pickup tab). */
 export const usePickupPayouts = (type: StoreType) => {
-  const loadOnFocus = useLoadOnFocus();
-  return withMinGap(
+  const loadOnFocus = useLoadOnFocus(['owner', 'pickup-payouts', type]);
+  return useOnDemandList(
     useInfiniteQuery({
       queryKey: ['owner', 'pickup-payouts', type],
       queryFn: ({ pageParam: next }) =>
@@ -567,14 +605,15 @@ export const usePickupPayouts = (type: StoreType) => {
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
     }),
+    ['owner', 'pickup-payouts', type],
   );
 };
 
 /** Pickup orders at the owner's shops, newest first. */
 /** The owner's food orders (Orders tab) or laundry pickups (Pickups tab). */
 export const useOwnerOrders = (type: StoreType) => {
-  const loadOnFocus = useLoadOnFocus();
-  return withMinGap(
+  const loadOnFocus = useLoadOnFocus(['owner', 'orders', type]);
+  return useOnDemandList(
     useInfiniteQuery({
       queryKey: ['owner', 'orders', type],
       queryFn: ({ pageParam: next }) =>
@@ -583,6 +622,7 @@ export const useOwnerOrders = (type: StoreType) => {
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
     }),
+    ['owner', 'orders', type],
   );
 };
 
@@ -669,12 +709,17 @@ export function useDeleteStore() {
 export type MenuItemInput = Omit<MenuItem, 'id' | 'popularity'>;
 
 /** `itemId` undefined adds a new item. The menu itself is read with `useStore(storeId)`. */
+/** An edit swaps the saved item into the cached menu (the rest stay as they were, so their rows don't re-render); a new item reloads it. */
 export function useSaveMenuItem(storeId: number, itemId?: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: MenuItemInput) =>
       api<{ item: MenuItem }>(`/owner/stores/${storeId}/menu${itemId ? `/${itemId}` : ''}`, { body: input }).then((r) => r.item),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['store', storeId] }),
+    onSuccess: (item) => {
+      const store = qc.getQueryData<StoreWithMenu>(['store', storeId]);
+      if (!itemId || !store?.menu.some((m) => m.id === item.id)) return qc.invalidateQueries({ queryKey: ['store', storeId] });
+      qc.setQueryData<StoreWithMenu>(['store', storeId], { ...store, menu: store.menu.map((m) => (m.id === item.id ? item : m)) });
+    },
   });
 }
 

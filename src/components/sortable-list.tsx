@@ -1,6 +1,6 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Gesture, GestureDetector, type GestureType } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -33,17 +33,23 @@ export function SortableList<T extends { id: number }>({ items, rowHeight, rende
     positions.set(slotsOf(items));
   }, [items, positions]);
 
-  const drop = () => {
+  // One drop handler for good (reading the latest list), so the rows' gestures and handles don't change with the list.
+  const latest = useRef({ items, onReorder });
+  useEffect(() => {
+    latest.current = { items, onReorder };
+  });
+  const drop = useCallback(() => {
+    const { items: list, onReorder: reorder } = latest.current;
     const slots = positions.get();
-    const ids = items.map((item) => item.id).sort((a, b) => slots[a] - slots[b]);
-    if (ids.some((id, i) => id !== items[i].id)) onReorder(ids);
-  };
+    const ids = list.map((item) => item.id).sort((a, b) => slots[a] - slots[b]);
+    if (ids.some((id, i) => id !== list[i].id)) reorder(ids);
+  }, [positions]);
 
   return (
     <View style={{ height: items.length * rowHeight }}>
       {items.map((item, i) => (
         <Row key={item.id} id={item.id} index={i} count={items.length} rowHeight={rowHeight} positions={positions} onDrop={drop}>
-          {(handleGesture) => renderItem(item, (node) => <GestureDetector gesture={handleGesture}>{node}</GestureDetector>)}
+          {(handle) => renderItem(item, handle)}
         </Row>
       ))}
     </View>
@@ -57,7 +63,8 @@ type RowProps = {
   rowHeight: number;
   positions: SharedValue<Positions>;
   onDrop: () => void;
-  children: (gesture: GestureType) => ReactNode;
+  /** Gets `handle`, the same function on every render, so a memoized row stays put. */
+  children: (handle: (node: ReactNode) => ReactNode) => ReactNode;
 };
 
 function Row({ id, index, count, rowHeight, positions, onDrop, children }: RowProps) {
@@ -100,6 +107,8 @@ function Row({ id, index, count, rowHeight, positions, onDrop, children }: RowPr
     return [drag().minDistance(0).hitSlop(HANDLE_SLOP), drag().activateAfterLongPress(LONG_PRESS_MS)];
   }, [id, count, rowHeight, positions, onDrop, top, start, dragging]);
 
+  const handle = useCallback((node: ReactNode) => <GestureDetector gesture={handleGesture}>{node}</GestureDetector>, [handleGesture]);
+
   // translateY, not `top`: a transform moves the row without re-running layout every frame.
   const style = useAnimatedStyle(() => ({
     zIndex: dragging.get() ? 1 : 0,
@@ -109,7 +118,7 @@ function Row({ id, index, count, rowHeight, positions, onDrop, children }: RowPr
 
   return (
     <GestureDetector gesture={rowGesture}>
-      <Animated.View style={[styles.row, { height: rowHeight }, style]}>{children(handleGesture)}</Animated.View>
+      <Animated.View style={[styles.row, { height: rowHeight }, style]}>{children(handle)}</Animated.View>
     </GestureDetector>
   );
 }

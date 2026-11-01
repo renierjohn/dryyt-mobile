@@ -1,4 +1,4 @@
-import { Children, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
@@ -22,9 +22,18 @@ type Props = {
   virtualized?: boolean;
 };
 
+const ScrollLockContext = createContext<(locked: boolean) => void>(() => {});
+
+/**
+ * Call with true while a finger is on something that pans by itself (a map), false when it lifts: the screen stops
+ * scrolling and pulling to refresh in between, so a vertical drag moves only that thing.
+ */
+export const useScrollLock = () => useContext(ScrollLockContext);
+
 export function Screen({ children, edges = ['top'], onRefresh, header, footer, stickyHeaderIndices, virtualized }: Props) {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -32,7 +41,7 @@ export function Screen({ children, edges = ['top'], onRefresh, header, footer, s
     setRefreshing(false);
   };
 
-  const refreshControl = onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} /> : undefined;
+  const refreshControl = onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} enabled={!locked} /> : undefined;
   const content = virtualized ? (
     <FlatList
       // toArray drops null rows and keys the rest, so `stickyHeaderIndices` line up as they do in the ScrollView.
@@ -47,36 +56,42 @@ export function Screen({ children, edges = ['top'], onRefresh, header, footer, s
       keyboardShouldPersistTaps="handled"
       stickyHeaderIndices={stickyHeaderIndices}
       refreshControl={refreshControl}
+      scrollEnabled={!locked}
     />
   ) : (
     <ScrollView
+      testID="screen-scroll"
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       stickyHeaderIndices={stickyHeaderIndices}
-      refreshControl={refreshControl}>
+      refreshControl={refreshControl}
+      scrollEnabled={!locked}>
       {children}
     </ScrollView>
   );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={edges}>
-      {/* Pinned above the scroll area so it stays put while content scrolls. */}
-      {header ??
-        (edges.includes('top') && (
-          <View style={styles.header}>
-            <AppLogo />
-          </View>
-        ))}
-      {footer ? (
-        // Footer screens hold the fields being typed into; shrink so the bar rides above the keyboard.
-        <KeyboardAvoidingView testID="keyboard-avoider" style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          {content}
-          <BottomBar>{footer}</BottomBar>
-        </KeyboardAvoidingView>
-      ) : (
-        content
-      )}
-    </SafeAreaView>
+    // Outside the scroll view: its direct children must stay `children` for stickyHeaderIndices.
+    <ScrollLockContext.Provider value={setLocked}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={edges}>
+        {/* Pinned above the scroll area so it stays put while content scrolls. */}
+        {header ??
+          (edges.includes('top') && (
+            <View style={styles.header}>
+              <AppLogo />
+            </View>
+          ))}
+        {footer ? (
+          // Footer screens hold the fields being typed into; shrink so the bar rides above the keyboard.
+          <KeyboardAvoidingView testID="keyboard-avoider" style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            {content}
+            <BottomBar>{footer}</BottomBar>
+          </KeyboardAvoidingView>
+        ) : (
+          content
+        )}
+      </SafeAreaView>
+    </ScrollLockContext.Provider>
   );
 }
 

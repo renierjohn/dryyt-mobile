@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { Icon } from '@/components/icon';
+import { useScrollLock } from '@/components/screen';
 import { Brand, Spacing } from '@/constants/theme';
 import type { LatLng } from '@/lib/types';
 
@@ -141,9 +142,18 @@ export function DropoffMap({ height = 280, ...props }: Props) {
   const [full, setFull] = useState(false);
   // Read outside the Modal: safe-area insets are often zero inside one.
   const insets = useSafeAreaInsets();
+  const lockScroll = useScrollLock();
   return (
     <View style={[styles.map, { height }]}>
-      <LeafletMap {...props} />
+      {/* A drag that starts on the map pans the map; the screen scrolls again once the finger lifts. */}
+      <View
+        testID="map-touch-area"
+        style={styles.fill}
+        onTouchStart={() => lockScroll(true)}
+        onTouchEnd={() => lockScroll(false)}
+        onTouchCancel={() => lockScroll(false)}>
+        <LeafletMap {...props} />
+      </View>
       <MapButton
         style={styles.corner}
         label="Full screen"
@@ -214,6 +224,7 @@ function LeafletMap({ center, pins, path = [], onPress }: Omit<Props, 'height'>)
 const styles = StyleSheet.create({
   map: { width: '100%', borderRadius: 16, overflow: 'hidden' },
   full: { flex: 1, backgroundColor: '#fff' },
+  fill: { flex: 1 },
   corner: { position: 'absolute', top: Spacing.two, right: Spacing.two },
   button: {
     width: 36,

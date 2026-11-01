@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
-import { Screen } from '../screen';
+import { Screen, useScrollLock } from '../screen';
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
@@ -36,4 +36,24 @@ it('keeps footer screens above the keyboard', async () => {
     </Screen>,
   );
   expect(screen.getByTestId('keyboard-avoider')).toBeTruthy();
+});
+
+function LockingChild() {
+  const lockScroll = useScrollLock();
+  return <Text testID="locker" onPress={() => lockScroll(true)} onLongPress={() => lockScroll(false)}>map</Text>;
+}
+
+it('stops scrolling and pull to refresh while a child holds the scroll lock', async () => {
+  await render(
+    <Screen onRefresh={async () => {}}>
+      <LockingChild />
+    </Screen>,
+  );
+  const scroll = () => screen.getByTestId('screen-scroll');
+  expect(scroll().props.scrollEnabled).toBe(true);
+  await fireEvent.press(screen.getByTestId('locker'));
+  expect(scroll().props.scrollEnabled).toBe(false);
+  // RefreshControl's `enabled` is Android-only; iOS (the test platform) drops it, so only scrolling is checked here.
+  await fireEvent(screen.getByTestId('locker'), 'longPress');
+  expect(scroll().props.scrollEnabled).toBe(true);
 });

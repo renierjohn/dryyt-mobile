@@ -16,14 +16,12 @@ import { useStore } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
+import type { MenuItem, StoreWithMenu } from '@/lib/types';
 
 export default function MenuItemScreen() {
   const params = useLocalSearchParams<{ id: string; storeId: string }>();
   const itemId = Number(params.id);
   const store = useStore(Number(params.storeId));
-  const cart = useCart();
-  const theme = useTheme();
-  const [qty, setQty] = useState(1);
 
   const item = store.data?.menu.find((m) => m.id === itemId);
   if (!item || !store.data) {
@@ -33,11 +31,22 @@ export default function MenuItemScreen() {
       </Screen>
     );
   }
+  return <MenuItemDetail item={item} store={store.data} />;
+}
 
-  const shop = { id: store.data.id, name: store.data.name };
+/**
+ * The loaded dish. Its own component, without the early return above, so the React Compiler memoizes the photo, info
+ * and "More from" row apart from `qty`: + and − re-render only the stepper and the Add button.
+ */
+function MenuItemDetail({ item, store }: { item: MenuItem; store: StoreWithMenu }) {
+  const cart = useCart();
+  const theme = useTheme();
+  const [qty, setQty] = useState(1);
+
+  const shop = { id: store.id, name: store.name };
   const openStore = () => router.push({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
   // The menu arrives in the owner's sort_order; everything but this dish.
-  const related = store.data.menu.filter((m) => m.id !== item.id);
+  const related = store.menu.filter((m) => m.id !== item.id);
   // Back to the store page if it's in the stack (opened from the store), else open it (opened from Popular).
   const backToStore = () => router.dismissTo({ pathname: '/customer/new-order', params: { storeId: String(shop.id) } });
   const add = () => {

@@ -31,6 +31,18 @@ jest.mock('expo-router', () => {
 jest.mock('expo-status-bar', () => ({ setStatusBarStyle: jest.fn() }));
 jest.mock('@/components/delivery-pin', () => ({ DeliveryPinCard: () => null, useDeliveryPin: () => ({ at: null, fee: null, quote: {} }) }));
 jest.mock('@/components/icon', () => ({ Icon: () => null }));
+// Counts each stepper render; its + button adds one.
+const mockStepperRender = jest.fn();
+jest.mock('@/components/stepper', () => {
+  const { createElement } = jest.requireActual('react');
+  const { Pressable, Text } = jest.requireActual('react-native');
+  return {
+    Stepper: ({ value, onChange }: { value: number; onChange: (delta: number) => void }) => {
+      mockStepperRender(value);
+      return createElement(Pressable, { testID: 'stepper-plus', onPress: () => onChange(1) }, createElement(Text, null, `qty:${value}`));
+    },
+  };
+});
 jest.mock('@/components/app-logo', () => ({ AppLogo: () => null }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');
@@ -72,4 +84,16 @@ it('shows each dish photo, or a placeholder without one', async () => {
   await renderStore();
   expect([screen.getByTestId('dish-photo-5').props.source].flat()).toEqual([{ uri: 'https://img.test/5.jpg' }]);
   expect(screen.getByTestId('dish-photo-placeholder-7')).toBeTruthy();
+});
+
+it("re-renders only the tapped dish's stepper when its count changes", async () => {
+  await renderStore();
+  // One render per dish to start.
+  expect(new Set(mockStepperRender.mock.calls.map(([v]) => v))).toEqual(new Set([0]));
+  mockStepperRender.mockClear();
+
+  // Dish 5, first in menu order.
+  await fireEvent.press(screen.getAllByTestId('stepper-plus')[0]);
+  expect(screen.getByText('qty:1')).toBeTruthy();
+  expect(mockStepperRender.mock.calls).toEqual([[1]]);
 });

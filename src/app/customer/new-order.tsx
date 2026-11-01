@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -20,14 +20,11 @@ import { useCreateOrder, useStore } from '@/hooks/queries';
 import { useCart } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
-import type { MenuItem } from '@/lib/types';
+import type { MenuItem, StoreWithMenu } from '@/lib/types';
 
 export default function NewOrder() {
   const storeId = Number(useLocalSearchParams<{ storeId: string }>().storeId);
   const store = useStore(storeId);
-  const cart = useCart();
-  const [category, setCategory] = useState<string | null>(null);
-  const theme = useTheme();
 
   if (store.isPending) {
     return (
@@ -44,7 +41,21 @@ export default function NewOrder() {
     );
   }
 
-  const { name, address: storeAddress, type, menu } = store.data;
+  const { name, address: storeAddress, type } = store.data;
+  // Laundry pickups have no items: pin, price the delivery, then tell the shop which laundry to send.
+  if (type === 'laundry') return <LaundryPickup storeId={storeId} name={name} storeAddress={storeAddress} />;
+  return <FoodMenu storeId={storeId} store={store.data} />;
+}
+
+/**
+ * A food store's menu. Its own component, without the early returns above, so the React Compiler can memoize each
+ * dish card: + and − re-render only that card's stepper and the View cart button.
+ */
+function FoodMenu({ storeId, store }: { storeId: number; store: StoreWithMenu }) {
+  const cart = useCart();
+  const [category, setCategory] = useState<string | null>(null);
+  const theme = useTheme();
+  const { name, address: storeAddress, menu } = store;
   const shop = { id: storeId, name };
   const inThisCart = cart.store?.id === storeId;
 
@@ -54,9 +65,16 @@ export default function NewOrder() {
     if (delta <= 0) return;
     if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
   };
-
-  // Laundry pickups have no items: pin, price the delivery, then tell the shop which laundry to send.
-  if (type === 'laundry') return <LaundryPickup storeId={storeId} name={name} storeAddress={storeAddress} />;
+  // The cart changes on every tap; the cards get one handler that never changes and calls the latest `change`.
+  const latestChange = useRef(change);
+  useEffect(() => {
+    latestChange.current = change;
+  });
+  const onChange = useCallback((item: MenuItem, delta: number) => latestChange.current(item, delta), []);
+  const onOpen = useCallback(
+    (item: MenuItem) => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } }),
+    [storeId],
+  );
 
   // Categories in the owner's menu order; tabs only when the store uses them.
   const categories = [...new Set(menu.map((m) => m.category).filter(Boolean))];
@@ -76,7 +94,7 @@ export default function NewOrder() {
               headerShadowVisible: false,
             }}
           />
-          <HeaderBand title={name} subtitle={storeAddress} backgroundImage={store.data.store_logo} inset={false} />
+          <HeaderBand title={name} subtitle={storeAddress} backgroundImage={store.store_logo} inset={false} />
           {categories.length > 0 && (
             <View style={[styles.tabs, { borderBottomColor: theme.border }]}>
               <CategoryChips categories={categories} selected={category} onSelect={setCategory} />
@@ -92,40 +110,59 @@ export default function NewOrder() {
         />
       }>
       {shown.map((item) => (
-        <Card key={item.id} onPress={() => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } })}>
-          <View style={[styles.row, item.sold_out && styles.soldOut]}>
-            {item.image_url ? (
-              <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" cachePolicy="memory-disk" />
-            ) : (
-              <View testID={`dish-photo-placeholder-${item.id}`} style={[styles.photo, styles.placeholder, { backgroundColor: theme.primarySoft }]}>
-                <Icon name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }} size={32} color={theme.primary} />
-              </View>
-            )}
-            <View style={[styles.grow, styles.itemText]}>
-              <View style={styles.nameRow}>
-                <ThemedText type="small">{item.name}</ThemedText>
-                {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
-                {item.sold_out ? <StatusBadge label="Sold out" tone="muted" /> : null}
-              </View>
-              <View style={styles.nameRow}>
-                <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
-                {item.discount_percent > 0 && (
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.struck}>
-                    {peso(item.price)}
-                  </ThemedText>
-                )}
-              </View>
-              {/* Sold out: only a line already in the cart can still be lowered. */}
-              {!item.sold_out || (inThisCart && cart.qtyOf(item.id) > 0) ? (
-                <Stepper value={inThisCart ? cart.qtyOf(item.id) : 0} onChange={(delta) => change(item, delta)} />
-              ) : null}
-            </View>
-          </View>
-        </Card>
+        <DishCard key={item.id} item={item} qty={inThisCart ? cart.qtyOf(item.id) : 0} onOpen={onOpen} onChange={onChange} />
       ))}
     </Screen>
   );
 }
+
+/**
+ * One dish: photo, name, price and a stepper; `qty` is its count in this store's cart. memo: the menu re-renders on
+ * every cart change, and only the card whose `qty` changed needs to.
+ */
+const DishCard = memo(function DishCard({
+  item,
+  qty,
+  onOpen,
+  onChange,
+}: {
+  item: MenuItem;
+  qty: number;
+  onOpen: (item: MenuItem) => void;
+  onChange: (item: MenuItem, delta: number) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Card onPress={() => onOpen(item)}>
+      <View style={[styles.row, item.sold_out && styles.soldOut]}>
+        {item.image_url ? (
+          <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" cachePolicy="memory-disk" />
+        ) : (
+          <View testID={`dish-photo-placeholder-${item.id}`} style={[styles.photo, styles.placeholder, { backgroundColor: theme.primarySoft }]}>
+            <Icon name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }} size={32} color={theme.primary} />
+          </View>
+        )}
+        <View style={[styles.grow, styles.itemText]}>
+          <View style={styles.nameRow}>
+            <ThemedText type="small">{item.name}</ThemedText>
+            {item.best_seller ? <StatusBadge label="Best seller" tone="info" /> : null}
+            {item.sold_out ? <StatusBadge label="Sold out" tone="muted" /> : null}
+          </View>
+          <View style={styles.nameRow}>
+            <ThemedText type="smallBold">{peso(discountedPrice(item))}</ThemedText>
+            {item.discount_percent > 0 && (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.struck}>
+                {peso(item.price)}
+              </ThemedText>
+            )}
+          </View>
+          {/* Sold out: only a line already in the cart can still be lowered. */}
+          {!item.sold_out || qty > 0 ? <Stepper value={qty} onChange={(delta) => onChange(item, delta)} /> : null}
+        </View>
+      </View>
+    </Card>
+  );
+});
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

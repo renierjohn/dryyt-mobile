@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
 
 import CartScreen from '@/app/customer/cart';
@@ -11,11 +11,21 @@ jest.mock('@/hooks/use-auth', () => ({
   useSignedIn: () => (action: () => void) => action,
 }));
 const mockCreate = jest.fn();
+const mockQuoteChanged = new Set<() => void>();
 const mockRoadRoute = jest.fn((_from: unknown) => ({ data: undefined }));
 const mockQuote = { mutate: jest.fn(), isPending: false, isSuccess: false, error: null, data: undefined as { road_km: number; options: { vehicle_type: number; base_fee: number; rate_per_km: number; total_delivery_fee: number; available: boolean }[]; token: string } | undefined, variables: undefined as object | undefined };
 jest.mock('@/hooks/queries', () => ({
   useCreateOrder: () => ({ mutate: mockCreate, isPending: false, error: null }),
-  useOrderQuote: () => mockQuote,
+  // Re-renders its component when the test changes the quote, like the real mutation hook.
+  useOrderQuote: () => {
+    const { useEffect, useReducer } = jest.requireActual('react');
+    const [, update] = useReducer((n: number) => n + 1, 0);
+    useEffect(() => {
+      mockQuoteChanged.add(update);
+      return () => mockQuoteChanged.delete(update);
+    }, []);
+    return mockQuote;
+  },
   useStore: () => ({ data: { lat: 14.5547, lng: 121.0244, store_payment_gateway: [{ label: 'GCash 0917', image_url: 'https://img.test/qr.png' }] }, error: null }),
   useRoadRoute: (from: unknown) => mockRoadRoute(from),
   useUploadPaymentPhoto: () => ({ mutate: jest.fn(), isPending: false, error: null }),
@@ -269,6 +279,7 @@ it('lets the customer move the pin until the fee is computed, then locks it', as
   mockQuote.data = quoted;
   mockQuote.variables = { store_id: 1, lat: 14.5, lng: 121.1 };
   mockQuote.isSuccess = true;
+  await act(async () => mockQuoteChanged.forEach((update) => update()));
   await rerender(
     <CartProvider>
       <Harness />
@@ -279,4 +290,20 @@ it('lets the customer move the pin until the fee is computed, then locks it', as
   // The pin stays where the fee was priced, not where GPS says now.
   expect(map.pins[0].at).toEqual({ lat: 14.5, lng: 121.1 });
   expect(screen.getByText('Your pin is set for this delivery fee.')).toBeTruthy();
+});
+
+it("changes a line's count without redrawing the delivery map", async () => {
+  await render(
+    <CartProvider>
+      <Harness />
+    </CartProvider>,
+  );
+  expect(screen.getByText('Items ₱200.00 + delivery fee')).toBeTruthy();
+  mockMapProps.mockClear();
+
+  await fireEvent.press(screen.getByText('+'));
+  expect(screen.getByText('Items ₱300.00 + delivery fee')).toBeTruthy();
+  await fireEvent.press(screen.getByText('−'));
+  expect(screen.getByText('Items ₱200.00 + delivery fee')).toBeTruthy();
+  expect(mockMapProps).not.toHaveBeenCalled();
 });

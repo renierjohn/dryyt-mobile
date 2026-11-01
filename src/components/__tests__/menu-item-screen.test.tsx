@@ -20,6 +20,7 @@ jest.mock('expo-router', () => {
     router: { push: jest.fn(), back: jest.fn(), dismissTo: jest.fn() },
     useLocalSearchParams: () => ({ id: '1', storeId: '2' }),
     Stack: { Screen: () => createElement('View') },
+    useIsFocused: () => true,
   };
 });
 jest.mock('@/components/icon', () => ({ Icon: () => null }));

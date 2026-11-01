@@ -1,8 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { createElement } from 'react';
+import { Pressable } from 'react-native';
 
 import StorePage from '@/app/customer/new-order';
-import { CartProvider } from '@/hooks/use-cart';
+import { CartProvider, useCartActions } from '@/hooks/use-cart';
 
+// The store page's own renders (its header options render with it).
+const mockMenuRender = jest.fn();
 const mockItem = (id: number, category: string, image_url: string | null = null) => ({
   id, name: `Dish ${id}`, price: 10000, discount_percent: 0, image_url, category, best_seller: false, sold_out: false, popularity: 0,
 });
@@ -24,7 +28,11 @@ jest.mock('expo-router', () => {
     router: { push: jest.fn() },
     useLocalSearchParams: () => ({ storeId: '2' }),
     // Expose the header colour the screen asks for.
-    Stack: { Screen: ({ options }: { options: { headerStyle?: { backgroundColor?: string } } }) => createElement(Text, null, `nav-bg:${options.headerStyle?.backgroundColor}`) },
+    Stack: {
+      Screen: ({ options }: { options: { headerStyle?: { backgroundColor?: string } } }) => (
+        mockMenuRender(), createElement(Text, null, `nav-bg:${options.headerStyle?.backgroundColor}`)
+      ),
+    },
     useFocusEffect: () => {},
   };
 });
@@ -96,4 +104,28 @@ it("re-renders only the tapped dish's stepper when its count changes", async () 
   await fireEvent.press(screen.getAllByTestId('stepper-plus')[0]);
   expect(screen.getByText('qty:1')).toBeTruthy();
   expect(mockStepperRender.mock.calls).toEqual([[1]]);
+});
+
+/** The cart screen on top of the store page: changes the cart without the store page's handlers. */
+function CartScreenAbove() {
+  const cart = useCartActions();
+  return createElement(Pressable, { testID: 'cart-plus', onPress: () => cart.setQty(5, cart.get().qtyOf(5) + 1) });
+}
+
+it('while under the cart screen, a cart change re-renders only the dish whose count changed, not the page', async () => {
+  await render(
+    <CartProvider>
+      <StorePage />
+      <CartScreenAbove />
+    </CartProvider>,
+  );
+  await fireEvent.press(screen.getAllByTestId('stepper-plus')[0]);
+  mockMenuRender.mockClear();
+  mockStepperRender.mockClear();
+
+  await fireEvent.press(screen.getByTestId('cart-plus'));
+  expect(screen.getByText('qty:2')).toBeTruthy();
+  expect(mockStepperRender.mock.calls).toEqual([[2]]);
+  expect(mockMenuRender).not.toHaveBeenCalled();
+  expect(screen.getByText('View cart · ₱200.00')).toBeTruthy();
 });

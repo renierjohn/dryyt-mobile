@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { ReplaceCartDialog } from '@/components/replace-cart-dialog';
 
@@ -61,6 +61,10 @@ type CartContextValue = ReturnType<typeof useCartState> & {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+/** The same cart without re-rendering: `get()` reads it now, `subscribe` hears each change (see useCartSelector). */
+type CartStoreHandle = { get: () => CartContextValue; subscribe: (listener: () => void) => () => void };
+const CartStoreContext = createContext<CartStoreHandle | null>(null);
+
 /** The customer's cart, shared by Home, the menu screens and checkout. Memory only. Owns the "Start a new cart?" dialog. */
 export function CartProvider({ children }: { children: ReactNode }) {
   const state = useCartState();
@@ -82,9 +86,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setAsking(false);
   };
 
+  const latest = useRef(value);
+  const [listeners] = useState(() => new Set<() => void>());
+  const [handle] = useState<CartStoreHandle>(() => ({
+    get: () => latest.current,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  }));
+  useLayoutEffect(() => {
+    latest.current = value;
+    listeners.forEach((listener) => listener());
+  }, [value, listeners]);
+
   return (
     <CartContext.Provider value={value}>
-      {children}
+      <CartStoreContext.Provider value={handle}>{children}</CartStoreContext.Provider>
       <ReplaceCartDialog
         storeName={asking ? (state.store?.name ?? '') : null}
         onCancel={close}
@@ -98,6 +116,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 }
 
+function useCartStore() {
+  const store = useContext(CartStoreContext);
+  if (!store) throw new Error('useCart needs a CartProvider');
+  return store;
+}
+
+/**
+ * The cart's actions, without subscribing to it: the caller doesn't re-render when the cart changes. The actions always
+ * act on the current cart; `get()` reads it at call time (in a handler, not while rendering).
+ */
+export function useCartActions() {
+  const store = useCartStore();
+  return useMemo(
+    () => ({
+      get: store.get,
+      add: (...args: Parameters<CartContextValue['add']>) => store.get().add(...args),
+      replace: (...args: Parameters<CartContextValue['replace']>) => store.get().replace(...args),
+      setQty: (...args: Parameters<CartContextValue['setQty']>) => store.get().setQty(...args),
+      confirmReplace: (...args: Parameters<CartContextValue['confirmReplace']>) => store.get().confirmReplace(...args),
+    }),
+    [store],
+  );
+}
+
+/**
+ * One value from the cart; the caller re-renders only when that value changes. `select` must return a primitive
+ * (number, string, boolean, null), e.g. `(c) => c.count`. Screens kept mounted under another one (the store page under
+ * the cart) then skip the cart changes that don't touch what they show.
+ */
+export function useCartSelector<T extends string | number | boolean | null>(select: (cart: CartContextValue) => T) {
+  const store = useCartStore();
+  return useSyncExternalStore(store.subscribe, () => select(store.get()));
+}
+
+/** Everything in the cart; re-renders on every change. On screens that show only part of it, prefer useCartSelector. */
 export function useCart() {
   const cart = useContext(CartContext);
   if (!cart) throw new Error('useCart needs a CartProvider');

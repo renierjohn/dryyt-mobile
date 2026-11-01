@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,6 +11,12 @@ import { peso } from '@/lib/format';
 
 /** Floating "n items · ₱total" pill that opens the cart; hidden while the cart is empty. Place last in the screen. */
 export function CartButton({ bottom = 0 }: { bottom?: number }) {
+  // Screens under the top one (Home under a store page) stay mounted; reading the cart only while this screen is shown
+  // keeps every + and − elsewhere from re-rendering a pill nobody can see.
+  return useIsFocused() ? <CartPill bottom={bottom} /> : null;
+}
+
+function CartPill({ bottom }: { bottom: number }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const cart = useCart();

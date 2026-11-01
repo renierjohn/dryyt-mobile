@@ -13,7 +13,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useStore } from '@/hooks/queries';
-import { useCart } from '@/hooks/use-cart';
+import { useCartActions } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem, StoreWithMenu } from '@/lib/types';
@@ -39,7 +39,8 @@ export default function MenuItemScreen() {
  * and "More from" row apart from `qty`: + and − re-render only the stepper and the Add button.
  */
 function MenuItemDetail({ item, store }: { item: MenuItem; store: StoreWithMenu }) {
-  const cart = useCart();
+  // Actions only: this screen shows nothing from the cart, so it doesn't re-render when the cart changes.
+  const cart = useCartActions();
   const theme = useTheme();
   const [qty, setQty] = useState(1);
 

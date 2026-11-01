@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { useSocket } from '@/hooks/use-socket';
 import { discountedPrice, peso } from '@/lib/format';
+import type { LatLng } from '@/lib/types';
 
 export default function CartScreen() {
   const cart = useCart();
@@ -58,14 +59,79 @@ function SignInFirst() {
   );
 }
 
-function Checkout({ store }: { store: { id: number; name: string } }) {
-  const cart = useCart();
-  const createOrder = useCreateOrder();
+type CartStore = { id: number; name: string };
+
+/**
+ * The delivery pin and payment for the cart. It doesn't read the cart itself: the lines, the footer total and the
+ * payment do, so + and − re-render those and leave the map alone. memo: CartScreen re-renders on every cart change.
+ */
+const Checkout = memo(function Checkout({ store }: { store: CartStore }) {
   const pin = useDeliveryPin(store.id);
   const { at, fee, vehicle, quote } = pin;
 
+  return (
+    <Screen edges={[]} footer={<CheckoutTotal fee={fee} />}>
+      <CartLines store={store} />
+      <DeliveryPinCard storeName={store.name} pin={pin} />
+      {fee !== null && at && <CartPayment store={store} at={at} fee={fee} vehicle={vehicle} quoteToken={quote.data?.token} />}
+    </Screen>
+  );
+});
+
+function CheckoutTotal({ fee }: { fee: number | null }) {
+  const cart = useCart();
+  return (
+    <>
+      <ThemedText type="smallBold">
+        {fee === null ? `Items ${peso(cart.itemsTotal)} + delivery fee` : `Total ${peso(cart.itemsTotal + fee)}`}
+      </ThemedText>
+      {/* Enabled once the store confirms the payment (see AwaitingPayment). */}
+      <Button title="Place order" onPress={() => {}} disabled />
+    </>
+  );
+}
+
+function CartLines({ store }: { store: CartStore }) {
+  const cart = useCart();
+  return (
+    <Card>
+      <ThemedText type="smallBold">{store.name}</ThemedText>
+      {cart.lines.map(({ item, qty }) => (
+        <View key={item.id} style={styles.row}>
+          <DishPhoto uri={item.image_url} size={48} testID={`cart-line-photo-${item.id}`} />
+          <View style={styles.grow}>
+            <ThemedText type="small">{item.name}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {peso(discountedPrice(item) * qty)}
+            </ThemedText>
+          </View>
+          <Stepper value={qty} onChange={(delta) => cart.setQty(item.id, qty + delta)} />
+        </View>
+      ))}
+      <Pressable onPress={() => router.push({ pathname: '/customer/new-order', params: { storeId: String(store.id) } })}>
+        <ThemedText type="linkPrimary">Add more from {store.name}</ThemedText>
+      </Pressable>
+    </Card>
+  );
+}
+
+/** Pay the store for the items plus `fee`, delivering to `at`; sending the proof creates the order. */
+function CartPayment({
+  store,
+  at,
+  fee,
+  vehicle,
+  quoteToken,
+}: {
+  store: CartStore;
+  at: LatLng;
+  fee: number;
+  vehicle: number | null;
+  quoteToken: string | undefined;
+}) {
+  const cart = useCart();
+  const createOrder = useCreateOrder();
   const sendProof = (proof: PaymentProof) =>
-    at &&
     createOrder.mutate(
       {
         type: 'pickup',
@@ -75,53 +141,19 @@ function Checkout({ store }: { store: { id: number; name: string } }) {
         lng: at.lng,
         ...proof,
         vehicle_type: vehicle ?? undefined,
-        quote_token: quote.data?.token,
+        quote_token: quoteToken,
       },
       { onSuccess: (order) => cart.setOrderId(order.id) },
     );
-
   return (
-    <Screen
-      edges={[]}
-      footer={
-        <>
-          <ThemedText type="smallBold">
-            {fee === null ? `Items ${peso(cart.itemsTotal)} + delivery fee` : `Total ${peso(cart.itemsTotal + fee)}`}
-          </ThemedText>
-          {/* Enabled once the store confirms the payment (see AwaitingPayment). */}
-          <Button title="Place order" onPress={() => {}} disabled />
-        </>
-      }>
-      <Card>
-        <ThemedText type="smallBold">{store.name}</ThemedText>
-        {cart.lines.map(({ item, qty }) => (
-          <View key={item.id} style={styles.row}>
-            <DishPhoto uri={item.image_url} size={48} testID={`cart-line-photo-${item.id}`} />
-            <View style={styles.grow}>
-              <ThemedText type="small">{item.name}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {peso(discountedPrice(item) * qty)}
-              </ThemedText>
-            </View>
-            <Stepper value={qty} onChange={(delta) => cart.setQty(item.id, qty + delta)} />
-          </View>
-        ))}
-        <Pressable onPress={() => router.push({ pathname: '/customer/new-order', params: { storeId: String(store.id) } })}>
-          <ThemedText type="linkPrimary">Add more from {store.name}</ThemedText>
-        </Pressable>
-      </Card>
-      <DeliveryPinCard storeName={store.name} pin={pin} />
-      {fee !== null && (
-        <PaymentMethod
-          storeId={store.id}
-          storeName={store.name}
-          total={cart.itemsTotal + fee}
-          onSend={sendProof}
-          sending={createOrder.isPending}
-          error={createOrder.error}
-        />
-      )}
-    </Screen>
+    <PaymentMethod
+      storeId={store.id}
+      storeName={store.name}
+      total={cart.itemsTotal + fee}
+      onSend={sendProof}
+      sending={createOrder.isPending}
+      error={createOrder.error}
+    />
   );
 }
 

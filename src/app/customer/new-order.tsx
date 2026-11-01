@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -17,7 +17,7 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useCreateOrder, useStore } from '@/hooks/queries';
-import { useCart } from '@/hooks/use-cart';
+import { useCartActions, useCartSelector } from '@/hooks/use-cart';
 import { useTheme } from '@/hooks/use-theme';
 import { discountedPrice, peso } from '@/lib/format';
 import type { MenuItem, StoreWithMenu } from '@/lib/types';
@@ -48,29 +48,26 @@ export default function NewOrder() {
 }
 
 /**
- * A food store's menu. Its own component, without the early returns above, so the React Compiler can memoize each
- * dish card: + and − re-render only that card's stepper and the View cart button.
+ * A food store's menu. It doesn't subscribe to the cart: each dish card reads its own count and the footer button the
+ * totals, so + and − re-render only those, here or while this screen sits under the cart.
  */
 function FoodMenu({ storeId, store }: { storeId: number; store: StoreWithMenu }) {
-  const cart = useCart();
+  const cart = useCartActions();
   const [category, setCategory] = useState<string | null>(null);
   const theme = useTheme();
   const { name, address: storeAddress, menu } = store;
-  const shop = { id: storeId, name };
-  const inThisCart = cart.store?.id === storeId;
 
-  const change = (item: MenuItem, delta: number) => {
-    if (item.sold_out && delta > 0) return;
-    if (inThisCart && cart.qtyOf(item.id) > 0) return cart.setQty(item.id, cart.qtyOf(item.id) + delta);
-    if (delta <= 0) return;
-    if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
-  };
-  // The cart changes on every tap; the cards get one handler that never changes and calls the latest `change`.
-  const latestChange = useRef(change);
-  useEffect(() => {
-    latestChange.current = change;
-  });
-  const onChange = useCallback((item: MenuItem, delta: number) => latestChange.current(item, delta), []);
+  const onChange = useCallback(
+    (item: MenuItem, delta: number) => {
+      const shop = { id: storeId, name };
+      const qty = cart.get().store?.id === storeId ? cart.get().qtyOf(item.id) : 0;
+      if (item.sold_out && delta > 0) return;
+      if (qty > 0) return cart.setQty(item.id, qty + delta);
+      if (delta <= 0) return;
+      if (cart.add(item, shop, delta) === 'needs-replace') cart.confirmReplace(() => cart.replace(item, shop, delta));
+    },
+    [cart, storeId, name],
+  );
   const onOpen = useCallback(
     (item: MenuItem) => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } }),
     [storeId],
@@ -102,36 +99,40 @@ function FoodMenu({ storeId, store }: { storeId: number; store: StoreWithMenu })
           )}
         </>
       }
-      footer={
-        <Button
-          title={cart.count > 0 ? `View cart · ${peso(cart.itemsTotal)}` : 'View cart'}
-          onPress={() => router.push('/customer/cart')}
-          disabled={cart.count === 0}
-        />
-      }>
+      footer={<ViewCartButton />}>
       {shown.map((item) => (
-        <DishCard key={item.id} item={item} qty={inThisCart ? cart.qtyOf(item.id) : 0} onOpen={onOpen} onChange={onChange} />
+        <DishCard key={item.id} storeId={storeId} item={item} onOpen={onOpen} onChange={onChange} />
       ))}
     </Screen>
   );
 }
 
-/**
- * One dish: photo, name, price and a stepper; `qty` is its count in this store's cart. memo: the menu re-renders on
- * every cart change, and only the card whose `qty` changed needs to.
- */
+function ViewCartButton() {
+  const count = useCartSelector((c) => c.count);
+  const itemsTotal = useCartSelector((c) => c.itemsTotal);
+  return (
+    <Button
+      title={count > 0 ? `View cart · ${peso(itemsTotal)}` : 'View cart'}
+      onPress={() => router.push('/customer/cart')}
+      disabled={count === 0}
+    />
+  );
+}
+
+/** One dish: photo, name, price and a stepper with its count in this store's cart; re-renders only when that count does. */
 const DishCard = memo(function DishCard({
+  storeId,
   item,
-  qty,
   onOpen,
   onChange,
 }: {
+  storeId: number;
   item: MenuItem;
-  qty: number;
   onOpen: (item: MenuItem) => void;
   onChange: (item: MenuItem, delta: number) => void;
 }) {
   const theme = useTheme();
+  const qty = useCartSelector((c) => (c.store?.id === storeId ? c.qtyOf(item.id) : 0));
   return (
     <Card onPress={() => onOpen(item)}>
       <View style={[styles.row, item.sold_out && styles.soldOut]}>

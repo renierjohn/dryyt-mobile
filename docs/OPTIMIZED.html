@@ -76,6 +76,14 @@
       <li><a href="#release">8. Release builds</a></li>
     </ol></li>
     <li><a class="sec" href="#measure">Measuring</a></li>
+    <li><a class="sec" href="#render-debug">Render debugging</a><ol>
+      <li><a href="#rd-open">Open DevTools</a></li>
+      <li><a href="#rd-highlight">Highlight re-renders</a></li>
+      <li><a href="#rd-profiler">Profiler</a></li>
+      <li><a href="#rd-perf">Perf Monitor</a></li>
+      <li><a href="#rd-compiler">React Compiler check</a></li>
+      <li><a href="#rd-checks">What to check</a></li>
+    </ol></li>
   </ol>
 </aside>
 <main>
@@ -229,6 +237,51 @@
 4. Startup:   EAS Observe (cold launch, TTI)
 5. Battery:   Android Settings → Battery → App usage, after a 30 min driver shift</div>
 <p class="muted">Record each number before and after each change.</p>
+
+<h2 id="render-debug">Render debugging</h2>
+<p>React Native DevTools ships with the dev build. Keep Metro running (<code>bun run start</code>) and the app open on the phone.</p>
+
+<h3 id="rd-open">1. Open DevTools</h3>
+<div class="mock">Metro terminal → press j
+  or
+Shake the phone → "Open DevTools"</div>
+<p class="muted">It opens in Chrome or Edge on the Mac.</p>
+
+<h3 id="rd-highlight">2. Highlight re-renders</h3>
+<div class="mock">⚛︎ Components tab → ⚙︎ settings → General
+→ "Highlight updates when components render"</div>
+<p>Each component that re-renders flashes an outline on the phone. The color goes from blue (rare) to red (frequent).</p>
+
+<h3 id="rd-profiler">3. Profiler: why and how long</h3>
+<div class="mock">⚛︎ Profiler tab → ⚙︎ → "Record why each component rendered while profiling"
+● Record → do the action (scroll a list, open a payout week) → ■ Stop</div>
+<div class="tbl"><table>
+  <tr><th>View</th><th>Shows</th></tr>
+  <tr><td>Flamegraph</td><td>Bar width is render time; grey means it didn't render. Click a bar for "Why did this render?" (props changed, state changed, parent rendered, hook changed).</td></tr>
+  <tr><td>Ranked</td><td>The slowest components first.</td></tr>
+</table></div>
+
+<h3 id="rd-perf">4. Perf Monitor: frame rate on the phone</h3>
+<div class="mock">Shake the phone → "Perf Monitor"</div>
+<div class="tbl"><table>
+  <tr><th>Reading</th><th>Means</th></tr>
+  <tr><td><b>UI</b> and <b>JS</b> near 60</td><td>Smooth.</td></tr>
+  <tr><td>JS drops, UI stays at 60</td><td>Too much JavaScript work (re-renders, big lists, timers).</td></tr>
+  <tr><td>UI drops</td><td>Layout or images (animating <code>top</code>/<code>width</code>, large photos).</td></tr>
+</table></div>
+
+<h3 id="rd-compiler">5. React Compiler check</h3>
+<p>In the Components tab, components the compiler optimized show a <b>"Memo ✨"</b> badge. A component without it re-renders whenever its parent does, so check for it when one keeps flashing.</p>
+
+<h3 id="rd-checks">What to check after these changes</h3>
+<div class="tbl"><table>
+  <tr><th>Screen</th><th>Expected</th></tr>
+  <tr><td>Drop offs, Orders, Pickups, History</td><td>Only rows on screen flash while scrolling.</td></tr>
+  <tr><td>Payouts → APP Fee</td><td>Opening a week re-renders only that week's card; reopening a past week shows its lines with no spinner.</td></tr>
+  <tr><td>Driver face camera</td><td>No flashing every 100 ms while the face is held steady.</td></tr>
+  <tr><td>Owner menu reorder</td><td>Dragging keeps UI near 60 in Perf Monitor.</td></tr>
+</table></div>
+<p class="note">A dev build is slower than a release build: compare before and after, not absolute numbers. Take final numbers on <code>bun run gradle:preview</code>.</p>
 </main>
 </div>
 <script>

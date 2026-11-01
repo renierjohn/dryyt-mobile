@@ -1,4 +1,4 @@
-import { api, ApiError, apiUrl, setAuthToken, setUnauthorizedHandler, wsUrl } from '../api';
+import { activeDropoffId, api, ApiError, apiUrl, setAuthToken, setUnauthorizedHandler, wsUrl } from '../api';
 
 const respond = (status: number, body: unknown) =>
   jest.fn().mockResolvedValue({ ok: status < 400, status, json: () => Promise.resolve(body) });
@@ -38,6 +38,16 @@ describe('api', () => {
   it('throws the server error message', async () => {
     globalThis.fetch = respond(422, { error: 'Bad input' });
     await expect(api('/orders')).rejects.toEqual(new ApiError(422, 'Bad input'));
+  });
+
+  it('keeps the rest of the error body, e.g. the drop off already running', async () => {
+    globalThis.fetch = respond(409, { error: 'You already have an active drop off', active_dropoff_id: 7 });
+    const err = (await api('/dropoffs').catch((e: unknown) => e)) as ApiError;
+    expect(err.message).toBe('You already have an active drop off');
+    expect(err.body).toEqual({ error: 'You already have an active drop off', active_dropoff_id: 7 });
+    expect(activeDropoffId(err)).toBe(7);
+    expect(activeDropoffId(new ApiError(400, 'Bad input'))).toBeNull();
+    expect(activeDropoffId(new Error('offline'))).toBeNull();
   });
 
   it('calls the unauthorized handler on 401 only when signed in', async () => {

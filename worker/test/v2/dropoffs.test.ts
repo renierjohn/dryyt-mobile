@@ -103,10 +103,11 @@ describe('drop offs', () => {
   it('allows one active drop off per customer', async () => {
     const { storeId } = await makeShop();
     const customer = await registerUser('customer');
-    await createDropoff(customer.token, { store_id: storeId });
+    const active = (await createDropoff(customer.token, { store_id: storeId })).body.dropoff.id;
+    // The id lets the app open the drop off already running.
     expect(await createDropoff(customer.token, { store_id: storeId })).toEqual({
       status: 409,
-      body: { error: 'You already have an active drop off' },
+      body: { error: 'You already have an active drop off', active_dropoff_id: active },
     });
   });
 

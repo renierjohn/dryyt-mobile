@@ -16,11 +16,21 @@ export function setUnauthorizedHandler(handler: (message: string) => void) {
 
 export class ApiError extends Error {
   status: number;
+  /** The error response's JSON, for fields beside `error` (e.g. `active_dropoff_id`). */
+  body: Record<string, unknown>;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: Record<string, unknown> = {}) {
     super(message);
     this.status = status;
+    this.body = body;
   }
+}
+
+/** The drop off already running when booking another is refused (409), or null for any other error. */
+export function activeDropoffId(err: unknown) {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const id = err.body.active_dropoff_id;
+  return typeof id === 'number' ? id : null;
 }
 
 export const apiUrl = (path: string) => `${API_URL}${path}`;
@@ -58,7 +68,7 @@ async function request<T>(path: string, init: { method: string; headers: Record<
   if (!res.ok) {
     const message = data.error ?? `Request failed (${res.status})`;
     if (res.status === 401 && authToken) onUnauthorized(message);
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, data);
   }
   return data as T;
 }

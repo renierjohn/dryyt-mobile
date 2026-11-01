@@ -18,6 +18,7 @@ import { VehicleRow } from '@/components/vehicle-row';
 import { Spacing } from '@/constants/theme';
 import { useCreateDropoff, useDropoff, useDropoffAction, useRoadRoute } from '@/hooks/queries';
 import { useSocket } from '@/hooks/use-socket';
+import { activeDropoffId } from '@/lib/api';
 import { DROPOFF_STATUS_LABEL, peso } from '@/lib/format';
 import type { DropoffStatus, LatLng, NearbyDriver } from '@/lib/types';
 
@@ -100,7 +101,14 @@ export default function DropoffDetail() {
             onPress={() =>
               again.mutate(
                 { store_id: d.store_id, lat: d.customer_lat, lng: d.customer_lng, address: d.customer_address },
-                { onSuccess: (next) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(next.id) } }) },
+                {
+                  onSuccess: (next) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(next.id) } }),
+                  // Another drop off started meanwhile (e.g. from another phone): open it instead.
+                  onError: (err) => {
+                    const active = activeDropoffId(err);
+                    if (active !== null) router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(active) } });
+                  },
+                },
               )
             }
           />
@@ -110,7 +118,7 @@ export default function DropoffDetail() {
     }
   })();
 
-  const error = action.error ?? again.error;
+  const error = action.error ?? (activeDropoffId(again.error) === null ? again.error : null);
   const paying = (d.status === 'owner_confirmed' || d.status === 'payment_pending') && payingNow && d.laundry_fee !== null;
 
   return (

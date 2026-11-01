@@ -106,8 +106,13 @@ dropoffs.post('/', requireRole('customer'), async (c) => {
     id = row!.id;
   } catch (err) {
     // transactions_one_active_per_customer
-    if (String(err).includes('UNIQUE')) fail(409, 'You already have an active drop off');
-    throw err;
+    if (!String(err).includes('UNIQUE')) throw err;
+    // Its id, so the app can open the drop off already running.
+    const active = await db
+      .prepare(`SELECT id FROM transactions_dropoff WHERE customer_id = ? AND status IN ('searching', 'driver_accepted', 'en_route_pickup', 'en_route_shop')`)
+      .bind(c.get('user').id)
+      .first<{ id: number }>();
+    return c.json({ error: 'You already have an active drop off', active_dropoff_id: active?.id ?? null }, 409);
   }
 
   const created = (await getDropoff(db, id))!;

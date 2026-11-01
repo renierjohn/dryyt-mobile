@@ -11,7 +11,10 @@ import { VehicleOptions } from '@/components/vehicle-options';
 import { useCreateDropoff, useDropoffQuote, useStore } from '@/hooks/queries';
 import { useSignedIn } from '@/hooks/use-auth';
 import { useCurrentLocation } from '@/hooks/use-location';
+import { activeDropoffId } from '@/lib/api';
 import type { LatLng } from '@/lib/types';
+
+const openDropoff = (id: number) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(id) } });
 
 export default function DropoffLocation() {
   const storeId = Number(useLocalSearchParams<{ storeId: string }>().storeId);
@@ -47,7 +50,8 @@ export default function DropoffLocation() {
       ) : (
         <ActivityIndicator />
       )}
-      <ErrorText error={store.error ?? quote.error ?? create.error} />
+      {/* Not the "already active" refusal: that one opens the running drop off. */}
+      <ErrorText error={store.error ?? quote.error ?? (activeDropoffId(create.error) === null ? create.error : null)} />
       {quote.data && at ? (
         <VehicleOptions
           options={quote.data.options}
@@ -56,7 +60,14 @@ export default function DropoffLocation() {
           onProceed={(o) =>
             create.mutate(
               { store_id: storeId, lat: at.lat, lng: at.lng, vehicle_type: o.vehicle_type, quote_token: quote.data!.token },
-              { onSuccess: (d) => router.replace({ pathname: '/customer/dropoff/[id]', params: { id: String(d.id) } }) },
+              {
+                onSuccess: (d) => openDropoff(d.id),
+                // One drop off at a time: open the one already running instead of just saying so.
+                onError: (err) => {
+                  const active = activeDropoffId(err);
+                  if (active !== null) openDropoff(active);
+                },
+              },
             )
           }
         />

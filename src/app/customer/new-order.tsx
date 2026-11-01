@@ -95,7 +95,7 @@ export default function NewOrder() {
         <Card key={item.id} onPress={() => router.push({ pathname: '/customer/menu/[id]', params: { id: String(item.id), storeId: String(storeId) } })}>
           <View style={[styles.row, item.sold_out && styles.soldOut]}>
             {item.image_url ? (
-              <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" />
+              <Image testID={`dish-photo-${item.id}`} source={{ uri: item.image_url }} style={styles.photo} contentFit="cover" cachePolicy="memory-disk" />
             ) : (
               <View testID={`dish-photo-placeholder-${item.id}`} style={[styles.photo, styles.placeholder, { backgroundColor: theme.primarySoft }]}>
                 <Icon name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }} size={32} color={theme.primary} />

@@ -7,7 +7,8 @@ import { CartProvider } from '@/hooks/use-cart';
 export default function CustomerLayout() {
   return (
     <CartProvider>
-      <Stack screenOptions={{ headerTitle: () => <AppLogo size={32} />, headerTitleAlign: 'center' }}>
+      {/* Screens under the top one stop re-rendering until shown again; their sockets and effects keep running. */}
+      <Stack screenOptions={{ headerTitle: () => <AppLogo size={32} />, headerTitleAlign: 'center', freezeOnBlur: true }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* Pickup screens: unreachable (even by link) while Pickup is switched off. */}
         <Stack.Protected guard={PICKUP_ENABLED}>

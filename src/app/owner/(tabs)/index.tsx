@@ -95,7 +95,7 @@ export default function OwnerDropoffs() {
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (
-    <Screen onRefresh={dropoffs.refresh} stickyHeaderIndices={sticky.map((i) => i + top.length)}>
+    <Screen onRefresh={dropoffs.refresh} virtualized stickyHeaderIndices={sticky.map((i) => i + top.length)}>
       {top}
       {rows}
       {dropoffs.hasNextPage && (

@@ -100,11 +100,11 @@ function Row({ id, index, count, rowHeight, positions, onDrop, children }: RowPr
     return [drag().minDistance(0).hitSlop(HANDLE_SLOP), drag().activateAfterLongPress(LONG_PRESS_MS)];
   }, [id, count, rowHeight, positions, onDrop, top, start, dragging]);
 
+  // translateY, not `top`: a transform moves the row without re-running layout every frame.
   const style = useAnimatedStyle(() => ({
-    top: top.get(),
     zIndex: dragging.get() ? 1 : 0,
     opacity: dragging.get() ? 0.9 : 1,
-    transform: [{ scale: withTiming(dragging.get() ? 1.03 : 1, { duration: 120 }) }],
+    transform: [{ translateY: top.get() }, { scale: withTiming(dragging.get() ? 1.03 : 1, { duration: 120 }) }],
   }));
 
   return (
@@ -115,5 +115,5 @@ function Row({ id, index, count, rowHeight, positions, onDrop, children }: RowPr
 }
 
 const styles = StyleSheet.create({
-  row: { position: 'absolute', left: 0, right: 0 },
+  row: { position: 'absolute', top: 0, left: 0, right: 0 },
 });

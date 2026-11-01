@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt UI Performance</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+    --ok: #1f7a43; --ok-soft: #e3f3e9; --due: #2f5f9e; --due-soft: #e4ecf7; --warn: #a36a12; --warn-soft: #fbf0dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+      --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+    --accent: #7cc4b3; --accent-soft: #1f2f2b;
+    --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; max-width: 960px; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc ol ol { margin: 2px 0 8px 10px; border-left: 1px solid var(--line); }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 44px 0 8px; scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 26px 0 6px; scroll-margin-top: 16px; }
+  .lede, .muted { color: var(--muted); }
+  code { font: 0.86em ui-monospace, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .mock { font: 13px/1.55 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; background: var(--code); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+  .tbl { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .pill { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.due { background: var(--due-soft); color: var(--due); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; margin: 12px 0; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+    main { padding: 24px 16px 48px; }
+  }
+</style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+  <div class="title">Contents</div>
+  <ol>
+    <li><a class="sec" href="#overview">Overview</a></li>
+    <li><a class="sec" href="#already">Already in place</a></li>
+    <li><a class="sec" href="#plan">Plan</a><ol>
+      <li><a href="#lists">1. Virtualized lists</a></li>
+      <li><a href="#gps">2. GPS battery</a></li>
+      <li><a href="#timers">3. Ticking timers</a></li>
+      <li><a href="#polling">4. Polling vs socket</a></li>
+      <li><a href="#screens">5. Background screens</a></li>
+      <li><a href="#images">6. Images</a></li>
+      <li><a href="#animations">7. Animations</a></li>
+      <li><a href="#release">8. Release builds</a></li>
+    </ol></li>
+    <li><a class="sec" href="#measure">Measuring</a></li>
+  </ol>
+</aside>
+<main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare</a> <a href="APP_BUILD_GUIDE.html">App build</a> <a href="OPTIMIZED.html" aria-current="page">Performance</a></nav>
+
+<h1>UI performance</h1>
+<p class="lede">Changes that make the app scroll and animate more smoothly and use less CPU, memory and battery, without changing what any screen does.</p>
+
+<h2 id="overview">Overview</h2>
+<p>The app is Expo SDK 57 / React Native 0.86 on the New Architecture. Most of the remaining cost comes from four places: lists rendered all at once, GPS running at full accuracy, timers that re-render whole screens, and polling that duplicates the WebSocket.</p>
+<div class="tbl"><table>
+  <tr><th>#</th><th>Change</th><th>Gain</th><th>Effort</th><th>Status</th></tr>
+  <tr><td>1</td><td>Virtualized lists</td><td>Memory, scroll FPS, first render</td><td>Medium</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>2</td><td>GPS accuracy for the driver watch</td><td>Battery</td><td>Small</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>3</td><td>Isolate ticking timers</td><td>CPU, JS thread</td><td>Small</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>4</td><td>Slow polling while socket is live</td><td>Network, battery, re-renders</td><td>—</td><td><span class="pill ok">Already in place</span></td></tr>
+  <tr><td>5</td><td>Freeze screens under the top one (owner, customer)</td><td>CPU, re-renders</td><td>Small</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>6</td><td>Memory cache for list images</td><td>Scroll smoothness, network</td><td>Small</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>7</td><td>Drag reorder on a transform</td><td>Smoothness</td><td>Small</td><td><span class="pill ok">Done</span></td></tr>
+  <tr><td>8</td><td>R8 minify + resource shrinking</td><td>APK size, startup</td><td>Small</td><td><span class="pill warn">Done, needs release test</span></td></tr>
+</table></div>
+
+<h2 id="already">Already in place</h2>
+<div class="tbl"><table>
+  <tr><th>Item</th><th>Where</th></tr>
+  <tr><td>React Compiler (auto-memoizes components, so manual <code>memo</code>/<code>useCallback</code> is rarely needed)</td><td><code>app.json</code> → <code>experiments.reactCompiler</code></td></tr>
+  <tr><td>Reanimated 4 + worklets for animations</td><td><code>package.json</code></td></tr>
+  <tr><td><code>expo-image</code> for remote images</td><td><code>package.json</code></td></tr>
+  <tr><td>Native stack screens (<code>react-native-screens</code>)</td><td>Expo Router</td></tr>
+  <tr><td>React Query refetches only while the app is active</td><td><code>src/lib/query-client.ts</code></td></tr>
+  <tr><td>Socket closes in the background</td><td><code>src/hooks/use-socket.ts</code></td></tr>
+  <tr><td>Background location skips fixes closer than <code>WATCH_EVERY_MS</code> (10 s)</td><td><code>src/hooks/use-location.ts</code></td></tr>
+</table></div>
+
+<h2 id="plan">Plan</h2>
+
+<h3 id="lists">1. Virtualized lists</h3>
+<p>All 31 screens render through <code>Screen</code> (<code>src/components/screen.tsx</code>), which wraps children in a plain <code>ScrollView</code>, so every row of a long list was mounted at once, including rows off screen.</p>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li><code>Screen</code> takes <code>virtualized</code>: each child becomes one row of a <code>FlatList</code> (no new dependency). <code>Children.toArray</code> drops null rows, so <code>stickyHeaderIndices</code>, pull-to-refresh, header, footer and safe area work as before.</li>
+    <li><code>initialNumToRender={20}</code>: day titles and separator lines are rows too, so the default 10 could leave a tall screen half empty.</li>
+    <li>Used by the paged, day-grouped lists: <code>history-list.tsx</code> (customer and driver history), <code>owner-orders.tsx</code> (Orders and Pickups tabs), <code>owner/(tabs)/index.tsx</code> (Drop offs).</li>
+    <li><code>owner-orders</code>: <code>PhotoViewer</code> moved outside the list, so scrolling its row out of the window can't close an open photo.</li>
+    <li>Short forms and detail screens stay on <code>ScrollView</code>; text inputs in a virtualized list can unmount when scrolled away.</li>
+  </ul>
+</div>
+<div class="mock">&lt;Screen onRefresh={orders.refresh} virtualized stickyHeaderIndices={…}&gt;
+  {top}
+  {rows}
+  {showMoreButton}
+&lt;/Screen&gt;</div>
+
+<h3 id="gps">2. GPS battery</h3>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li><code>useWatchLocation</code> (driver location every 10 s) uses <code>Accuracy.High</code> instead of <code>BestForNavigation</code>; a fix every 10 s doesn't need the extra sensor fusion.</li>
+  </ul>
+  <b>Kept</b>
+  <ul>
+    <li><code>distanceInterval: 0</code>: the worker drops a driver after 30 s without a fix, so a distance filter would drop drivers standing still.</li>
+    <li><code>useCurrentLocation</code> keeps <code>BestForNavigation</code> to refine the customer's pin, but it already stops at 10 m accuracy or after 20 s.</li>
+    <li>The watcher already runs only while <code>enabled</code> (online / on a trip).</li>
+  </ul>
+</div>
+
+<h3 id="timers">3. Ticking timers</h3>
+<div class="tbl"><table>
+  <tr><th>File</th><th>Before</th><th>Now</th></tr>
+  <tr><td><code>src/components/payment-wait.tsx</code></td><td>1 s tick</td><td>Kept: already a small leaf (spinner + text)</td></tr>
+  <tr><td><code>src/components/next-load-countdown.tsx</code></td><td>1 s tick</td><td>Kept: already its own component</td></tr>
+  <tr><td><code>src/components/driver/dropoff-requests.tsx</code></td><td>1 s tick</td><td>Kept: already in its own <code>Countdown</code></td></tr>
+  <tr><td><code>src/components/driver/face-camera.tsx</code></td><td>100 ms interval re-rendering the camera screen while the face is valid</td><td>One timeout at <code>validSince + STEADY_MS</code> (+20 ms) that unlocks the shutter</td></tr>
+</table></div>
+
+<h3 id="polling">4. Polling vs socket</h3>
+<div class="card">
+  <b>Already in place</b>
+  <ul>
+    <li><code>usePoll</code> in <code>src/hooks/queries.ts</code> polls only while the screen is focused.</li>
+    <li>While a socket is live (<code>isLive()</code>), each polled query slows to <code>LIVE_POLL_MS</code> (30 s). That poll is kept as a safety net for missed socket messages.</li>
+    <li>The pickups socket already writes the jobs list with <code>setQueryData</code>.</li>
+  </ul>
+</div>
+
+<h3 id="screens">5. Background screens</h3>
+<p>Screens that are still mounted but hidden (screens lower in the stack) kept re-rendering when polls or socket messages arrived.</p>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li><code>freezeOnBlur: true</code> on the owner and customer stacks (<code>src/app/owner/_layout.tsx</code>, <code>src/app/customer/_layout.tsx</code>). A frozen screen keeps its state, sockets and effects; it just doesn't re-render until it's shown again.</li>
+  </ul>
+  <b>Not frozen</b>
+  <ul>
+    <li>Driver tabs and the root stack: the driver's new-job sound (<code>useNewJobSound</code>) fires from render, so freezing the Available tab could silence it while the driver is on another tab.</li>
+  </ul>
+</div>
+
+<h3 id="images">6. Images</h3>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li><code>cachePolicy="memory-disk"</code> on images that repeat in lists: <code>DishPhoto</code>, <code>StoreLogo</code>, dish photos in <code>customer/new-order.tsx</code>, store photos in <code>customer/stores.tsx</code>. Scrolling back shows them from memory instead of decoding from disk again.</li>
+  </ul>
+  <b>Already in place / not needed</b>
+  <ul>
+    <li>Uploads already go through <code>shrinkImage</code> (<code>src/lib/shrink-image.ts</code>): 1600 px, under 1 MB.</li>
+    <li><code>expo-image</code> already downscales to the view size when decoding.</li>
+    <li><code>recyclingKey</code>: only matters for recycling lists (FlashList); <code>FlatList</code> doesn't recycle rows.</li>
+    <li>Payment photos (sent with auth headers) keep the default disk cache.</li>
+  </ul>
+</div>
+
+<h3 id="animations">7. Animations</h3>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li><code>src/components/sortable-list.tsx</code> (menu reorder): rows moved by animating <code>top</code>, which re-runs layout every frame of a drag. They now move with <code>transform: translateY</code>.</li>
+  </ul>
+  <b>Already in place</b>
+  <ul>
+    <li>All animations use Reanimated on the UI thread; nothing uses React Native <code>Animated</code>.</li>
+    <li>The payouts tab slide and photo viewer already animate transforms only.</li>
+  </ul>
+  <b>Rule for new code</b>
+  <ul>
+    <li>Animate <code>transform</code> and <code>opacity</code>, not <code>width</code>, <code>height</code>, <code>top</code> or <code>margin</code>.</li>
+  </ul>
+</div>
+
+<h3 id="release">8. Release builds</h3>
+<div class="card">
+  <b>Done</b>
+  <ul>
+    <li>Android: <code>enableMinifyInReleaseBuilds</code> and <code>enableShrinkResourcesInReleaseBuilds</code> in the <code>expo-build-properties</code> plugin (<code>app.config.js</code>). This is a native change, so it needs a new build (it doesn't ship through EAS Update).</li>
+  </ul>
+  <p class="note">R8 can strip classes that a library loads by reflection. Before shipping, build a release APK and check sign-in (Google, Facebook, phone), push notifications, the face camera and image upload. If something crashes, add a keep rule or turn the two flags off.</p>
+  <b>Skipped</b>
+  <ul>
+    <li><code>babel-plugin-transform-remove-console</code>: the app has only two <code>console</code> calls (a crash log and a <code>__DEV__</code>-only warning), so it isn't worth a new dependency.</li>
+  </ul>
+</div>
+
+<h2 id="measure">Measuring</h2>
+<p class="note">Dev builds are much slower than release builds. Measure on a release or preview build on a low-end Android phone.</p>
+<div class="mock">1. Build:     bun run gradle:preview
+2. FPS:       Dev menu → Perf Monitor (UI and JS frame rates)
+3. Renders:   React DevTools → Profiler → "Highlight updates when components render"
+4. Startup:   EAS Observe (cold launch, TTI)
+5. Battery:   Android Settings → Battery → App usage, after a 30 min driver shift</div>
+<p class="muted">Record each number before and after each change.</p>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

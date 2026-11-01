@@ -73,8 +73,10 @@ export function useWatchLocation(enabled: boolean, onLocation: (at: LatLng, accu
       const { granted } = await Location.requestForegroundPermissionsAsync();
       if (!granted || cancelled) return;
       // iOS ignores timeInterval and reports about every second, so skip fixes that come too soon.
+      // High, not BestForNavigation: a fix every 10 s doesn't need the extra sensor fusion. distanceInterval stays 0 so a
+      // driver standing still keeps reporting and isn't dropped.
       sub = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: WATCH_EVERY_MS, distanceInterval: 0 },
+        { accuracy: Location.Accuracy.High, timeInterval: WATCH_EVERY_MS, distanceInterval: 0 },
         (pos) => {
           if (pos.timestamp - last < WATCH_EVERY_MS - 500) return;
           last = pos.timestamp;

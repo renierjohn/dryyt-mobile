@@ -74,7 +74,7 @@ export function HistoryScreen({ history, role, title, empty, amount }: Props) {
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (
-    <Screen onRefresh={history.refresh} stickyHeaderIndices={sticky.map((i) => i + top.length)}>
+    <Screen onRefresh={history.refresh} virtualized stickyHeaderIndices={sticky.map((i) => i + top.length)}>
       {top}
       {rows}
       {history.hasNextPage && (

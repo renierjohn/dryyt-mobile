@@ -16,8 +16,15 @@ module.exports = ({ config }) => ({
   ios: { ...config.ios, ...(fs.existsSync(IOS_GOOGLE_SERVICES) ? { googleServicesFile: IOS_GOOGLE_SERVICES } : {}) },
   plugins: [
     ...config.plugins,
-    // React Native Firebase on iOS needs its pods built as static frameworks.
-    ['expo-build-properties', { ios: { useFrameworks: 'static' } }],
+    // React Native Firebase on iOS needs its pods built as static frameworks. Android release builds run R8 and drop
+    // unused resources for a smaller, faster-starting app (test a release build before shipping: R8 can strip classes).
+    [
+      'expo-build-properties',
+      {
+        ios: { useFrameworks: 'static' },
+        android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true },
+      },
+    ],
     // Without an App ID the app builds without the Facebook SDK setup and the Facebook button says it isn't set up.
     ...(FACEBOOK_APP_ID
       ? [

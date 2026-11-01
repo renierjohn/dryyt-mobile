@@ -10,7 +10,7 @@ type Props = { uri: string | null; size: number; testID: string };
 export function DishPhoto({ uri, size, testID }: Props) {
   const theme = useTheme();
   const box = { width: size, height: size, borderRadius: Math.round(size / 6) };
-  if (uri) return <Image testID={testID} source={{ uri }} style={box} contentFit="cover" />;
+  if (uri) return <Image testID={testID} source={{ uri }} style={box} contentFit="cover" cachePolicy="memory-disk" />;
   return (
     <View testID={`${testID}-placeholder`} style={[box, styles.placeholder, { backgroundColor: theme.primarySoft }]}>
       <Icon name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }} size={Math.round(size * 0.42)} color={theme.primary} />

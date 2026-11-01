@@ -59,11 +59,12 @@ function FaceCameraBody({ onClose, onCapture }: Omit<Props, 'visible'>) {
     if (permission && !permission.granted && permission.canAskAgain) requestPermission();
   }, [permission, requestPermission]);
 
-  // Ticks while the face is valid so the shutter unlocks once it has been steady for STEADY_MS.
+  // Re-renders once when the face has been steady for STEADY_MS, so the shutter unlocks even if no new boxes
+  // arrive (20 ms late, so a timer firing early can't leave it locked).
   useEffect(() => {
     if (validSince === null) return;
-    const timer = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(timer);
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, validSince + STEADY_MS - Date.now()) + 20);
+    return () => clearTimeout(timer);
   }, [validSince]);
 
   /** Boxes come normalized to the view; the native side already throttles them. */

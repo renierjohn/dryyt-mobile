@@ -70,14 +70,17 @@ export function OwnerOrders({ type, title }: { type: StoreType; title: string })
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (
-    <Screen onRefresh={orders.refresh} stickyHeaderIndices={sticky.map((i) => i + top.length)}>
-      {top}
-      {rows}
-      {orders.hasNextPage && (
-        <Button title="Show More" variant="secondary" loading={orders.isFetchingNextPage} onPress={() => orders.fetchNextPage()} />
-      )}
+    <>
+      <Screen onRefresh={orders.refresh} virtualized stickyHeaderIndices={sticky.map((i) => i + top.length)}>
+        {top}
+        {rows}
+        {orders.hasNextPage && (
+          <Button title="Show More" variant="secondary" loading={orders.isFetchingNextPage} onPress={() => orders.fetchNextPage()} />
+        )}
+      </Screen>
+      {/* Outside the list so scrolling it out of the window doesn't close the viewer. */}
       <PhotoViewer source={viewing} onClose={() => setViewing(null)} />
-    </Screen>
+    </>
   );
 }
 

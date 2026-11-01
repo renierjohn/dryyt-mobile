@@ -65,7 +65,7 @@ export default function StoreList() {
           <View style={styles.row}>
             {/* The shop's photo (its logo); the service icon until it adds one. */}
             {store.store_logo ? (
-              <Image testID={`store-photo-${store.id}`} source={{ uri: store.store_logo }} style={styles.photo} contentFit="cover" />
+              <Image testID={`store-photo-${store.id}`} source={{ uri: store.store_logo }} style={styles.photo} contentFit="cover" cachePolicy="memory-disk" />
             ) : (
               <View testID={`store-photo-placeholder-${store.id}`} style={[styles.photo, styles.iconCircle, { backgroundColor: theme.primarySoft }]}>
                 <Icon name={STORE_ICON[type] ?? STORE_ICON.laundry} size={26} color={theme.primary} />

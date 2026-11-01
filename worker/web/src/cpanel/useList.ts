@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, type Page } from './api';
 
-/** Fetches `path` with the given query params; refetches whenever they change. */
+/** Fetches `path` with the given query params; refetches whenever they change, or on `reload()`. */
 export function useApi<T>(path: string, params: Record<string, string | number>, onError: (e: unknown) => void) {
 	const [data, setData] = useState<T | null>(null);
 	const [error, setError] = useState('');
 	const [loading, setLoading] = useState(true);
+	const [version, setVersion] = useState(0);
 	const query = new URLSearchParams(
 		Object.entries(params)
 			.filter(([, v]) => v !== '')
@@ -27,9 +28,9 @@ export function useApi<T>(path: string, params: Record<string, string | number>,
 			live = false;
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [path, query]);
+	}, [path, query, version]);
 
-	return { data, error, loading };
+	return { data, error, loading, reload: () => setVersion((v) => v + 1) };
 }
 
 export type { Page };

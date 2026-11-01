@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, peso, when } from './api';
 import { defaultRange } from './dates';
+import { DriverEditCell } from './DriverEdit';
 import { AppFee, OwnerStoresCell } from './OwnerStores';
 import { LicenseModal } from './PhotoEditor';
 import { OrderItemsCell } from './OrderItems';
@@ -12,7 +13,8 @@ import { VEHICLE_LABEL } from './vehicles';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
-type Column = { label: string; cell: (r: Row) => ReactNode; className?: string };
+/** `reload` refetches the current page, e.g. after a cell's modal saved a change. */
+type Column = { label: string; cell: (r: Row, reload: () => void) => ReactNode; className?: string };
 
 const badge = (s: string) => <span className={`cp-badge s-${s}`}>{s.replaceAll('_', ' ')}</span>;
 
@@ -60,7 +62,7 @@ function DataTable({
 		return () => clearTimeout(t);
 	}, [search]);
 
-	const { data, error, loading } = useApi<Page<Row> & Row>(path, { [filterParam]: filter, q, page, from, to, ...extra }, onAuthError);
+	const { data, error, loading, reload } = useApi<Page<Row> & Row>(path, { [filterParam]: filter, q, page, from, to, ...extra }, onAuthError);
 	const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
 	return (
@@ -147,7 +149,7 @@ function DataTable({
 							<tr key={r.id}>
 								{columns.map((c) => (
 									<td key={c.label} className={c.className}>
-										{c.cell(r)}
+										{c.cell(r, reload)}
 									</td>
 								))}
 							</tr>
@@ -457,7 +459,7 @@ export function DriversTable({ onAuthError }: Props) {
 			searchPlaceholder="Search name, email or phone"
 			onAuthError={onAuthError}
 			columns={[
-				{ label: '#', cell: (r) => r.id },
+				{ label: '#', cell: (r, reload) => <DriverEditCell id={r.id} onSaved={reload} onAuthError={onAuthError} /> },
 				{ label: 'Name', cell: (r) => person(r.name, r.email) },
 				{ label: 'Phone', cell: (r) => r.phone },
 				{

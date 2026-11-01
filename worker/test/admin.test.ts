@@ -201,6 +201,48 @@ describe('admin drivers and blocking', () => {
   });
 });
 
+describe('admin driver edit', () => {
+  const info = { name: 'Juan Dela Cruz', email: 'juan.edit@example.com', phone: '09171234567', vehicle_type: 3, notes: 'ABC 123', group_id: 'default' };
+
+  it("shows and edits a driver's info, creating their driver data", async () => {
+    const driver = await registerUser('driver');
+    const before = await api(`/admin/drivers/${driver.user.id}`, { token: admin });
+    expect(before.body.driver).toMatchObject({ id: driver.user.id, group_id: 'default', vehicle_type: null, notes: '' });
+
+    const saved = await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, notes: '  ABC 123 ' } });
+    expect(saved.status).toBe(200);
+    expect(saved.body.driver).toMatchObject({ ...info, id: driver.user.id });
+    const row = (await api('/admin/drivers', { token: admin })).body.rows.find((r: { id: number }) => r.id === driver.user.id);
+    expect(row).toMatchObject({ name: info.name, email: info.email, phone: info.phone, vehicle_type: 3, notes: 'ABC 123' });
+    // The new email signs in.
+    expect((await api('/auth/login', { body: { email: info.email, password: 'password123' } })).status).toBe(200);
+  });
+
+  it('moves an offline driver to an area with rates only', async () => {
+    const driver = await registerUser('driver');
+    await env.DB.prepare("INSERT INTO rates (group_id, type, category, base_fee, rate_per_km, commission_pct) SELECT 'dauin', type, category, base_fee, rate_per_km, commission_pct FROM rates WHERE group_id = 'default'").run();
+    const noRates = await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, group_id: 'nowhere' } });
+    expect(noRates.status).toBe(400);
+
+    await env.DB.prepare('UPDATE drivers SET online = 1 WHERE user_id = ?').bind(driver.user.id).run();
+    expect((await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, group_id: 'dauin' } })).status).toBe(409);
+    await env.DB.prepare('UPDATE drivers SET online = 0 WHERE user_id = ?').bind(driver.user.id).run();
+    const moved = await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, group_id: 'dauin' } });
+    expect(moved.body.driver.group_id).toBe('dauin');
+  });
+
+  it('rejects a taken email, bad input, non-drivers and non-admins', async () => {
+    const driver = await registerUser('driver');
+    const taken = await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, email: adminEmail } });
+    expect(taken.status).toBe(409);
+    expect((await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, name: ' ' } })).status).toBe(400);
+    expect((await api(`/admin/drivers/${driver.user.id}`, { token: admin, body: { ...info, vehicle_type: 9 } })).status).toBe(400);
+    expect((await api(`/admin/drivers/${customer.user.id}`, { token: admin, body: info })).status).toBe(404);
+    expect((await api(`/admin/drivers/${customer.user.id}`, { token: admin })).status).toBe(404);
+    expect((await api(`/admin/drivers/${driver.user.id}`, { token: customer.token, body: info })).status).toBe(403);
+  });
+});
+
 describe('admin customers and owners', () => {
   it('lists only customers, and only owners with their stores, filtered by access', async () => {
     const owner = await registerUser('owner');

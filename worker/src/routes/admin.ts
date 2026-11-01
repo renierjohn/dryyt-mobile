@@ -12,7 +12,7 @@ import { pushToUsers } from '../lib/push';
 import { STORE_TOTALS, storeRange } from '../lib/store-totals';
 import { verifyTurnstile } from '../lib/turnstile';
 import type { AppEnv } from '../types';
-import { checkLogin, loginSchema } from './auth';
+import { checkLogin, email, loginSchema, phone } from './auth';
 
 const PAGE_SIZE = 25;
 
@@ -419,6 +419,60 @@ admin.get('/drivers', (c) => {
     where,
     'u.id DESC',
   );
+});
+
+const driverSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  email,
+  phone: phone.max(30),
+  vehicle_type: z.number().int().refine(isVehicleCategory, 'Unknown vehicle type').nullable(),
+  notes: z.string().trim().max(200),
+  group_id: z.string().trim().regex(/^[a-z0-9_-]{1,40}$/, 'Unknown area'),
+});
+
+const DRIVER_INFO = `SELECT u.id, u.name, u.email, u.phone, COALESCE(d.group_id, 'default') AS group_id, d.online, d.pickup_online, d.busy,
+  dd.vehicle_type, COALESCE(dd.notes, '') AS notes
+  FROM users u LEFT JOIN drivers d ON d.user_id = u.id LEFT JOIN driver_data dd ON dd.user_id = u.id WHERE u.id = ? AND u.role = 'driver'`;
+type DriverInfo = z.infer<typeof driverSchema> & { id: number; online: number | null; pickup_online: number | null; busy: number | null };
+
+const driverInfo = async (db: D1Database, id: number) => (Number.isInteger(id) && id > 0 ? db.prepare(DRIVER_INFO).bind(id).first<DriverInfo>() : null);
+
+/** A driver's editable info, for the cpanel's edit modal. */
+admin.get('/drivers/:id', async (c) => {
+  const driver = await driverInfo(c.env.DB, Number(c.req.param('id')));
+  if (!driver) fail(404, 'Driver not found');
+  return c.json({ driver });
+});
+
+/**
+ * Edits a driver's name, email, phone, vehicle, notes and area. The area only changes while they're offline and free: the
+ * Dispatch room they're in is per area. The vehicle and notes live in driver_data, created here if the driver has none yet.
+ */
+admin.post('/drivers/:id', async (c) => {
+  const id = Number(c.req.param('id'));
+  const input = await parseBody(c, driverSchema);
+  const db = c.env.DB;
+  const driver = await driverInfo(db, id);
+  if (!driver) fail(404, 'Driver not found');
+  if (input.email !== driver.email && (await db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').bind(input.email, id).first())) {
+    fail(409, 'Another account already uses this email');
+  }
+  if (input.group_id !== driver.group_id) {
+    if (!(await db.prepare('SELECT 1 FROM rates WHERE group_id = ?').bind(input.group_id).first())) fail(400, `Area "${input.group_id}" has no rates yet. Add them on the Rates tab first.`);
+    if (driver.online || driver.pickup_online || driver.busy) fail(409, 'Change the area once the driver is offline and not on a job');
+  }
+  await db.batch([
+    db.prepare('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?').bind(input.name, input.email, input.phone, id),
+    db.prepare('INSERT INTO drivers (user_id, group_id) VALUES (?1, ?2) ON CONFLICT (user_id) DO UPDATE SET group_id = ?2').bind(id, input.group_id),
+    db
+      .prepare(
+        `INSERT INTO driver_data (user_id, vehicle_type, notes) VALUES (?1, ?2, ?3)
+         ON CONFLICT (user_id) DO UPDATE SET vehicle_type = ?2, notes = ?3, updated_at = datetime('now')`,
+      )
+      .bind(id, input.vehicle_type, input.notes),
+  ]);
+  console.log('[admin] driver edited', { by: c.get('user').id, id });
+  return c.json({ driver: await driverInfo(db, id) });
 });
 
 /** URL kind → driver_data photo column, as in routes/drivers.ts. */

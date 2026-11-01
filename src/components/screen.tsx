@@ -41,6 +41,8 @@ export function Screen({ children, edges = ['top'], onRefresh, header, footer, s
       keyExtractor={(item) => String(item.key)}
       // Day titles and separator lines are rows too, so the default 10 can leave a tall screen half empty at first.
       initialNumToRender={20}
+      // Android defaults this to true, which can leave rows (and their images) blank next to sticky headers.
+      removeClippedSubviews={false}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       stickyHeaderIndices={stickyHeaderIndices}

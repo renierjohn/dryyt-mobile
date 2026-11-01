@@ -331,3 +331,35 @@ describe('owner menu', () => {
     await vi.waitFor(async () => expect((await SELF.fetch(image_url)).status).toBe(404));
   });
 });
+
+describe('image URLs', () => {
+  // A dev worker on a LAN IP saves the host it was reached on; that IP changes when the laptop changes network.
+  const OLD = 'http://192.168.1.33:9999';
+
+  it('come back on the host the request used, whatever host they were saved with', async () => {
+    const created = await api('/owner/stores', {
+      token,
+      body: {
+        ...shop,
+        type: 'food',
+        store_logo: `${OLD}/store-images/9/logo-1.jpg`,
+        store_payment_gateway: [{ label: 'GCash', image_url: `${OLD}/store-images/9/qr-1.png` }],
+      },
+    });
+    const storeId = created.body.store.id;
+    expect(created.body.store).toMatchObject({
+      store_logo: 'https://api.test/store-images/9/logo-1.jpg',
+      store_payment_gateway: [{ label: 'GCash', image_url: 'https://api.test/store-images/9/qr-1.png' }],
+    });
+
+    await api(`/owner/stores/${storeId}/menu`, { token, body: { name: 'Adobo', price: 15000, image_url: `${OLD}/menu-images/${storeId}/dish-1.jpg` } });
+    const store = (await api(`/stores/${storeId}`, { token })).body.store;
+    expect(store.store_logo).toBe('https://api.test/store-images/9/logo-1.jpg');
+    expect(store.menu[0].image_url).toBe(`https://api.test/menu-images/${storeId}/dish-1.jpg`);
+  });
+
+  it('leave outside image URLs alone', async () => {
+    const created = await api('/owner/stores', { token, body: { ...shop, store_logo: 'https://img.test/store-images/9/logo-1.jpg?x=1' } });
+    expect(created.body.store.store_logo).toBe('https://img.test/store-images/9/logo-1.jpg?x=1');
+  });
+});

@@ -8,7 +8,7 @@ import { requireAuth } from './lib/auth';
 import { fail, parseBody } from './lib/http';
 import { menuImageKey } from './lib/menu';
 import { hashPassword } from './lib/password';
-import { cachedPhotoResponse } from './lib/photos';
+import { cachedPhotoResponse, withImageOrigin } from './lib/photos';
 import { checkPushReceipts, maskToken } from './lib/push';
 import { storeImageKey } from './lib/stores';
 import admin from './routes/admin';
@@ -27,6 +27,15 @@ import type { AppEnv, Bindings, User } from './types';
 const app = new Hono<AppEnv>();
 
 app.use('*', cors());
+// Image URLs in every JSON answer use the host this request came in on (see withImageOrigin).
+app.use('*', async (c, next) => {
+  await next();
+  if (!c.res.headers.get('content-type')?.includes('application/json')) return;
+  const body = await c.res.text();
+  const res = new Response(withImageOrigin(body, new URL(c.req.url).origin), c.res);
+  res.headers.delete('content-length');
+  c.res = res;
+});
 app.get('/health', (c) => c.json({ ok: true }));
 app.route('/auth', auth);
 app.route('/stores', stores);

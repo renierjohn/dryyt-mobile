@@ -62,3 +62,12 @@ export function dropPublicImages(c: Context, bucket: R2Bucket, keys: string[], u
 
 // The test pool's types hide `caches.default`.
 const edgeCache = () => (caches as unknown as { default: Cache }).default;
+
+/** One of our public image URLs (menu photo, shop logo or payment QR) inside JSON, whatever host it was saved with. */
+const PUBLIC_IMAGE_URL = /"https?:\/\/[^"/]+(\/(?:menu|store)-images\/\d+\/[\w-]+\.(?:jpg|png))"/g;
+
+/**
+ * Points our image URLs in a JSON body at `origin`. They are saved with the host the upload came in on, and a dev
+ * worker's LAN IP changes with the network; outside URLs (other paths, query strings) are left alone.
+ */
+export const withImageOrigin = (json: string, origin: string) => json.replace(PUBLIC_IMAGE_URL, `"${origin}$1"`);

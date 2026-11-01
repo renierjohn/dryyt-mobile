@@ -343,6 +343,17 @@ describe('owner', () => {
     expect(seen.reduce((sum, f) => sum + f.amount, 0)).toBe(100 + 200 + 400 + 660);
     expect(seen[seen.length - 1]).toMatchObject({ kind: 'dropoff', amount: 100, driver_name: driver.user.name });
     expect((await api('/owner/service-fees?before=junk', { token: owner.token })).status).toBe(400);
+
+    // One week's lines (Manila Monday), for a week opened on the APP Fee tab.
+    const week = (await api('/owner/service-fees?week=2026-10-12', { token: owner.token })).body;
+    expect(week.fees.map((f: { amount: number }) => f.amount)).toEqual([200, 100]);
+    expect(week.next).toBeNull();
+    const busy = (await api('/owner/service-fees?week=2026-10-19', { token: owner.token })).body;
+    expect(busy.fees).toHaveLength(10);
+    const rest = (await api(`/owner/service-fees?week=2026-10-19&before=${encodeURIComponent(busy.next)}`, { token: owner.token })).body;
+    expect([...busy.fees, ...rest.fees].reduce((sum: number, f: { amount: number }) => sum + f.amount, 0)).toBe(400 + 660);
+    expect(rest.next).toBeNull();
+    expect((await api('/owner/service-fees?week=Oct-12', { token: owner.token })).status).toBe(400);
   });
 
   it("serves a driver's face photo only to owners whose shops they delivered for", async () => {

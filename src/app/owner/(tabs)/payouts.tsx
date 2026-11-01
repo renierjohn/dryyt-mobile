@@ -48,35 +48,14 @@ function byDay(lines: Line[]) {
   return [...days.values()];
 }
 
-/** Local midnight of the Monday starting the week `d1Utc` falls in. */
-function weekStart(d1Utc: string) {
-  const date = new Date(d1Time(d1Utc));
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-  return date.getTime();
-}
-
-/** A week's Monday (local midnight, epoch ms) as YYYY-MM-DD, the worker's week key. */
-function weekKey(start: number) {
-  const d = new Date(start);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** Groups lines by week, newest week first; lines in a week newest first. */
-function byWeek(lines: Line[]) {
-  const weeks = new Map<number, Line[]>();
-  for (const l of lines) weeks.set(weekStart(l.at), [...(weeks.get(weekStart(l.at)) ?? []), l]);
-  return [...weeks.entries()]
-    .sort(([a], [b]) => b - a)
-    .map(([start, group]) => ({ start, lines: group.sort((a, b) => d1Time(b.at) - d1Time(a.at)) }));
-}
-
-/** e.g. "Oct 12 – Oct 18, 2026". */
-function weekLabel(start: number) {
+/** e.g. "Oct 12 – Oct 18, 2026", from the worker's week key (its Monday, YYYY-MM-DD). */
+function weekLabel(week: string) {
+  const [y, m, d] = week.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
   const day = (d: Date, year: boolean) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year && { year: 'numeric' }) });
-  return `${day(new Date(start), false)} – ${day(end, true)}`;
+  return `${day(start, false)} – ${day(end, true)}`;
 }
 
 const TABS = [
@@ -363,6 +342,56 @@ function dayGroups(section: string, lines: Line[], paying: number | undefined, o
   ));
 }
 
+/** One week of service fees: its total, and the lines once opened (collapsed by default; loaded on first open). */
+function FeeWeek({ week, total }: { week: string; total: number }) {
+  const theme = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <Pressable
+        testID="fee-week"
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        style={styles.row}>
+        <ThemedText type="smallBold" style={styles.grow}>
+          {weekLabel(week)}
+        </ThemedText>
+        <PayoutAmount value={total} />
+        <Icon
+          name={open ? { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' } : { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }}
+          size={20}
+          color={theme.textSecondary}
+        />
+      </Pressable>
+      {open && <FeeWeekLines week={week} />}
+    </Card>
+  );
+}
+
+/** Mounted only while its week is open, so the lines are fetched then. */
+function FeeWeekLines({ week }: { week: string }) {
+  const theme = useTheme();
+  const fees = useServiceFees(week);
+  const lines = fees.data?.pages.flatMap((p) => p.fees) ?? [];
+  return (
+    <>
+      {fees.isPending && <ActivityIndicator />}
+      <ErrorText error={fees.error} />
+      {lines.map((f) => (
+        <View key={`${f.kind}-${f.id}`} testID={`fee-line-${f.kind}-${f.id}`} style={[styles.line, styles.row, { borderTopColor: theme.border }]}>
+          <ThemedText type="smallBold">#{f.id}</ThemedText>
+          <ThemedText type="small" style={styles.grow} numberOfLines={1}>
+            {f.driver_name ?? 'Driver'}
+          </ThemedText>
+          <ThemedText type="small">{peso(f.amount)}</ThemedText>
+        </View>
+      ))}
+      {fees.hasNextPage && <Button title="Show More" variant="secondary" loading={fees.isFetchingNextPage} onPress={() => fees.fetchNextPage()} />}
+    </>
+  );
+}
+
 function PayoutAmount({ value }: { value: number }) {
   const theme = useTheme();
   return <ThemedText style={[styles.groupTitleText, { color: theme.primary }]}>{peso(value)}</ThemedText>;
@@ -392,7 +421,6 @@ function DayLine({ line, children }: { line: Line; children?: ReactNode }) {
 }
 
 export default function Payouts() {
-  const theme = useTheme();
   const [tab, setTab] = useState<TabKey>('fees');
   // The page follows the finger; past SWIPE_MIN it slides out, the next tab's page slides in from the other side.
   const index = TABS.findIndex((t) => t.key === tab);
@@ -432,9 +460,7 @@ export default function Payouts() {
     });
 
   const payouts = usePayouts();
-  const fees = useServiceFees();
   const weeks = useServiceFeeWeeks();
-  const weekTotals = new Map((weeks.data ?? []).map((w) => [w.week, w.total]));
   const appFee = useOwnerAppFee();
   // Laundry pickups and food orders are paid out on their own tabs, like the Pickups and Orders tabs.
   const laundryPickups = usePickupPayouts('laundry');
@@ -455,20 +481,6 @@ export default function Payouts() {
     paidAt: p.status === 'paid' ? p.paid_at : null,
     at: p.created_at,
   });
-  // Same rule as the cpanel: delivered pickups and completed drop offs, by when they finished.
-  const serviceFees = (fees.data?.pages.flatMap((p) => p.fees) ?? []).map(
-    (f): Line => ({
-      key: `${f.kind}-${f.id}`,
-      id: f.id,
-      driverName: f.driver_name,
-      amount: f.amount,
-      ref: `#${f.id}`,
-      storeName: '',
-      face: null,
-      paidAt: null,
-      at: f.at,
-    }),
-  );
   const drivers = list.filter((p) => p.payee_type === 'driver').map(toLine);
   const pickupLines = (pickups.data?.pages.flatMap((p) => p.payouts) ?? []).map(
     (p): Line => ({
@@ -500,7 +512,7 @@ export default function Payouts() {
   }
 
   if (tab === 'fees' && appFee.data) rows.push(<MonthDue key="month" fee={appFee.data} />);
-  if (tab === 'fees' && fees.isSuccess) {
+  if (tab === 'fees' && weeks.isSuccess) {
     rows.push(
       <View key="service-fee-title" testID="service-fee-title" style={styles.sectionTitle}>
         <ThemedText style={styles.groupTitleText}>Service Fee</ThemedText>
@@ -509,32 +521,9 @@ export default function Payouts() {
         </ThemedText>
       </View>,
     );
-    if (serviceFees.length === 0) rows.push(empty('no-fees', 'No service fees yet.'));
-    for (const week of byWeek(serviceFees)) {
-      rows.push(
-        <Card key={`week-${week.start}`}>
-          <View testID="fee-week" style={styles.row}>
-            <ThemedText type="smallBold" style={styles.grow}>
-              {weekLabel(week.start)}
-            </ThemedText>
-            {/* The whole week's total from the worker; the loaded lines only until it answers. */}
-            <PayoutAmount value={weekTotals.get(weekKey(week.start)) ?? week.lines.reduce((sum, l) => sum + l.amount, 0)} />
-          </View>
-          {week.lines.map((l) => (
-            <View key={l.key} testID={`fee-line-${l.key}`} style={[styles.line, styles.row, { borderTopColor: theme.border }]}>
-              <ThemedText type="smallBold">{l.ref}</ThemedText>
-              <ThemedText type="small" style={styles.grow} numberOfLines={1}>
-                {l.driverName ?? 'Driver'}
-              </ThemedText>
-              <ThemedText type="small">{peso(l.amount)}</ThemedText>
-            </View>
-          ))}
-        </Card>,
-      );
-    }
-    if (fees.hasNextPage) {
-      rows.push(<Button key="more-fees" title="Show More" variant="secondary" loading={fees.isFetchingNextPage} onPress={() => fees.fetchNextPage()} />);
-    }
+    if (weeks.data.length === 0) rows.push(empty('no-fees', 'No service fees yet.'));
+    // Same rule as the cpanel: delivered pickups and completed drop offs, by when they finished, per Manila week.
+    for (const w of weeks.data) rows.push(<FeeWeek key={`week-${w.week}`} week={w.week} total={w.total} />);
   }
 
   if (tab === 'dropoff' && payouts.isSuccess) {
@@ -564,12 +553,12 @@ export default function Payouts() {
     </ThemedText>,
     <PayoutTabs key="tabs" tab={tab} onSelect={select} />,
     (payouts.isPending || pickups.isPending) && <ActivityIndicator key="loading" />,
-    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? fees.error ?? markPaid.error ?? markPickupPaid.error} />,
+    <ErrorText key="error" error={payouts.error ?? pickups.error ?? appFee.error ?? weeks.error ?? markPaid.error ?? markPickupPaid.error} />,
   ].filter((row): row is ReactElement => Boolean(row));
 
   return (
     // The tabs stick to the top while the selected section scrolls under them.
-    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch(), fees.refresh(), weeks.refetch()])} stickyHeaderIndices={[1]}>
+    <Screen onRefresh={() => Promise.all([payouts.refresh(), pickups.refresh(), appFee.refetch(), weeks.refresh()])} stickyHeaderIndices={[1]}>
       {top}
       {/* Swipe left or right across the list for the next or previous tab. */}
       <GestureDetector gesture={swipe}>

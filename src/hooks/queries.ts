@@ -500,26 +500,45 @@ export function useSendAppFeeProof() {
  * The app's service fee lines (same rule as the cpanel: delivered pickups and completed drop offs, by when they
  * finished), newest first; 10 per page.
  */
-export const useServiceFees = () => {
+/** The Monday (YYYY-MM-DD) of the Manila week `now` is in: the worker's service fee week key. */
+export function currentFeeWeek(now = Date.now()) {
+  const manila = new Date(now + 8 * 60 * 60 * 1000);
+  manila.setUTCDate(manila.getUTCDate() - ((manila.getUTCDay() + 6) % 7));
+  return manila.toISOString().slice(0, 10);
+}
+
+/**
+ * One week's lines (`week`: its Monday, YYYY-MM-DD, from useServiceFeeWeeks), loaded when that week is opened.
+ * A past week can't change (lines count when they finish), so it loads once and stays cached; only the current week reloads.
+ */
+export const useServiceFees = (week: string) => {
   const loadOnFocus = useLoadOnFocus();
+  const past = week < currentFeeWeek();
   return withMinGap(
     useInfiniteQuery({
-      queryKey: ['owner', 'service-fees'],
-      queryFn: ({ pageParam: next }) => api<{ fees: ServiceFee[]; next: string | null }>(`/owner/service-fees${pageParam(next)}`),
+      queryKey: ['owner', 'service-fees', week],
+      queryFn: ({ pageParam: next }) =>
+        api<{ fees: ServiceFee[]; next: string | null }>(`/owner/service-fees?week=${week}${next ? `&before=${encodeURIComponent(next)}` : ''}`),
       initialPageParam: null as string | null,
       getNextPageParam: (last) => last.next,
       ...loadOnFocus,
+      ...(past && { staleTime: Infinity, gcTime: Infinity }),
     }),
   );
 };
 
 /** The service fee per week (`week`: the Monday, YYYY-MM-DD, Manila) over every line, not just loaded pages. */
-export const useServiceFeeWeeks = () =>
-  useQuery({
-    queryKey: ['owner', 'service-fees', 'weeks'],
+/** `refresh()` reloads the totals and the current week's lines if opened; past weeks don't change. */
+export const useServiceFeeWeeks = () => {
+  const qc = useQueryClient();
+  const weeks = useQuery({
+    queryKey: ['owner', 'service-fee-weeks'],
     queryFn: () => api<{ weeks: { week: string; total: number }[] }>('/owner/service-fee-weeks').then((r) => r.weeks),
     ...useLoadOnFocus(),
   });
+  const refresh = () => Promise.all([weeks.refetch(), qc.invalidateQueries({ queryKey: ['owner', 'service-fees', currentFeeWeek()] })]);
+  return { ...weeks, refresh };
+};
 
 /** Newest first; 10 per page (`fetchNextPage` for more). */
 export const usePayouts = () => {

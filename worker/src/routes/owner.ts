@@ -457,18 +457,29 @@ const serviceFeesFrom = (storeIds: number[]) => `(
 ) f`;
 
 /** The APP Fee tab's service fee lines, newest first; 10 per page, `next` for older ones. */
+/** A Manila week by its Monday, as /service-fee-weeks returns it. */
+const SERVICE_FEE_WEEK = `date(f.at, '+8 hours', '-6 days', 'weekday 1')`;
+
+/** `?week=YYYY-MM-DD` (a Monday from /service-fee-weeks): only that week's lines, for a week opened on the APP Fee tab. */
 owner.get('/service-fees', async (c) => {
   const storeIds = await myStoreIds(c);
   const { before, limit } = pageQuery(c);
+  const week = c.req.query('week');
+  if (week !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(week)) fail(400, 'Invalid week');
   const binds: unknown[] = [...storeIds, ...storeIds];
-  let cursor = '';
+  const where: string[] = [];
+  if (week) {
+    where.push(`${SERVICE_FEE_WEEK} = ?`);
+    binds.push(week);
+  }
   if (before) {
     const [at, kind, id] = cursorParts(before, 3);
-    cursor = 'WHERE f.at < ? OR (f.at = ? AND (f.kind < ? OR (f.kind = ? AND f.id < ?)))';
+    where.push('(f.at < ? OR (f.at = ? AND (f.kind < ? OR (f.kind = ? AND f.id < ?))))');
     binds.push(at, at, kind, kind, Number(id));
   }
   const { results } = await c.env.DB.prepare(
-    `SELECT f.* FROM ${serviceFeesFrom(storeIds)} ${cursor} ORDER BY f.at DESC, f.kind DESC, f.id DESC LIMIT ${limit + 1}`,
+    `SELECT f.* FROM ${serviceFeesFrom(storeIds)} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY f.at DESC, f.kind DESC, f.id DESC LIMIT ${limit + 1}`,
   )
     .bind(...binds)
     .all<{ kind: string; id: number; at: string }>();
@@ -481,7 +492,7 @@ owner.get('/service-fees', async (c) => {
 owner.get('/service-fee-weeks', async (c) => {
   const storeIds = await myStoreIds(c);
   const { results } = await c.env.DB.prepare(
-    `SELECT date(f.at, '+8 hours', '-6 days', 'weekday 1') AS week, SUM(f.amount) AS total
+    `SELECT ${SERVICE_FEE_WEEK} AS week, SUM(f.amount) AS total
      FROM ${serviceFeesFrom(storeIds)} GROUP BY week ORDER BY week DESC`,
   )
     .bind(...storeIds, ...storeIds)

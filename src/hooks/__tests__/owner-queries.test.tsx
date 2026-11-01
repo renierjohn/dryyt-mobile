@@ -2,7 +2,7 @@ import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-
 import { act, renderHook } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 
-import { useOwnerDropoffs, useOwnerOrders, usePayouts, usePickupPayouts } from '@/hooks/queries';
+import { useOwnerDropoffs, useOwnerOrders, usePayouts, usePickupPayouts, useServiceFees, useServiceFeeWeeks, currentFeeWeek } from '@/hooks/queries';
 
 let mockFocused = true;
 const mockApi = jest.fn();
@@ -16,7 +16,7 @@ jest.mock('@/lib/road-route', () => ({ roadRoute: jest.fn() }));
 beforeEach(() => {
   jest.useFakeTimers();
   mockFocused = true;
-  mockApi.mockReset().mockResolvedValue({ orders: [], payouts: [], dropoffs: [], next: null });
+  mockApi.mockReset().mockResolvedValue({ orders: [], payouts: [], dropoffs: [], fees: [], weeks: [], next: null });
 });
 afterEach(() => {
   focusManager.setFocused(undefined);
@@ -81,4 +81,63 @@ it.each([
     await result.current.refresh();
   });
   expect(mockApi).toHaveBeenCalledTimes(3);
+});
+
+it("names the Manila week like the worker: Sunday 23:59 Manila is still last week's", () => {
+  expect(currentFeeWeek(Date.parse('2026-10-18T15:59:00Z'))).toBe('2026-10-12');
+  expect(currentFeeWeek(Date.parse('2026-10-18T16:00:00Z'))).toBe('2026-10-19');
+  expect(currentFeeWeek(Date.parse('2026-10-21T02:00:00Z'))).toBe('2026-10-19');
+});
+
+describe('service fee weeks', () => {
+  // Wed Oct 21 2026, 10:00 Manila: the current week starts Mon Oct 19.
+  const NOW = new Date('2026-10-21T02:00:00Z');
+  const setup = () => {
+    jest.setSystemTime(NOW);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return { wrapper };
+  };
+  const calls = (path: string) => mockApi.mock.calls.filter(([p]) => p === path).length;
+
+  it('loads a past week once: not again when reopened, revisited, pulled or much later', async () => {
+    const { wrapper } = setup();
+    const path = '/owner/service-fees?week=2026-10-12';
+    // The week's lines (mounted while open) and the totals (for pull to refresh).
+    const week = await renderHook(() => useServiceFees('2026-10-12'), { wrapper });
+    const weeks = await renderHook(() => useServiceFeeWeeks(), { wrapper });
+    await act(async () => {});
+    expect(calls(path)).toBe(1);
+
+    // Collapsed, then opened again 10 min later.
+    await week.unmount();
+    await act(async () => jest.advanceTimersByTime(10 * 60_000));
+    const again = await renderHook(() => useServiceFees('2026-10-12'), { wrapper });
+    await act(async () => {});
+    expect(calls(path)).toBe(1);
+
+    // Away from the screen and back, and a pull to refresh.
+    mockFocused = false;
+    await again.rerender({});
+    mockFocused = true;
+    await again.rerender({});
+    await act(async () => {
+      await weeks.result.current.refresh();
+    });
+    expect(calls(path)).toBe(1);
+  });
+
+  it('keeps reloading the current week, which still gets new lines', async () => {
+    const { wrapper } = setup();
+    const path = '/owner/service-fees?week=2026-10-19';
+    const week = await renderHook(() => useServiceFees('2026-10-19'), { wrapper });
+    await act(async () => {});
+    expect(calls(path)).toBe(1);
+
+    await week.unmount();
+    await act(async () => jest.advanceTimersByTime(5_000));
+    await renderHook(() => useServiceFees('2026-10-19'), { wrapper });
+    await act(async () => {});
+    expect(calls(path)).toBe(2);
+  });
 });

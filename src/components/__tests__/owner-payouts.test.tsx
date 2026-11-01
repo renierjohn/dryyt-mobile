@@ -12,6 +12,7 @@ const mockList = (key: string, items: object[]) => ({
 });
 const mockMutation = { mutate: jest.fn(), isPending: false, error: null };
 const mockSendProof = jest.fn();
+const mockFeesWeek = jest.fn();
 jest.mock('expo-image-picker', () => ({}));
 const mockViewer = jest.fn();
 jest.mock('@/components/photo-viewer', () => ({ PhotoViewer: (props: { source: unknown }) => (mockViewer(props.source), null) }));
@@ -43,12 +44,12 @@ jest.mock('@/hooks/queries', () => ({
   }),
   // The whole week's total: more than the one service fee line loaded.
   // Service fee lines: a completed drop off and a delivered pickup, same rule as the cpanel.
-  useServiceFees: () =>
-    mockList('fees', [
+  useServiceFees: (week: string) =>
+    (mockFeesWeek(week), mockList)('fees', [
       { kind: 'dropoff', id: 1, amount: 500, at: '2026-10-17 04:00:00', driver_name: 'Ben' },
       { kind: 'pickup', id: 41, amount: 700, at: '2026-10-16 04:00:00', driver_name: 'Ana' },
     ]),
-  useServiceFeeWeeks: () => ({ data: [{ week: '2026-10-12', total: 123400 }], refetch: jest.fn() }),
+  useServiceFeeWeeks: () => ({ data: [{ week: '2026-10-12', total: 123400 }], isSuccess: true, error: null, refresh: jest.fn() }),
   useSendAppFeeProof: () => ({ mutate: mockSendProof, isPending: false, isSuccess: false, error: null }),
   useMarkPayoutPaid: () => mockMutation,
   useMarkPickupPaid: () => mockMutation,
@@ -171,6 +172,11 @@ it("APP Fee shows this month's amount due per store, the last payment, and weekl
   expect(title.getByText('Paid from customers')).toBeTruthy();
   expect(screen.getAllByTestId('fee-week')).toHaveLength(1);
   expect(within(screen.getByTestId('fee-week')).getByText('₱1,234.00')).toBeTruthy();
+  // Each week starts collapsed, its lines not loaded until it's opened.
+  expect(screen.queryByTestId('fee-line-dropoff-1')).toBeNull();
+  expect(mockFeesWeek).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByTestId('fee-week'));
+  expect(mockFeesWeek).toHaveBeenLastCalledWith('2026-10-12');
   const line = within(screen.getByTestId('fee-line-dropoff-1'));
   expect(line.getByText('#1')).toBeTruthy();
   expect(line.getByText('Ben')).toBeTruthy();

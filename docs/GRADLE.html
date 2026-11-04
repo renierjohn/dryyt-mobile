@@ -71,6 +71,7 @@
 <li><a class="sec" href="#container">Container or VM?</a></li>
 <li><a class="sec" href="#pipeline">How Gradle compiles</a></li>
 <li><a class="sec" href="#tools">Tools on Windows</a></li>
+<li><a class="sec" href="#rebuilds">Re-running after a failure</a></li>
 <li><a class="sec" href="#folders">Where things live</a></li>
 <li><a class="sec" href="#outputs">Outputs</a></li>
 <li><a class="sec" href="#windows">Windows gotchas</a></li>
@@ -91,7 +92,7 @@
 <tr><td><code>bun run gradle:preview</code></td><td><code>assembleRelease</code></td><td><code>https://app-preview.dryyt.com</code></td><td>release APK</td></tr>
 <tr><td><code>bun run gradle:release</code></td><td><code>bundleRelease</code></td><td><code>https://dryyt.com</code></td><td>AAB for Google Play</td></tr>
 </tbody></table></div>
-<p>All three go through <code>scripts/gradle.ts</code>, which sets the API URL, gives the Gradle daemon the memory EAS uses (<code>GRADLE_OPTS</code> with <code>-Xmx4g -XX:MaxMetaspaceSize=1g</code>), and runs <code>gradlew.bat</code> through <code>cmd</code> on Windows (<code>./gradlew</code> on macOS).</p>
+<p>All three go through <code>scripts/gradle.ts</code>, which sets the API URL, gives the Gradle daemon the memory EAS uses (<code>GRADLE_OPTS</code> with <code>-Xmx4g -XX:MaxMetaspaceSize=1g</code>), turns on the Gradle build cache (<code>--build-cache</code>), and runs <code>gradlew.bat</code> through <code>cmd</code> on Windows (<code>./gradlew</code> on macOS).</p>
 
 <h2 id="container">Container or VM?</h2>
 <p><span class="pill ok">Not needed</span> Gradle builds directly on Windows. The JDK, Android SDK, NDK, CMake and Node all ship Windows binaries, and Gradle runs them as ordinary processes. No Docker, WSL or VM is involved, and no emulator either: an emulator or phone is only needed to <em>run</em> the APK, not to build it.</p>
@@ -142,6 +143,19 @@
 <tr><td>Bun</td><td>1.4.3</td><td><code>bun install</code>, <code>bun run gradle:*</code>, <code>scripts/gradle.ts</code></td><td>Install</td></tr>
 </tbody></table></div>
 <p class="muted">Gradle reads the SDK location from <code>ANDROID_HOME</code> or <code>android\local.properties</code>; on Windows it defaults to <code>%LOCALAPPDATA%\Android\Sdk</code> when Android Studio installed it.</p>
+
+<h2 id="rebuilds">Re-running after a failure</h2>
+<p>Gradle does not start over after a failed build. Tasks that finished are skipped on the next run (<code>UP-TO-DATE</code>) as long as their inputs did not change, so the build resumes at the task that failed. The JS bundle re-runs when switching between <code>gradle:preview</code> and <code>gradle:release</code>, because the API URL is one of its inputs.</p>
+<p>On top of that, <code>scripts/gradle.ts</code> passes <code>--build-cache</code>: task outputs are stored in <code>%USERPROFILE%\.gradle\caches\build-cache-1</code> and reused (<code>FROM-CACHE</code>) even after <code>gradlew clean</code>, <code>prebuild --clean</code> or switching targets. The first build fills the cache, so only later builds get faster.</p>
+<div class="tbl"><table>
+<thead><tr><th>Action</th><th>Effect on the next build</th></tr></thead>
+<tbody>
+<tr><td>Re-run after a failure</td><td><span class="pill ok">Fast</span> resumes at the failed task</td></tr>
+<tr><td><code>gradlew clean</code>, <code>bunx expo prebuild --clean</code></td><td><span class="pill due">Cache</span> outputs come back from the build cache where inputs match</td></tr>
+<tr><td>Deleting <code>.cxx</code> folders</td><td><span class="pill warn">Slow</span> C++ is reconfigured and recompiled</td></tr>
+<tr><td>Deleting <code>%USERPROFILE%\.gradle\caches</code></td><td><span class="pill warn">Slow</span> everything is downloaded and built again</td></tr>
+</tbody></table></div>
+<div class="note">The configuration cache (<code>--configuration-cache</code>) is left off: React Native and Expo Gradle plugins do not fully support it.</div>
 
 <h2 id="folders">Where things live</h2>
 <div class="tbl"><table>

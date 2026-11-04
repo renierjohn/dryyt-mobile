@@ -21,9 +21,11 @@ const url = API[target];
 const JVM_ARGS = "-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8";
 const gradleOpts = [`-Dorg.gradle.jvmargs="${JVM_ARGS}"`, process.env.GRADLE_OPTS].filter(Boolean).join(" ");
 const env = { ...process.env, GRADLE_OPTS: gradleOpts, ...(url ? { EXPO_PUBLIC_API_URL: url } : {}) };
+// The build cache reuses task outputs across clean builds, prebuild --clean and switching targets (EAS uses it too).
+const gradleArgs = [...args, "--build-cache"];
 // Windows runs .bat files through cmd.
 const wrapper = process.platform === "win32" ? ["cmd", "/c", "gradlew.bat"] : ["./gradlew"];
-console.log(`${wrapper.at(-1)} ${args.join(" ")}${url ? ` (EXPO_PUBLIC_API_URL=${url})` : ""}`);
+console.log(`${wrapper.at(-1)} ${gradleArgs.join(" ")}${url ? ` (EXPO_PUBLIC_API_URL=${url})` : ""}`);
 
-const proc = Bun.spawn([...wrapper, ...args], { cwd: join(import.meta.dir, "..", "android"), env, stdio: ["inherit", "inherit", "inherit"] });
+const proc = Bun.spawn([...wrapper, ...gradleArgs], { cwd: join(import.meta.dir, "..", "android"), env, stdio: ["inherit", "inherit", "inherit"] });
 process.exit(await proc.exited);

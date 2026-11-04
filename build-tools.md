@@ -78,6 +78,8 @@ bun run gradle:preview
 ```
 Re-run `prebuild --clean` after changing `app.config.js` or `app.json` so `android/` picks up the change.
 
+A failed build resumes at the failed task on the next run; finished tasks are skipped. `scripts/gradle.ts` also passes `--build-cache`, so task outputs are reused even after `gradlew clean` or `prebuild --clean` (cache in `%USERPROFILE%\.gradle\caches\build-cache-1`). Run `prebuild --clean` only when the config changed: it is the slowest way to rebuild.
+
 ## Check a machine
 
 Windows (cmd):

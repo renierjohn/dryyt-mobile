@@ -14,8 +14,9 @@ Source: EAS build `682ad3ad-ff81-4b6e-9149-d747ea1b454f` (preview, Android, comm
 | Node.js | 22.23.1 | EAS image default | Install any Node 22 |
 | Java (JDK) | 17 (OpenJDK) | EAS image default | Install JDK 17, set `JAVA_HOME` |
 | Gradle | 9.3.1 | Gradle wrapper (config plugin) | None, the wrapper downloads it |
+| Gradle memory | `-Xmx4g -XX:MaxMetaspaceSize=1g` | EAS `GRADLE_OPTS`; locally `scripts/gradle.ts` | None when building with `bun run gradle:*` |
 | Kotlin | 2.1.20 | Expo root project | None |
-| NDK | 27.1.12297006 | React Native (`node_modules/react-native/gradle/libs.versions.toml`), read by Expo's root project plugin | Install NDK 27.1.12297006 |
+| NDK | 27.1.12297006 | React Native (`node_modules/react-native/gradle/libs.versions.toml`), read by Expo's root project plugin | Install NDK 27.1.12297006, set `ANDROID_NDK_HOME` |
 | CMake | 3.22.1 | React Native / native libraries | None, Gradle installs it |
 | Build-tools | 36.0.0 | Expo root project | None, Gradle installs it |
 | compileSdk / targetSdk | 36 / 36 | Expo root project | Install Android SDK Platform 36 |
@@ -55,6 +56,19 @@ sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmak
 ```
 Gradle can download build-tools, NDK and CMake on its own once the licenses are accepted; installing them up front avoids half-finished downloads.
 
+### 4. ANDROID_NDK_HOME
+
+Point `ANDROID_NDK_HOME` at NDK 27.1.12297006, as EAS does. `expo-updates` builds C++ without naming an NDK, so without this variable the Android Gradle plugin falls back to its own default (27.0.12077973) for it, and the build fails when that NDK is missing or broken.
+
+Windows (cmd, then reopen the terminal):
+```
+setx ANDROID_NDK_HOME "%LOCALAPPDATA%\Android\Sdk\ndk\27.1.12297006"
+```
+macOS (`~/.zshrc`):
+```
+export ANDROID_NDK_HOME=$HOME/Library/Android/sdk/ndk/27.1.12297006
+```
+
 ## Build
 
 ```
@@ -68,17 +82,17 @@ Re-run `prebuild --clean` after changing `app.config.js` or `app.json` so `andro
 
 Windows (cmd):
 ```
-java -version & echo %JAVA_HOME% & node -v & bun -v & dir /b %LOCALAPPDATA%\Android\Sdk\ndk & dir /b %LOCALAPPDATA%\Android\Sdk\cmake & dir /b %LOCALAPPDATA%\Android\Sdk\build-tools
+java -version & echo %JAVA_HOME% & echo %ANDROID_NDK_HOME% & node -v & bun -v & dir /b %LOCALAPPDATA%\Android\Sdk\ndk & dir /b %LOCALAPPDATA%\Android\Sdk\cmake & dir /b %LOCALAPPDATA%\Android\Sdk\build-tools
 ```
 macOS:
 ```
-java -version; echo $JAVA_HOME; node -v; bun -v; ls ~/Library/Android/sdk/ndk ~/Library/Android/sdk/cmake ~/Library/Android/sdk/build-tools
+java -version; echo $JAVA_HOME; echo $ANDROID_NDK_HOME; node -v; bun -v; ls ~/Library/Android/sdk/ndk ~/Library/Android/sdk/cmake ~/Library/Android/sdk/build-tools
 ```
 
 ## Troubleshooting
 
 **`[CXX1101] NDK at ...\ndk\<version> did not have a source.properties file`**
-That NDK download is incomplete. Delete the folder and reinstall:
+That NDK download is incomplete. Delete the folder, install 27.1.12297006 and set `ANDROID_NDK_HOME` (Setup step 4):
 ```
 rmdir /s /q %LOCALAPPDATA%\Android\Sdk\ndk\<version>
 sdkmanager "ndk;27.1.12297006"
@@ -86,14 +100,21 @@ sdkmanager "ndk;27.1.12297006"
 A following `SoftwareComponent with name 'release' not found` on `:expo` is a knock-on of the same failure and clears with it.
 
 **Gradle wants a different NDK than 27.1.12297006**
-Nothing in this repo sets the NDK; it comes from the installed React Native. Something on the machine is overriding it. Check, in order:
+Usually `ANDROID_NDK_HOME` is not set: `expo-updates` then uses the Android Gradle plugin's default NDK (27.0.12077973). Set it as in Setup step 4, open a new terminal and run `gradlew --stop`. If it still asks for another NDK, check, in order:
 ```
 echo %ANDROID_NDK_HOME% & echo %ANDROID_NDK_ROOT%
 findstr ndk android\local.properties
 findstr ndkVersion android\build.gradle android\gradle.properties
 findstr version node_modules\react-native\package.json
 ```
-Unset `ANDROID_NDK_HOME`/`ANDROID_NDK_ROOT` and remove `ndk.dir` from `local.properties` if they point at another NDK; run `bun install` and `bunx expo prebuild --platform android --clean` if React Native or `android/` is stale.
+Point `ANDROID_NDK_HOME` at 27.1.12297006, unset `ANDROID_NDK_ROOT` and remove `ndk.dir` from `local.properties` if they point at another NDK; run `bun install` and `bunx expo prebuild --platform android --clean` if React Native or `android/` is stale.
+
+**`:app:minifyReleaseWithR8 FAILED` ... `Java heap space`**
+R8 ran out of memory. `android/gradle.properties` from prebuild gives the Gradle daemon 2 GB; `scripts/gradle.ts` raises it to what EAS uses (`-Xmx4g -XX:MaxMetaspaceSize=1g`) through `GRADLE_OPTS`, so build with `bun run gradle:*`, not `gradlew` directly. Run `gradlew --stop` first so an old 2 GB daemon isn't reused. Running `gradlew` by hand (or from Android Studio), put the same setting in `%USERPROFILE%\.gradle\gradle.properties` (`~/.gradle/gradle.properties` on macOS):
+```
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+```
+The machine needs about 8 GB of RAM; close Android Studio and the emulator during a release build if it is short.
 
 **Gradle picks the wrong JDK**
 Stop the daemon after changing `JAVA_HOME`: `cd android && gradlew --stop` (Windows) / `./gradlew --stop` (macOS).

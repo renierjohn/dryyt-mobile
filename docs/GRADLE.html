@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dryyt Gradle Builds</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1d1b; --muted: #6b6a66; --line: #e4e2dd; --card: #ffffff; --code: #f1efea;
+    --accent: #2f6f62; --accent-soft: #e3efec;
+    --ok: #1f7a43; --ok-soft: #e3f3e9; --due: #2f5f9e; --due-soft: #e4ecf7; --warn: #a36a12; --warn-soft: #fbf0dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+      --accent: #7cc4b3; --accent-soft: #1f2f2b;
+      --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161615; --fg: #ecebe7; --muted: #9c9a94; --line: #2c2b29; --card: #1d1d1c; --code: #262624;
+    --accent: #7cc4b3; --accent-soft: #1f2f2b;
+    --ok: #7fd3a0; --ok-soft: #18291f; --due: #8db4ea; --due-soft: #1c2738; --warn: #e8bf72; --warn-soft: #2f2616;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+  main { padding: 32px 24px 64px; min-width: 0; max-width: 960px; }
+  aside.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 12px 32px 20px; border-right: 1px solid var(--line); font-size: 0.86rem; }
+  aside.toc .title { font-weight: 800; margin-bottom: 12px; }
+  aside.toc ol { list-style: none; margin: 0; padding: 0; }
+  aside.toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+  aside.toc a:hover { color: var(--fg); background: var(--code); }
+  aside.toc a.active { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  aside.toc .sec { color: var(--fg); font-weight: 700; margin-top: 8px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; }
+  h2 { font-size: 1.35rem; margin: 44px 0 8px; scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 26px 0 6px; scroll-margin-top: 16px; }
+  .lede, .muted { color: var(--muted); }
+  code { font: 0.86em ui-monospace, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 12px 0; }
+  .mock { font: 13px/1.55 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; background: var(--code); border-radius: 12px; padding: 14px 16px; margin: 10px 0; }
+  .tbl { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .pill { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.due { background: var(--due-soft); color: var(--due); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; margin: 12px 0; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 12px 0; }
+  .steps > li { counter-increment: step; position: relative; padding: 10px 14px 10px 46px; margin: 8px 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .steps > li::before { content: counter(step); position: absolute; left: 12px; top: 10px; width: 24px; height: 24px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: 0.8rem; display: grid; place-items: center; }
+  .steps b { display: block; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+    main { padding: 24px 16px 48px; }
+  }
+</style>
+<style>.docnav{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 0 12px;margin-bottom:8px;border-bottom:1px solid rgba(127,127,127,.3)}.docnav a{color:inherit;opacity:.7;text-decoration:none}.docnav a:hover{opacity:1;text-decoration:underline}.docnav a[aria-current]{opacity:1;font-weight:700}</style>
+</head>
+<body>
+<div class="layout">
+<aside class="toc" aria-label="Contents">
+<div class="title">Contents</div>
+<ol>
+<li><a class="sec" href="#overview">Overview</a></li>
+<li><a class="sec" href="#container">Container or VM?</a></li>
+<li><a class="sec" href="#pipeline">How Gradle compiles</a></li>
+<li><a class="sec" href="#tools">Tools on Windows</a></li>
+<li><a class="sec" href="#folders">Where things live</a></li>
+<li><a class="sec" href="#outputs">Outputs</a></li>
+<li><a class="sec" href="#windows">Windows gotchas</a></li>
+</ol>
+</aside>
+<main>
+<nav class="docnav" aria-label="Docs"><a href="architecture.html">Architecture</a> <a href="WORKFLOW_DIAGRAM.html">Workflow</a> <a href="EDGE-to-EDGE-case.html">Edge cases</a> <a href="CHAT_WORKFLOW.html">Chat</a> <a href="WIREFRAME.html">Wireframe</a> <a href="DB_MODEL.html">DB model</a> <a href="PAYOUT.html">Payout</a> <a href="PUSH_NOTIFICATION.html">Push</a> <a href="CLOUDFLARE_USAGE.html">Cloudflare usage</a> <a href="APP_BUILD_GUIDE.html">App build</a> <a href="GRADLE.html" aria-current="page">Gradle</a> <a href="OPTIMIZED.html">Performance</a></nav>
+
+<h1>Gradle builds</h1>
+<p class="lede">What happens between <code>bun run gradle:preview</code> and an installable APK on Windows: which tools run, in what order, and why no container or virtual machine is needed. Versions to install are in <code>build-tools.md</code>.</p>
+
+<h2 id="overview">Overview</h2>
+<p>The Android app is a normal Android Gradle project in <code>android/</code>, generated by <code>bunx expo prebuild</code>. Gradle drives every step: it bundles the JavaScript, compiles Kotlin/Java and C++, shrinks the code, and packs and signs the APK. Every tool it calls is a native Windows program.</p>
+<div class="tbl"><table>
+<thead><tr><th>Script</th><th>Gradle task</th><th>API (<code>EXPO_PUBLIC_API_URL</code>)</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td><code>bun run gradle:dev</code></td><td><code>assembleDebug</code></td><td>from <code>.env</code> (Metro serves the JS)</td><td>debug APK</td></tr>
+<tr><td><code>bun run gradle:preview</code></td><td><code>assembleRelease</code></td><td><code>https://app-preview.dryyt.com</code></td><td>release APK</td></tr>
+<tr><td><code>bun run gradle:release</code></td><td><code>bundleRelease</code></td><td><code>https://dryyt.com</code></td><td>AAB for Google Play</td></tr>
+</tbody></table></div>
+<p>All three go through <code>scripts/gradle.ts</code>, which sets the API URL, gives the Gradle daemon the memory EAS uses (<code>GRADLE_OPTS</code> with <code>-Xmx4g -XX:MaxMetaspaceSize=1g</code>), and runs <code>gradlew.bat</code> through <code>cmd</code> on Windows (<code>./gradlew</code> on macOS).</p>
+
+<h2 id="container">Container or VM?</h2>
+<p><span class="pill ok">Not needed</span> Gradle builds directly on Windows. The JDK, Android SDK, NDK, CMake and Node all ship Windows binaries, and Gradle runs them as ordinary processes. No Docker, WSL or VM is involved, and no emulator either: an emulator or phone is only needed to <em>run</em> the APK, not to build it.</p>
+<div class="note">EAS builds on a Linux VM (Ubuntu, <code>/home/expo/...</code> in the build log) only because it is a shared cloud service that has to isolate each build. The toolchain inside is the same: JDK 17, Gradle 9.3.1, NDK 27.1.12297006, CMake 3.22.1. A local build matches EAS by installing the same versions, not by copying its VM.</div>
+
+<h2 id="pipeline">How Gradle compiles</h2>
+<div class="mock">bun run gradle:preview
+  └─ scripts/gradle.ts  →  cmd /c gradlew.bat assembleRelease   (EXPO_PUBLIC_API_URL, GRADLE_OPTS set)
+       └─ Gradle wrapper  →  Gradle 9.3.1 daemon on the JDK in JAVA_HOME, 4 GB heap
+            ├─ 1. Settings       autolinking finds native modules in node_modules
+            ├─ 2. Configuration  every module's build.gradle; SDK 36, NDK, Kotlin versions set
+            └─ 3. Execution
+                 ├─ JS bundle    Node + Metro → index.android.bundle → hermesc → Hermes bytecode
+                 ├─ Codegen      Node → C++/Java glue for new-architecture modules
+                 ├─ Resources    manifest merge, AAPT2 compiles and links res/
+                 ├─ Kotlin/Java  kotlinc + javac → .class files
+                 ├─ C++          CMake + Ninja + NDK clang → .so for 4 CPU types
+                 ├─ R8 / D8      shrink, minify, convert to classes.dex
+                 └─ Package      zip → zipalign → apksigner → app-release.apk</div>
+
+<ol class="steps">
+<li><b>Wrapper and daemon</b><code>gradlew.bat</code> downloads Gradle 9.3.1 once into <code>%USERPROFILE%\.gradle\wrapper</code> and starts a background daemon on the JDK in <code>JAVA_HOME</code>. The daemon's memory comes from <code>org.gradle.jvmargs</code>: 2 GB in <code>android\gradle.properties</code>, raised to 4 GB by <code>scripts/gradle.ts</code>. Later builds reuse a daemon only if its settings match; <code>gradlew --stop</code> kills it (do that after changing <code>JAVA_HOME</code>, <code>ANDROID_NDK_HOME</code> or the memory setting).</li>
+<li><b>Settings: autolinking</b><code>settings.gradle</code> applies Expo's autolinking, which reads <code>node_modules</code> and adds every package with Android code (<code>expo-updates</code>, <code>react-native-reanimated</code>, Firebase, Google Sign-In, ...) as its own Gradle module.</li>
+<li><b>Configuration</b>Gradle evaluates every module's <code>build.gradle</code>. Expo's root project plugin sets shared versions: compileSdk/targetSdk 36, minSdk 24, build-tools 36.0.0, Kotlin 2.1.20, and NDK 27.1.12297006 from React Native. Most build failures that happen in seconds (like the broken-NDK error) happen here.</li>
+<li><b>JavaScript bundle</b>The React Native Gradle plugin runs Node with Metro to bundle the app's JS into <code>index.android.bundle</code>, with <code>EXPO_PUBLIC_API_URL</code> baked in. The Hermes compiler (<code>hermesc</code>, shipped with React Native) turns it into bytecode so the app starts fast. Debug builds skip this and load JS from Metro instead.</li>
+<li><b>Codegen</b>For the new architecture, Node generates C++ and Java glue code from the TypeScript specs of native modules.</li>
+<li><b>Resources and manifest</b>All modules' <code>AndroidManifest.xml</code> files are merged into one, and AAPT2 (from build-tools) compiles icons, layouts and strings and generates the <code>R</code> classes.</li>
+<li><b>Kotlin and Java</b>The Kotlin compiler and <code>javac</code> from the JDK compile each module to <code>.class</code> files. This step and the C++ step take most of a clean build's time.</li>
+<li><b>C++ (native libraries)</b>Modules with C++ (React Native, Reanimated, Worklets, <code>expo-updates</code>, Nitro, ...) are built with CMake 3.22.1 and Ninja, which call the NDK's <code>clang</code>. Each one is compiled four times, once per CPU type: <code>arm64-v8a</code>, <code>armeabi-v7a</code>, <code>x86</code>, <code>x86_64</code>. The results are <code>.so</code> files.</li>
+<li><b>Shrink and dex</b>For release builds, R8 (inside the Gradle daemon, so it is the step that needs the 4 GB heap) removes unused classes and resources and minifies names (<code>enableMinifyInReleaseBuilds</code>, <code>enableShrinkResourcesInReleaseBuilds</code> in <code>app.config.js</code>), then converts the bytecode to Android's <code>classes.dex</code>.</li>
+<li><b>Package and sign</b>Dex files, <code>.so</code> files, resources and the JS bundle are zipped into the APK, aligned with <code>zipalign</code> and signed with <code>apksigner</code>. A prebuilt project signs release builds with <code>android/app/debug.keystore</code>, so Google and Facebook sign-in need that key's SHA-1 registered (see <a href="APP_BUILD_GUIDE.html">App build</a>). <code>bundleRelease</code> packs an AAB instead, which Google Play signs.</li>
+</ol>
+
+<h2 id="tools">Tools on Windows</h2>
+<div class="tbl"><table>
+<thead><tr><th>Tool</th><th>Version</th><th>Used for</th><th>Comes from</th></tr></thead>
+<tbody>
+<tr><td>JDK (<code>java</code>, <code>javac</code>, <code>keytool</code>)</td><td>17 (21 also works)</td><td>Runs Gradle, compiles Java, reads keystores</td><td>Install; <code>JAVA_HOME</code></td></tr>
+<tr><td>Gradle</td><td>9.3.1</td><td>Runs the whole build</td><td>Downloaded by <code>gradlew.bat</code></td></tr>
+<tr><td>Android Gradle plugin</td><td>set by React Native</td><td>Android tasks inside Gradle</td><td>Downloaded by Gradle</td></tr>
+<tr><td>Kotlin compiler</td><td>2.1.20</td><td>Compiles Kotlin</td><td>Downloaded by Gradle</td></tr>
+<tr><td>Android SDK Platform</td><td>36</td><td><code>android.jar</code> the code compiles against</td><td>SDK Manager</td></tr>
+<tr><td>Build-tools (AAPT2, D8, <code>zipalign</code>, <code>apksigner</code>)</td><td>36.0.0</td><td>Resources, packaging, signing</td><td>SDK Manager or Gradle</td></tr>
+<tr><td>NDK (<code>clang</code>, <code>lld</code>)</td><td>27.1.12297006</td><td>Compiles C++ to <code>.so</code></td><td>SDK Manager; <code>ANDROID_NDK_HOME</code></td></tr>
+<tr><td>CMake + Ninja</td><td>3.22.1</td><td>Drive the C++ builds</td><td>SDK Manager or Gradle</td></tr>
+<tr><td>Node.js</td><td>22</td><td>Metro bundle, codegen, autolinking</td><td>Install</td></tr>
+<tr><td>Hermes compiler (<code>hermesc</code>)</td><td>matches React Native 0.86.3</td><td>JS to bytecode</td><td><code>node_modules</code></td></tr>
+<tr><td>Bun</td><td>1.4.3</td><td><code>bun install</code>, <code>bun run gradle:*</code>, <code>scripts/gradle.ts</code></td><td>Install</td></tr>
+</tbody></table></div>
+<p class="muted">Gradle reads the SDK location from <code>ANDROID_HOME</code> or <code>android\local.properties</code>; on Windows it defaults to <code>%LOCALAPPDATA%\Android\Sdk</code> when Android Studio installed it.</p>
+
+<h2 id="folders">Where things live</h2>
+<div class="tbl"><table>
+<thead><tr><th>Path</th><th>Holds</th><th>Safe to delete?</th></tr></thead>
+<tbody>
+<tr><td><code>%USERPROFILE%\.gradle\wrapper\dists</code></td><td>Gradle itself</td><td>Yes, re-downloaded</td></tr>
+<tr><td><code>%USERPROFILE%\.gradle\caches</code></td><td>Downloaded libraries, build cache</td><td>Yes, slow next build</td></tr>
+<tr><td><code>%LOCALAPPDATA%\Android\Sdk</code></td><td>Platforms, build-tools, NDK, CMake</td><td>Per package, via SDK Manager</td></tr>
+<tr><td><code>android\app\build</code>, <code>android\build</code></td><td>Build outputs</td><td>Yes (<code>gradlew clean</code>)</td></tr>
+<tr><td><code>android\app\.cxx</code>, <code>node_modules\*\android\.cxx</code></td><td>CMake intermediates</td><td>Yes, when C++ builds act up</td></tr>
+<tr><td><code>android\</code></td><td>The generated project</td><td>Yes, <code>bunx expo prebuild --platform android --clean</code> recreates it</td></tr>
+</tbody></table></div>
+
+<h2 id="outputs">Outputs</h2>
+<div class="mock">gradle:dev      android\app\build\outputs\apk\debug\app-debug.apk
+gradle:preview  android\app\build\outputs\apk\release\app-release.apk
+gradle:release  android\app\build\outputs\bundle\release\app-release.aab</div>
+<p>Install an APK on a USB-connected phone with <code>adb install -r &lt;path&gt;</code>. The AAB is only for Google Play.</p>
+
+<h2 id="windows">Windows gotchas</h2>
+<div class="tbl"><table>
+<thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td><code>[CXX1101] NDK ... did not have a source.properties file</code></td><td>Without <code>ANDROID_NDK_HOME</code>, <code>expo-updates</code> uses the Android Gradle plugin's default NDK (27.0.12077973), and that folder was a broken download</td><td>Install NDK 27.1.12297006, set <code>ANDROID_NDK_HOME</code> to it, new terminal, <code>gradlew --stop</code></td></tr>
+<tr><td><code>:app:minifyReleaseWithR8 FAILED</code>, <code>Java heap space</code></td><td>R8 ran out of memory in a 2 GB daemon: <code>gradlew</code> was run directly, or an old daemon was reused</td><td><code>gradlew --stop</code>, then build with <code>bun run gradle:*</code>. Running <code>gradlew</code> by hand or from Android Studio, add <code>org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8</code> to <code>%USERPROFILE%\.gradle\gradle.properties</code>. Needs about 8 GB of RAM</td></tr>
+<tr><td>C++ step fails with paths that are too long</td><td>Windows' 260-character path limit; <code>node_modules</code> plus <code>.cxx</code> paths get long</td><td>Keep the repo near the drive root (e.g. <code>D:\ANDROID\dryyt-mobile</code>) and enable long paths in Windows</td></tr>
+<tr><td>"file in use" / cannot delete build folders</td><td>The Gradle daemon or Metro still holds the files</td><td><code>gradlew --stop</code>, close Metro, retry</td></tr>
+<tr><td>Builds much slower than on macOS</td><td>Antivirus scans every file Gradle writes</td><td>Exclude the repo, <code>%USERPROFILE%\.gradle</code> and the SDK folder from Defender scanning</td></tr>
+<tr><td>Google sign-in fails only on local builds (<code>DEVELOPER_ERROR</code>)</td><td>Local release builds are signed with <code>debug.keystore</code>, whose SHA-1 isn't in Firebase</td><td><code>keytool -list -v -keystore android\app\debug.keystore -alias androiddebugkey -storepass android</code>, add the SHA-1 in Firebase, replace <code>google-services.json</code></td></tr>
+</tbody></table></div>
+</main>
+</div>
+<script>
+// Highlight the contents link for the section in view.
+(() => {
+  const links = new Map([...document.querySelectorAll('aside.toc a')].map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id);
+    const first = [...links.keys()].find((id) => seen.has(id));
+    for (const [id, a] of links) a.classList.toggle('active', id === first);
+  }, { rootMargin: '0px 0px -70% 0px' });
+  for (const id of links.keys()) { const el = document.getElementById(id); if (el) io.observe(el); }
+})();
+</script>
+</body>
+</html>

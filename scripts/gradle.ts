@@ -16,7 +16,11 @@ if (!(target in API) || args.length === 0) {
 }
 
 const url = API[target];
-const env = { ...process.env, ...(url ? { EXPO_PUBLIC_API_URL: url } : {}) };
+// The Gradle daemon gets the memory EAS builds with: android/gradle.properties (from prebuild) gives it 2 GB, and R8
+// runs out of heap minifying a release build. A GRADLE_OPTS already set in the shell comes after, so it still wins.
+const JVM_ARGS = "-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8";
+const gradleOpts = [`-Dorg.gradle.jvmargs="${JVM_ARGS}"`, process.env.GRADLE_OPTS].filter(Boolean).join(" ");
+const env = { ...process.env, GRADLE_OPTS: gradleOpts, ...(url ? { EXPO_PUBLIC_API_URL: url } : {}) };
 // Windows runs .bat files through cmd.
 const wrapper = process.platform === "win32" ? ["cmd", "/c", "gradlew.bat"] : ["./gradlew"];
 console.log(`${wrapper.at(-1)} ${args.join(" ")}${url ? ` (EXPO_PUBLIC_API_URL=${url})` : ""}`);

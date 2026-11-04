@@ -87,7 +87,26 @@
         }
       ],
       "@react-native-firebase/auth",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "./withAppVariants.js",
+        {
+          "variants": {
+            "debug": {
+              "suffix": ".dev",
+              "name": "Dryyt Dev",
+              "icon": "./assets/images/icon-dev.png",
+              "foregroundImage": "./assets/images/android-icon-foreground-dev.png"
+            },
+            "preview": {
+              "suffix": ".preview",
+              "name": "Dryyt Preview",
+              "icon": "./assets/images/icon-preview.png",
+              "foregroundImage": "./assets/images/android-icon-foreground-preview.png"
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -89,11 +89,15 @@
 <div class="tbl"><table>
 <thead><tr><th>Script</th><th>Gradle task</th><th>API (<code>EXPO_PUBLIC_API_URL</code>)</th><th>Output</th></tr></thead>
 <tbody>
-<tr><td><code>bun run gradle:dev</code></td><td><code>assembleDebug</code></td><td>from <code>.env</code> (Metro serves the JS)</td><td>debug APK</td></tr>
-<tr><td><code>bun run gradle:preview</code></td><td><code>assembleRelease</code></td><td><code>https://app-preview.dryyt.com</code></td><td>release APK</td></tr>
-<tr><td><code>bun run gradle:release</code></td><td><code>bundleRelease</code></td><td><code>https://dryyt.com</code></td><td>AAB for Google Play</td></tr>
+<tr><td><code>bun run gradle:dev</code></td><td><code>assembleDebug</code></td><td>from <code>.env</code> (Metro serves the JS)</td><td>debug APK, <code>com.dryyt.mobile.dev</code>, "Dryyt Dev", gray icon</td></tr>
+<tr><td><code>bun run gradle:preview</code></td><td><code>assemblePreview</code></td><td><code>https://app-preview.dryyt.com</code></td><td>preview APK, <code>com.dryyt.mobile.preview</code>, "Dryyt Preview", black icon</td></tr>
+<tr><td><code>bun run gradle:release</code></td><td><code>bundleRelease</code></td><td><code>https://dryyt.com</code></td><td>AAB for Google Play, <code>com.dryyt.mobile</code>, "Dryyt"</td></tr>
 </tbody></table></div>
 <p>All three go through <code>scripts/gradle.ts</code>, which sets the API URL, gives the Gradle daemon the memory EAS uses (<code>GRADLE_OPTS</code> with <code>-Xmx4g -XX:MaxMetaspaceSize=1g</code>), turns on the Gradle build cache (<code>--build-cache</code>), and runs <code>gradlew.bat</code> through <code>cmd</code> on Windows (<code>./gradlew</code> on macOS).</p>
+
+<h3>Side by side on one phone</h3>
+<p>Each build has its own application ID, so dev, preview and release install next to each other. <code>withAppVariants.js</code> (in <code>app.json</code> plugins) sets this up on every prebuild: it gives the <code>debug</code> build type the <code>.dev</code> suffix, adds a <code>preview</code> build type (a copy of <code>release</code> with the <code>.preview</code> suffix; libraries build their release variant for it), and writes each one's app name and icon into <code>android\app\src\debug\res</code> and <code>android\app\src\preview\res</code>, which override <code>main</code>. The icons come from <code>assets/images/icon-dev.png</code>, <code>icon-preview.png</code> and the matching <code>android-icon-foreground-*.png</code>.</p>
+<div class="note warn">Every application ID needs its own Android app in Firebase, with the signing key's SHA-1, and the downloaded <code>google-services.json</code> must list all three. Otherwise the build stops at <code>process&lt;Variant&gt;GoogleServices</code> with <code>No matching client found for package name</code>. Facebook Login also needs each package name added in the Facebook app settings.</div>
 
 <h2 id="container">Container or VM?</h2>
 <p><span class="pill ok">Not needed</span> Gradle builds directly on Windows. The JDK, Android SDK, NDK, CMake and Node all ship Windows binaries, and Gradle runs them as ordinary processes. No Docker, WSL or VM is involved, and no emulator either: an emulator or phone is only needed to <em>run</em> the APK, not to build it.</p>
@@ -101,7 +105,7 @@
 
 <h2 id="pipeline">How Gradle compiles</h2>
 <div class="mock">bun run gradle:preview
-  └─ scripts/gradle.ts  →  cmd /c gradlew.bat assembleRelease   (EXPO_PUBLIC_API_URL, GRADLE_OPTS set)
+  └─ scripts/gradle.ts  →  cmd /c gradlew.bat assemblePreview   (EXPO_PUBLIC_API_URL, GRADLE_OPTS set)
        └─ Gradle wrapper  →  Gradle 9.3.1 daemon on the JDK in JAVA_HOME, 4 GB heap
             ├─ 1. Settings       autolinking finds native modules in node_modules
             ├─ 2. Configuration  every module's build.gradle; SDK 36, NDK, Kotlin versions set
@@ -194,7 +198,7 @@
 
 <h2 id="outputs">Outputs</h2>
 <div class="mock">gradle:dev      android\app\build\outputs\apk\debug\app-debug.apk
-gradle:preview  android\app\build\outputs\apk\release\app-release.apk
+gradle:preview  android\app\build\outputs\apk\preview\app-preview.apk
 gradle:release  android\app\build\outputs\bundle\release\app-release.aab</div>
 <p>Install an APK on a USB-connected phone with <code>adb install -r &lt;path&gt;</code>. The AAB is only for Google Play.</p>
 

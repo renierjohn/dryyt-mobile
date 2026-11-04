@@ -84,7 +84,7 @@
     "submit:ios": "eas submit --profile production --platform ios",
     "gradle:dev": "bun scripts/gradle.ts dev assembleDebug",
     "gradle:release": "bun scripts/gradle.ts production bundleRelease",
-    "gradle:preview": "bun scripts/gradle.ts preview assembleRelease",
+    "gradle:preview": "bun scripts/gradle.ts preview assemblePreview",
     "apk-server": "bun scripts/apk-server.ts"
   },
   "private": true,

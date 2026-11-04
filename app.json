@@ -88,6 +88,7 @@
       ],
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
+      "./withReleaseSigning.js",
       [
         "./withAppVariants.js",
         {

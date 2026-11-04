@@ -30,8 +30,9 @@ module.exports = function withAppVariants(config, { variants }) {
         .map(([type, { suffix }]) =>
           type === 'debug'
             ? `    debug {\n      applicationIdSuffix '${suffix}'\n    }`
-            : // Libraries have no preview build type, so they build their release variant for it.
-              `    ${type} {\n      initWith release\n      applicationIdSuffix '${suffix}'\n      matchingFallbacks = ['release']\n    }`,
+            : // Libraries have no preview build type, so they build their release variant for it. Preview stays on the
+              // debug key (its SHA-1 is the one in Firebase); only release takes the upload key from withReleaseSigning.
+              `    ${type} {\n      initWith release\n      applicationIdSuffix '${suffix}'\n      signingConfig signingConfigs.debug\n      matchingFallbacks = ['release']\n    }`,
         )
         .join('\n');
       gradle.contents += `\n${MARKER}\nandroid {\n  buildTypes {\n${types}\n  }\n}\n`;

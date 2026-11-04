@@ -80,6 +80,17 @@ Re-run `prebuild --clean` after changing `app.config.js` or `app.json` so `andro
 
 A failed build resumes at the failed task on the next run; finished tasks are skipped. `scripts/gradle.ts` also passes `--build-cache`, so task outputs are reused even after `gradlew clean` or `prebuild --clean` (cache in `%USERPROFILE%\.gradle\caches\build-cache-1`). Run `prebuild --clean` only when the config changed: it is the slowest way to rebuild.
 
+## Release signing
+
+`gradle:release` signs with the upload key (`withReleaseSigning.js`); Google Play rejects debug-signed bundles. Download the EAS keystore (`bunx eas credentials` → Android → production → Keystore → Download) and add to `%USERPROFILE%\.gradle\gradle.properties` (`~/.gradle/gradle.properties` on macOS), never to the repo:
+```
+DRYYT_UPLOAD_STORE_FILE=C:/keys/dryyt-upload.jks
+DRYYT_UPLOAD_STORE_PASSWORD=...
+DRYYT_UPLOAD_KEY_ALIAS=...
+DRYYT_UPLOAD_KEY_PASSWORD=...
+```
+Without them a local release build stops with "Release builds need the upload key". EAS builds use EAS's keystore.
+
 ## Check a machine
 
 Windows (cmd):

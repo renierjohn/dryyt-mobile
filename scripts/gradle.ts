@@ -16,17 +16,10 @@ if (!(target in API) || args.length === 0) {
 }
 
 const url = API[target];
-// The NDK pinned in app.config.js (expo-build-properties), passed on every build so it applies even when android/ was
-// prebuilt before the pin changed.
-const root = join(import.meta.dir, "..");
-const appConfig = require(join(root, "app.config.js"))({ config: require(join(root, "app.json")).expo });
-const ndkVersion: string | undefined = appConfig.plugins
-  ?.find((p: unknown) => Array.isArray(p) && p[0] === "expo-build-properties")?.[1]?.android?.ndkVersion;
-const gradleArgs = ndkVersion ? [...args, `-Pandroid.ndkVersion=${ndkVersion}`] : args;
 const env = { ...process.env, ...(url ? { EXPO_PUBLIC_API_URL: url } : {}) };
 // Windows runs .bat files through cmd.
 const wrapper = process.platform === "win32" ? ["cmd", "/c", "gradlew.bat"] : ["./gradlew"];
-console.log(`${wrapper.at(-1)} ${gradleArgs.join(" ")}${url ? ` (EXPO_PUBLIC_API_URL=${url})` : ""}`);
+console.log(`${wrapper.at(-1)} ${args.join(" ")}${url ? ` (EXPO_PUBLIC_API_URL=${url})` : ""}`);
 
-const proc = Bun.spawn([...wrapper, ...gradleArgs], { cwd: join(root, "android"), env, stdio: ["inherit", "inherit", "inherit"] });
+const proc = Bun.spawn([...wrapper, ...args], { cwd: join(import.meta.dir, "..", "android"), env, stdio: ["inherit", "inherit", "inherit"] });
 process.exit(await proc.exited);

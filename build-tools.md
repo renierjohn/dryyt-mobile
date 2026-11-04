@@ -15,7 +15,7 @@ Source: EAS build `682ad3ad-ff81-4b6e-9149-d747ea1b454f` (preview, Android, comm
 | Java (JDK) | 17 (OpenJDK) | EAS image default | Install JDK 17, set `JAVA_HOME` |
 | Gradle | 9.3.1 | Gradle wrapper (config plugin) | None, the wrapper downloads it |
 | Kotlin | 2.1.20 | Expo root project | None |
-| NDK | 27.1.12297006 | `app.config.js` `expo-build-properties` `ndkVersion` | Install NDK 27.1.12297006 |
+| NDK | 27.1.12297006 | React Native (`node_modules/react-native/gradle/libs.versions.toml`), read by Expo's root project plugin | Install NDK 27.1.12297006 |
 | CMake | 3.22.1 | React Native / native libraries | None, Gradle installs it |
 | Build-tools | 36.0.0 | Expo root project | None, Gradle installs it |
 | compileSdk / targetSdk | 36 / 36 | Expo root project | Install Android SDK Platform 36 |
@@ -84,6 +84,16 @@ rmdir /s /q %LOCALAPPDATA%\Android\Sdk\ndk\<version>
 sdkmanager "ndk;27.1.12297006"
 ```
 A following `SoftwareComponent with name 'release' not found` on `:expo` is a knock-on of the same failure and clears with it.
+
+**Gradle wants a different NDK than 27.1.12297006**
+Nothing in this repo sets the NDK; it comes from the installed React Native. Something on the machine is overriding it. Check, in order:
+```
+echo %ANDROID_NDK_HOME% & echo %ANDROID_NDK_ROOT%
+findstr ndk android\local.properties
+findstr ndkVersion android\build.gradle android\gradle.properties
+findstr version node_modules\react-native\package.json
+```
+Unset `ANDROID_NDK_HOME`/`ANDROID_NDK_ROOT` and remove `ndk.dir` from `local.properties` if they point at another NDK; run `bun install` and `bunx expo prebuild --platform android --clean` if React Native or `android/` is stale.
 
 **Gradle picks the wrong JDK**
 Stop the daemon after changing `JAVA_HOME`: `cd android && gradlew --stop` (Windows) / `./gradlew --stop` (macOS).

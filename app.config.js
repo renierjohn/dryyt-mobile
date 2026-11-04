@@ -22,7 +22,7 @@ module.exports = ({ config }) => ({
       'expo-build-properties',
       {
         ios: { useFrameworks: 'static' },
-        android: { ndkVersion: '27.1.12297006', enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true },
+        android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true },
       },
     ],
     // Without an App ID the app builds without the Facebook SDK setup and the Facebook button says it isn't set up.

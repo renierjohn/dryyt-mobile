@@ -73,6 +73,7 @@
 <li><a class="sec" href="#tools">Tools on Windows</a></li>
 <li><a class="sec" href="#rebuilds">Re-running after a failure</a></li>
 <li><a class="sec" href="#folders">Where things live</a></li>
+<li><a class="sec" href="#cache">What the cache holds</a></li>
 <li><a class="sec" href="#outputs">Outputs</a></li>
 <li><a class="sec" href="#windows">Windows gotchas</a></li>
 </ol>
@@ -162,12 +163,34 @@
 <thead><tr><th>Path</th><th>Holds</th><th>Safe to delete?</th></tr></thead>
 <tbody>
 <tr><td><code>%USERPROFILE%\.gradle\wrapper\dists</code></td><td>Gradle itself</td><td>Yes, re-downloaded</td></tr>
-<tr><td><code>%USERPROFILE%\.gradle\caches</code></td><td>Downloaded libraries, build cache</td><td>Yes, slow next build</td></tr>
+<tr><td><code>%USERPROFILE%\.gradle\caches</code></td><td>Downloaded libraries, build cache (<a href="#cache">details</a>)</td><td>Yes, slow next build</td></tr>
 <tr><td><code>%LOCALAPPDATA%\Android\Sdk</code></td><td>Platforms, build-tools, NDK, CMake</td><td>Per package, via SDK Manager</td></tr>
 <tr><td><code>android\app\build</code>, <code>android\build</code></td><td>Build outputs</td><td>Yes (<code>gradlew clean</code>)</td></tr>
 <tr><td><code>android\app\.cxx</code>, <code>node_modules\*\android\.cxx</code></td><td>CMake intermediates</td><td>Yes, when C++ builds act up</td></tr>
 <tr><td><code>android\</code></td><td>The generated project</td><td>Yes, <code>bunx expo prebuild --platform android --clean</code> recreates it</td></tr>
 </tbody></table></div>
+
+<h2 id="cache">What the cache holds</h2>
+<p>Everything under <code>%USERPROFILE%\.gradle\</code> (<code>~/.gradle/</code> on macOS):</p>
+<div class="tbl"><table>
+<thead><tr><th>Folder</th><th>Holds</th><th>Filled by</th><th>Safe to delete?</th></tr></thead>
+<tbody>
+<tr><td><code>wrapper\dists\</code></td><td>Gradle itself (9.3.1)</td><td><code>gradlew.bat</code> on first run</td><td>Yes, re-downloaded (~200 MB)</td></tr>
+<tr><td><code>caches\modules-2\</code></td><td>Downloaded libraries: Kotlin, AndroidX, Firebase, Play services, React Native and Hermes AARs</td><td>The first build</td><td>Yes, but the next build downloads everything again (needs internet)</td></tr>
+<tr><td><code>caches\transforms-*\</code></td><td>Libraries unpacked and converted for Android (AARs extracted, desugared, dexed)</td><td>Every build</td><td>Yes, rebuilt from <code>modules-2</code></td></tr>
+<tr><td><code>caches\jars-*\</code>, <code>caches\9.3.1\</code></td><td>Compiled build scripts and Gradle's plugin classes</td><td>Gradle startup</td><td>Yes</td></tr>
+<tr><td><b><code>caches\build-cache-1\</code></b></td><td><b>The build cache</b>: outputs of single tasks (compiled <code>.class</code> files, compiled resources, <code>.dex</code> files, merged manifests), each stored under a fingerprint of the task's inputs</td><td>Every <code>bun run gradle:*</code> (<code>--build-cache</code>)</td><td>Yes, slower until it fills again</td></tr>
+<tr><td><code>daemon\</code></td><td>Gradle daemon logs</td><td>Each daemon</td><td>Yes</td></tr>
+</tbody></table></div>
+<p>Before a task runs, Gradle fingerprints its inputs (source files, settings, library versions). If <code>build-cache-1</code> has an output for that fingerprint, Gradle copies it in and the task shows <code>FROM-CACHE</code>; otherwise the task runs and its output is saved.</p>
+<div class="tbl"><table>
+<thead><tr><th>Outside <code>.gradle</code></th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>android\app\build\</code>, <code>node_modules\*\android\build\</code></td><td>The last build's outputs; why a re-run after a failure skips finished tasks (<code>UP-TO-DATE</code>)</td></tr>
+<tr><td><code>android\app\.cxx\</code>, <code>node_modules\*\android\.cxx\</code></td><td>CMake's working files for C++. Not in the build cache, so deleting them recompiles all C++</td></tr>
+<tr><td><code>%LOCALAPPDATA%\Android\Sdk\</code></td><td>Installed SDK packages (NDK, CMake, build-tools); not a cache</td></tr>
+</tbody></table></div>
+<div class="note">Gradle removes cache entries unused for about a week, but <code>caches\</code> often reaches 5–15 GB with React Native. When disk is tight, delete <code>build-cache-1\</code> and <code>transforms-*\</code>: that frees the most without a full re-download.</div>
 
 <h2 id="outputs">Outputs</h2>
 <div class="mock">gradle:dev      android\app\build\outputs\apk\debug\app-debug.apk

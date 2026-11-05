@@ -141,6 +141,7 @@ p { margin: 0; color: var(--muted); }
 .brand-light { color: #fff; font-size: 1rem; }
 .footer-links { display: flex; gap: 20px; }
 .footer-links a:hover { color: #fff; }
+.footer-contact { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; }
 
 /* Legal pages (privacy.html, terms.html) */
 .legal-hero { background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; padding: 56px 0 48px; }
@@ -154,6 +155,7 @@ p { margin: 0; color: var(--muted); }
 .legal ul { padding-left: 20px; margin: 12px 0; }
 .legal li { margin-bottom: 8px; }
 .legal a { color: var(--brand-dark); text-decoration: underline; }
+.legal a.btn { color: #fff; text-decoration: none; margin: 4px 0; }
 .legal-toc { background: var(--brand-tint); border-radius: 12px; padding: 18px 22px; margin-bottom: 40px; }
 .legal-toc ol { margin: 8px 0 0; padding-left: 20px; columns: 2; column-gap: 32px; }
 .legal-toc a { text-decoration: none; }

@@ -4,8 +4,7 @@ import Footer from '../components/Footer';
 import Header from '../components/Header';
 import '../styles.css';
 
-// TODO: replace with the real support/privacy inbox before publishing.
-export const CONTACT_EMAIL = 'support@dryyt.com';
+export { CONTACT_EMAIL } from '../contact';
 export const UPDATED = 'October 20, 2026';
 
 export type Section = { id: string; title: string; body: ReactNode };

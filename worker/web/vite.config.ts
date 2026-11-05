@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // Output is served by the worker as static assets (see wrangler.jsonc "assets"): / is the landing page, /cpanel the admin panel,
-// /privacy and /terms the legal pages (the worker serves x.html for /x).
+// /privacy, /terms and /delete-account the legal pages (the worker serves x.html for /x).
 export default defineConfig({
 	plugins: [react()],
 	build: {
@@ -15,6 +15,7 @@ export default defineConfig({
 				cpanel: resolve(__dirname, 'cpanel.html'),
 				privacy: resolve(__dirname, 'privacy.html'),
 				terms: resolve(__dirname, 'terms.html'),
+				'delete-account': resolve(__dirname, 'delete-account.html'),
 			},
 		},
 	},

@@ -91,6 +91,10 @@
 <li><a href="#firebase">Firebase fingerprints</a></li>
 </ol></li>
 <li><a class="sec" href="#checklist">Release checklist</a></li>
+<li><a class="sec" href="#play">Publish on Google Play</a><ol>
+<li><a href="#play-setup">One-time setup</a></li>
+<li><a href="#play-release">Release a version</a></li>
+</ol></li>
 </ol>
 </aside>
 <main>
@@ -260,6 +264,35 @@ bun run shop:set 1 --owner 2 --preview</div>
 <div class="mock">1. Deploy the worker for the target (steps 1–2 above)
 2. bun run build:preview:ios   (registered iPhones)
    or bun run build:prod:ios &amp;&amp; bun run submit:ios   (TestFlight / App Store)</div>
+
+<h2 id="play">Publish on Google Play</h2>
+<p>Play takes only an AAB signed with the upload key: <code>bun run build:prod</code> (EAS) or <code>bun run gradle:release</code> (local, upload key from <code>~/.gradle/gradle.properties</code>). Both sign with the same key, so either build can go to Play. A debug-signed or APK build is rejected.</p>
+
+<h3 id="play-setup">One-time setup</h3>
+<div class="tbl"><table>
+<tr><th>Step</th><th>Where</th><th>Why</th></tr>
+<tr><td>Google Play developer account (one-time fee, identity verification)</td><td>play.google.com/console</td><td>Publishing. New personal accounts must run a closed test with at least 12 testers for 14 days before production access.</td></tr>
+<tr><td>Create app: name <b>Dryyt</b>, App, Free</td><td>Play Console → Home → Create app</td><td>The package name <code>com.dryyt.mobile</code> is fixed by the first AAB uploaded</td></tr>
+<tr><td>Fill in the store listing: short and full description, app icon (512×512), feature graphic (1024×500), at least 2 phone screenshots</td><td>Grow users → Store presence → Main store listing</td><td>Required before any release can be reviewed</td></tr>
+<tr><td>Complete <b>App content</b>: privacy policy <code>https://dryyt.com/privacy</code>, app access (give reviewers a test phone number and OTP), ads, content rating, target audience, data safety, account deletion <code>https://dryyt.com/delete-account</code></td><td>Policy and programs → App content</td><td>Play blocks review until every item is done. The app has account sign-in, so the deletion URL is required.</td></tr>
+<tr><td>Keep <b>Play App Signing</b> on (default) and let Google create the app signing key</td><td>Test and release → App integrity</td><td>Your AAB is signed with the upload key; Google re-signs it with its own key for installs</td></tr>
+<tr><td>Register the Play app signing key SHA-1 (and SHA-256)</td><td>Facebook and Firebase, see <a href="#signing">Signing keys</a></td><td>Without it Facebook and Google sign-in fail in the Play build</td></tr>
+</table></div>
+
+<h3 id="play-release">Release a version</h3>
+<div class="mock">1. Deploy the worker for production (Release checklist → Production, steps 1–2)
+2. Build the AAB:
+     bun run build:prod      → download the .aab from the EAS build page
+     or bun run gradle:release → android/app/build/outputs/bundle/release/app-release.aab
+3. Play Console → Test and release → Testing → Internal testing → Create new release
+4. Upload the .aab, add release notes, Next → Save and publish
+5. Add testers (email list) and open the opt-in link on a phone; install from Play
+6. On the Play build: sign in (phone, Google, Facebook), place a test order
+7. Promote: Internal testing → Promote release → Closed testing, then Production
+8. Production → choose rollout percentage (e.g. 20%) → Send for review
+9. After approval, raise the rollout to 100% (Production → Update rollout)</div>
+<p class="note">Every upload needs a higher version code than the last one. EAS production builds auto-increment it (<code>appVersionSource: remote</code>). A local <code>gradle:release</code> doesn't: set <code>android.versionCode</code> in <code>app.json</code> above the last uploaded code (<code>bunx eas build:version:get -p android</code>), then run <code>bun run prebuild</code> before building. Bump <code>version</code> in <code>app.json</code> for the version name users see.</p>
+<p>Review of the first release usually takes a few days; updates are often faster. Status and rejections show under Publishing overview and in the Inbox.</p>
 </main>
 </div>
 <script>

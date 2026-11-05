@@ -85,6 +85,7 @@
     "gradle:dev": "bun scripts/gradle.ts dev assembleDebug",
     "gradle:release": "bun scripts/gradle.ts production bundleRelease",
     "gradle:preview": "bun scripts/gradle.ts preview assemblePreview",
+    "serve:debug": "bun scripts/serve-debug.js",
     "apk-server": "bun scripts/apk-server.ts"
   },
   "private": true,
